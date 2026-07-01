@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NET TRADE — BLEND B</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800;900&family=Anton&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#EDE6D2;
+    --cream2:#F2ECE0;
+    --ink:#14110D;
+    --orange:#FF5A1F;
+    --purple:#5D5A86;
+    --teal:#2FB5A8;
+    --morange:#E8632A;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;border-radius:0;}
+  html,body{width:1512px;height:982px;overflow:hidden;background:var(--cream);}
+  body{font-family:'Oswald',sans-serif;color:var(--ink);position:relative;}
+
+  .stage{position:absolute;inset:0;width:1512px;height:982px;overflow:hidden;background:var(--cream);}
+
+  /* ===== cream field + halftone (clipped to cream side of the slash) ===== */
+  .halftone{
+    position:absolute;inset:0;
+    background-image:radial-gradient(var(--ink) 1.5px, transparent 1.7px);
+    background-size:14px 14px;opacity:.06;mix-blend-mode:multiply;
+    clip-path:polygon(34% 0,100% 0,100% 100%,16% 100%);
+  }
+
+  /* ===== TALL MARBLE COLUMN (left) — steep diagonal SLASH right edge ===== */
+  /* hard ink drop-shadow shape behind the column (bold offset) */
+  .col-shadow{
+    position:absolute;top:0;left:0;width:660px;height:982px;
+    background:var(--ink);
+    clip-path:polygon(0 0, 100% 0, 64% 100%, 0 100%);
+    transform:translate(18px,0);z-index:1;
+  }
+  .col{
+    position:absolute;top:0;left:0;width:642px;height:982px;
+    overflow:hidden;background:var(--ink);z-index:2;
+    /* STEEP diagonal slash: top edge far right, bottom edge pulled left */
+    clip-path:polygon(0 0, 100% 0, 70% 100%, 0 100%);
+  }
+  .col svg{position:absolute;top:-5%;left:-5%;width:110%;height:110%;}
+  .marble-drift{transform-origin:center;animation:drift 26s ease-in-out infinite alternate;}
+  @keyframes drift{
+    0%{transform:translate(0,0) scale(1.06) rotate(0deg);}
+    100%{transform:translate(-3%,-2.4%) scale(1.18) rotate(3.5deg);}
+  }
+  /* multiply halftone over the marble for printed dots */
+  .col-ht{
+    position:absolute;top:0;left:0;width:642px;height:982px;z-index:3;
+    clip-path:polygon(0 0, 100% 0, 70% 100%, 0 100%);
+    background-image:radial-gradient(rgba(12,10,18,.7) 1.6px, transparent 1.8px);
+    background-size:12px 12px;opacity:.16;mix-blend-mode:multiply;pointer-events:none;
+  }
+
+  /* ===== BOLD INK SLASH LINEWORK along the column edge (PANEL-max) ===== */
+  /* thick black keyline tracing the diagonal cut */
+  .slash-ink{
+    position:absolute;top:0;left:0;width:760px;height:982px;z-index:6;
+    background:var(--ink);
+    clip-path:polygon(99.0% 0, 100% 0, 69.0% 100%, 68.0% 100%);
+  }
+  /* the single orange signature rail riding just inside the slash */
+  .slash-rail{
+    position:absolute;top:0;left:0;width:760px;height:982px;z-index:5;
+    background:var(--orange);
+    clip-path:polygon(96.6% 0, 98.4% 0, 67.6% 100%, 65.8% 100%);
+  }
+
+  /* ===== secondary diagonal SHARD (SLASH facet) bleeding into cream ===== */
+  .shard{
+    position:absolute;z-index:7;
+    top:540px;left:548px;width:330px;height:150px;
+    background:var(--cream2);
+    border:6px solid var(--ink);
+    box-shadow:11px 11px 0 var(--ink);
+    transform:skewX(-26deg) rotate(-3deg);
+    clip-path:polygon(14% 0,100% 0,86% 100%,0 100%);
+    overflow:hidden;
+  }
+  .shard .shard-marble{position:absolute;inset:-30%;width:160%;height:160%;}
+  .shard-ht{position:absolute;inset:0;
+    background-image:radial-gradient(var(--ink) 1.4px,transparent 1.6px);
+    background-size:11px 11px;opacity:.14;mix-blend-mode:multiply;}
+
+  /* ===== TITLE — NET / TRADE stacked TOP-LEFT, tilted hard, bold ink ===== */
+  .titlewrap{
+    position:absolute;left:60px;top:58px;z-index:12;
+    transform:rotate(-7deg);transform-origin:left top;
+  }
+  .title-net,.title-trade{
+    font-family:'Unbounded',sans-serif;font-weight:900;
+    line-height:.80;letter-spacing:-.03em;text-transform:uppercase;display:block;
+  }
+  .title-net{
+    font-size:128px;color:var(--orange);
+    -webkit-text-stroke:6px var(--ink);paint-order:stroke fill;
+    text-shadow:10px 10px 0 var(--ink);
+  }
+  .title-trade{
+    font-size:128px;color:var(--cream2);
+    -webkit-text-stroke:6px var(--ink);paint-order:stroke fill;
+    text-shadow:10px 10px 0 var(--orange);
+    margin-left:8px;margin-top:-2px;
+  }
+  /* bold ink slash bar behind the title (signature linework) */
+  .title-bar{
+    position:absolute;left:-30px;top:-26px;width:22px;height:330px;z-index:11;
+    background:var(--orange);border:5px solid var(--ink);
+    transform:rotate(-7deg) skewX(-18deg);
+    box-shadow:7px 7px 0 var(--ink);
+  }
+
+  /* ===== tiny ACCOUNT / COMBINED status (single allowed extra) ===== */
+  .status{
+    position:absolute;left:70px;bottom:60px;z-index:12;
+    display:flex;align-items:stretch;transform:skewX(-12deg);
+    box-shadow:7px 7px 0 var(--ink);border:5px solid var(--ink);
+  }
+  .status .seg{
+    font-family:'Oswald',sans-serif;font-weight:700;
+    font-size:13px;letter-spacing:.30em;text-transform:uppercase;
+    padding:8px 16px 7px;color:var(--ink);background:var(--cream2);
+    border-right:4px solid var(--ink);display:flex;align-items:center;
+  }
+  .status .seg:last-child{border-right:0;}
+  .status .seg.on{background:var(--ink);color:var(--orange);}
+  .status .seg span{display:inline-block;transform:skewX(12deg);}
+
+  /* ===== MENU — right-aligned ORANGE list, sheared hard, BOLD INK tags ===== */
+  .menu{
+    position:absolute;right:84px;top:150px;width:760px;z-index:10;
+    display:flex;flex-direction:column;align-items:flex-end;gap:17px;
+  }
+  .row{
+    position:relative;display:flex;align-items:center;justify-content:flex-end;
+    height:74px;padding:0 30px 0 40px;
+    transform:skewX(-13deg);
+    transition:transform .14s cubic-bezier(.2,.9,.3,1.4),box-shadow .14s;
+  }
+  /* inactive: outlined-orange display type with a HEAVY ink keyline tag */
+  .row.ghost{
+    width:430px;background:transparent;
+    border:5px solid var(--ink);
+    box-shadow:8px 8px 0 var(--ink);background:var(--cream2);
+  }
+  .row .idx{
+    transform:skewX(13deg);
+    font-family:'Oswald',sans-serif;font-weight:700;font-size:15px;
+    letter-spacing:.18em;color:var(--ink);opacity:.5;width:34px;
+  }
+  .row .name{
+    transform:skewX(13deg);
+    font-family:'Unbounded',sans-serif;font-weight:800;
+    font-size:36px;letter-spacing:-.01em;text-transform:uppercase;
+    color:transparent;-webkit-text-stroke:2.6px var(--orange);
+    margin-left:auto;
+  }
+  .row.ghost .idx{margin-right:auto;}
+
+  .row.ghost:hover{transform:skewX(-13deg) translateX(-12px);box-shadow:12px 12px 0 var(--ink);}
+
+  /* widths cascade so the list steps down the diagonal axis */
+  .menu .row:nth-child(1){width:540px;}
+  .menu .row:nth-child(2){width:472px;margin-right:18px;}
+  .menu .row:nth-child(3){width:452px;margin-right:36px;}
+  .menu .row:nth-child(4){width:486px;margin-right:54px;}
+  .menu .row:nth-child(5){width:430px;margin-right:72px;}
+  .menu .row:nth-child(6){width:414px;margin-right:90px;}
+  .menu .row:nth-child(7){width:398px;margin-right:108px;}
+
+  /* ACTIVE — solid orange block inverted, heaviest ink frame + shadow, arrow */
+  .row.active{
+    background:var(--orange);
+    border:6px solid var(--ink);
+    box-shadow:13px 13px 0 var(--ink);
+    height:90px;
+    transform:skewX(-13deg) translateX(-10px) scale(1.03);
+  }
+  .row.active .name{
+    color:var(--ink);-webkit-text-stroke:0;font-weight:900;font-size:46px;
+  }
+  .row.active .idx{color:var(--ink);opacity:.85;font-size:16px;}
+  .row.active::after{
+    content:"";position:absolute;right:-30px;top:50%;
+    width:0;height:0;border-style:solid;
+    border-width:15px 0 15px 22px;
+    border-color:transparent transparent transparent var(--ink);
+    transform:translateY(-50%) skewX(13deg);
+  }
+
+  /* halftone dot cluster flourish drifting from the slash into cream (used once) */
+  .dotcluster{position:absolute;left:640px;bottom:170px;z-index:4;opacity:.42;transform:rotate(-7deg);}
+  .dotcluster circle{fill:var(--ink);}
+
+  /* full-frame grain, very low */
+  .grain{position:absolute;inset:0;z-index:30;opacity:.05;mix-blend-mode:multiply;pointer-events:none;}
+
+  @media (prefers-reduced-motion:reduce){
+    .marble-drift{animation:none;}
+    .row{transition:none;}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- cream halftone -->
+  <div class="halftone"></div>
+
+  <!-- ===== MARBLE COLUMN (left) ===== -->
+  <div class="col-shadow"></div>
+  <div class="col">
+    <svg viewBox="0 0 642 982" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- liquid marble: large warped bands, disciplined purple-dominant palette -->
+        <filter id="warp" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.0022 0.0040" numOctaves="3" seed="11" result="t"/>
+          <feDisplacementMap in="SourceGraphic" in2="t" scale="300" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+        <filter id="ribbon" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.0070 0.0120" numOctaves="3" seed="4" result="n"/>
+          <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0" result="g"/>
+          <feComponentTransfer in="g" result="b">
+            <feFuncA type="discrete" tableValues="0 1 0 1 1 0 1 0 1 0"/>
+          </feComponentTransfer>
+        </filter>
+        <linearGradient id="deepen" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#14110D" stop-opacity="0"/>
+          <stop offset="1" stop-color="#14110D" stop-opacity=".34"/>
+        </linearGradient>
+      </defs>
+      <g class="marble-drift">
+        <g filter="url(#warp)">
+          <rect width="642" height="982" fill="#27243f"/>
+          <g>
+            <!-- purple dominant (~62%): broad #5D5A86 / #7370A0 bands, thin minority veins -->
+            <rect x="-140" y="-80"  width="900" height="260" fill="#5D5A86"/>
+            <rect x="-140" y="180"  width="900" height="44"  fill="#E8632A"/>
+            <rect x="-140" y="224"  width="900" height="130" fill="#7370A0"/>
+            <rect x="-140" y="340"  width="900" height="34"  fill="#2FB5A8"/>
+            <rect x="-140" y="374"  width="900" height="86"  fill="#1A1622"/>
+            <rect x="-140" y="460"  width="900" height="200" fill="#5D5A86"/>
+            <rect x="-140" y="640"  width="900" height="50"  fill="#E8632A"/>
+            <rect x="-140" y="690"  width="900" height="170" fill="#7370A0"/>
+            <rect x="-140" y="850"  width="900" height="40"  fill="#1A1622"/>
+            <rect x="-140" y="890"  width="900" height="120" fill="#5D5A86"/>
+          </g>
+        </g>
+        <!-- thin accent ribbons for liquid detail -->
+        <rect width="642" height="982" fill="#FF7A3D" filter="url(#ribbon)" opacity="0.42"/>
+        <rect width="642" height="982" fill="#7370A0" filter="url(#ribbon)" opacity="0.34"/>
+      </g>
+      <rect width="642" height="982" fill="url(#deepen)"/>
+    </svg>
+  </div>
+  <div class="col-ht"></div>
+
+  <!-- bold ink slash linework + orange rail -->
+  <div class="slash-rail"></div>
+  <div class="slash-ink"></div>
+
+  <!-- secondary diagonal shard -->
+  <div class="shard">
+    <svg class="shard-marble" viewBox="0 0 330 150" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <g filter="url(#warp)">
+        <rect width="330" height="150" fill="#5D5A86"/>
+        <rect x="-40" y="40" width="420" height="34" fill="#E8632A"/>
+        <rect x="-40" y="92" width="420" height="26" fill="#2FB5A8"/>
+        <rect x="-40" y="-10" width="420" height="22" fill="#1A1622"/>
+      </g>
+    </svg>
+    <div class="shard-ht"></div>
+  </div>
+
+  <!-- halftone dot cluster flourish -->
+  <svg class="dotcluster" width="220" height="110" viewBox="0 0 220 110">
+    <circle cx="10" cy="55" r="5"/><circle cx="34" cy="55" r="5"/><circle cx="58" cy="55" r="5"/>
+    <circle cx="82" cy="36" r="5"/><circle cx="82" cy="74" r="5"/>
+    <circle cx="106" cy="20" r="5"/><circle cx="106" cy="55" r="5"/><circle cx="106" cy="90" r="5"/>
+    <circle cx="130" cy="36" r="5"/><circle cx="130" cy="74" r="5"/>
+    <circle cx="154" cy="55" r="5"/><circle cx="178" cy="55" r="5"/>
+  </svg>
+
+  <!-- ===== TITLE top-left ===== -->
+  <div class="title-bar"></div>
+  <div class="titlewrap">
+    <span class="title-net">NET</span>
+    <span class="title-trade">TRADE</span>
+  </div>
+
+  <!-- ===== tiny status ===== -->
+  <div class="status">
+    <div class="seg on"><span>ACCOUNT</span></div>
+    <div class="seg"><span>COMBINED</span></div>
+  </div>
+
+  <!-- ===== MENU ===== -->
+  <nav class="menu">
+    <div class="row active"><span class="idx">01</span><span class="name">Dashboard</span></div>
+    <div class="row ghost"><span class="idx">02</span><span class="name">Positions</span></div>
+    <div class="row ghost"><span class="idx">03</span><span class="name">Watchlist</span></div>
+    <div class="row ghost"><span class="idx">04</span><span class="name">Performance</span></div>
+    <div class="row ghost"><span class="idx">05</span><span class="name">Compare</span></div>
+    <div class="row ghost"><span class="idx">06</span><span class="name">Journal</span></div>
+    <div class="row ghost"><span class="idx">07</span><span class="name">Settings</span></div>
+  </nav>
+
+  <!-- grain -->
+  <svg class="grain" xmlns="http://www.w3.org/2000/svg">
+    <filter id="gr"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .5 0"/></filter>
+    <rect width="100%" height="100%" filter="url(#gr)"/>
+  </svg>
+
+</div>
+</body>
+</html>

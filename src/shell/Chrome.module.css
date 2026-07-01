@@ -1,0 +1,299 @@
+/* Chrome — presentational top telemetry bar + bottom status bar.
+   Peripheral, monospace, low-contrast. Panels never touch the frame edge —
+   dark deadspace frames them. */
+
+.chrome {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Body well between the top/bottom bars. Bounded to the leftover height
+   (min-height:0 lets it shrink) so the screen inside can scroll its own
+   panels instead of overflowing the fixed CRT and getting clipped. */
+.chromeBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Top bar ---- */
+
+.topBar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: var(--s4) var(--s4) 0;
+  padding: var(--s2) var(--s4);
+  border: 1px solid var(--ink-line);
+  border-radius: 4px;
+  background: rgba(36, 41, 56, 0.35); /* --ink-raise with alpha */
+  position: relative;
+}
+
+/* Corner brackets — diegetic character via hairline strokes only. */
+.topBar::before,
+.topBar::after,
+.statusBar::before,
+.statusBar::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  border-color: var(--ink-line);
+  border-style: solid;
+}
+.topBar::before {
+  top: -1px;
+  left: -1px;
+  border-width: 1px 0 0 1px;
+}
+.topBar::after {
+  top: -1px;
+  right: -1px;
+  border-width: 1px 1px 0 0;
+}
+.statusBar::before {
+  bottom: -1px;
+  left: -1px;
+  border-width: 0 0 1px 1px;
+}
+.statusBar::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 1px 1px 0;
+}
+
+.wordmarkRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--animus-field);
+  margin: 0;
+}
+
+.sdnTag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--ghost-title);
+  border: 1px solid var(--ink-line);
+  border-radius: 2px;
+  padding: 2px 6px;
+}
+
+.ticker {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ghost-title);
+}
+
+.tickerItem {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  white-space: nowrap;
+}
+
+.tickerLabel {
+  color: var(--ghost-title);
+  opacity: 0.8;
+}
+
+.tickerValue {
+  color: var(--animus-field);
+  font-variant-numeric: tabular-nums;
+}
+
+.clock {
+  color: var(--animus-field);
+  font-variant-numeric: tabular-nums;
+  min-width: 7ch;
+  text-align: right;
+}
+
+/* SYNC telemetry item — colour tracks connection state (dot + word both
+   carry meaning, never colour-only). Quiet: same size/weight as its
+   ticker siblings, no motion. */
+.tickerSync {
+  gap: 6px;
+}
+
+.tickerGlyph {
+  font-size: 8px;
+  line-height: 1;
+}
+
+.tickerSync.connOk .tickerGlyph,
+.tickerSync.connOk .tickerValue {
+  color: var(--gain);
+}
+.tickerSync.connError .tickerGlyph,
+.tickerSync.connError .tickerValue {
+  color: var(--loss);
+}
+.tickerSync.connLoading .tickerGlyph,
+.tickerSync.connLoading .tickerValue {
+  color: var(--amber);
+}
+.tickerSync.connNoKey .tickerGlyph,
+.tickerSync.connNoKey .tickerValue {
+  color: var(--ghost-title);
+}
+
+/* ---- INTERIM nav — superseded by the Phase-3 Animus (AC-style) WebGL menu ----
+   A thin row between the top telemetry bar and the chrome body. flex:0 0 auto
+   like topBar/statusBar, so it does NOT break the viewport-lock height chain
+   (topBar -> nav -> chromeBody(flex:1) -> statusBar, SCREEN_PATTERNS.md §2). */
+
+.nav {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s2) var(--s4) 0;
+  padding: 6px var(--s3);
+  border: 1px solid var(--ink-line);
+  border-radius: 4px;
+  background: rgba(36, 41, 56, 0.35); /* --ink-raise with alpha, matches topBar/statusBar */
+  overflow-x: auto;
+}
+
+.navLink {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ghost-title);
+  text-decoration: none;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+
+.navLink:hover {
+  color: var(--animus-field);
+}
+
+.navLinkActive {
+  color: var(--amber);
+  border-color: var(--amber);
+  background: rgba(232, 132, 42, 0.1);
+}
+
+/* ---- Bottom status bar ---- */
+
+.statusBar {
+  flex: 0 0 auto;
+  margin: var(--s3) var(--s4) var(--s4);
+  padding: var(--s2) var(--s4);
+  border: 1px solid var(--ink-line);
+  border-radius: 4px;
+  background: rgba(36, 41, 56, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  position: relative;
+}
+
+.statusGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ghost-title);
+  overflow: hidden;
+}
+
+.statusItem {
+  white-space: nowrap;
+}
+
+.statusItem b {
+  color: var(--animus-field);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Segment separators — instrument-panel read: low-contrast hairline slash
+   between telemetry fields rather than bare gaps. */
+.statusSep {
+  color: var(--ink-line);
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* LIVE/DEMO pill */
+.pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  flex: 0 0 auto;
+}
+
+.pillDemo {
+  color: var(--amber);
+}
+
+.pillLive {
+  color: var(--teal);
+}
+
+/* Connection indicator: dot + word, colour AND word both carry state. */
+.connection {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex: 0 0 auto;
+}
+
+.dot {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.connOk {
+  color: var(--gain);
+}
+.connError {
+  color: var(--loss);
+}
+.connLoading {
+  color: var(--amber);
+}
+.connNoKey {
+  color: var(--ghost-title);
+}

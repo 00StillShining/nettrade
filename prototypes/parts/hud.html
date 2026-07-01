@@ -1,0 +1,326 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;600;700&family=Permanent+Marker&family=Bungee&display=swap');
+
+:root{
+  --ink:#0D0D0D; --ink2:#1A1A17; --paper:#F2ECE0; --cream:#EDE6D2; --bone:#FFFFFF;
+  --orange:#FF5A1F; --orange2:#FF7A18; --teal:#2FD0C5; --purple:#8A7FD0;
+  --red:#E60012; --shout:#FFE100;
+}
+
+#nt-hud, #nt-hud *{ box-sizing:border-box; }
+#nt-hud{ font-family:"Oswald",sans-serif; }
+
+/* ============ shared texture utilities ============ */
+#nt-hud .halftone{
+  background-image:radial-gradient(var(--ink) 1.4px, transparent 1.6px);
+  background-size:6px 6px;
+}
+#nt-hud .halftone-o{
+  background-image:radial-gradient(var(--orange) 1.5px, transparent 1.7px);
+  background-size:7px 7px;
+}
+
+/* ============ HERO SHOUT NUMBER (lower-left) ============ */
+#nt-hud .hero{
+  position:absolute; left:46px; top:734px; width:560px; height:208px;
+  transform:rotate(-4deg);
+}
+/* teal liquid blob behind the shout */
+#nt-hud .hero-blob{
+  position:absolute; left:-22px; top:46px; width:520px; height:150px;
+  background:var(--teal);
+  clip-path:polygon(2% 22%,16% 4%,40% 14%,58% 2%,82% 12%,100% 30%,96% 72%,80% 96%,52% 88%,28% 100%,8% 80%,0 52%);
+  filter:url(#nt-rough);
+  opacity:.92; mix-blend-mode:normal;
+  box-shadow:10px 10px 0 var(--ink);
+}
+/* purple offset slab */
+#nt-hud .hero-purple{
+  position:absolute; left:24px; top:30px; width:430px; height:120px;
+  background:var(--purple);
+  clip-path:polygon(0 18%,6% 0,100% 8%,96% 100%,4% 92%);
+  transform:rotate(2deg);
+  filter:url(#nt-rough);
+  box-shadow:6px 6px 0 var(--ink);
+}
+/* "TODAY P/L" little black tag riding on top-left of the slab */
+#nt-hud .hero-label{
+  position:absolute; left:14px; top:12px; z-index:6;
+  background:var(--ink); color:var(--bone);
+  font-family:"Oswald",sans-serif; font-weight:700; font-size:18px;
+  letter-spacing:.18em; text-transform:uppercase;
+  padding:5px 16px 5px 12px;
+  clip-path:polygon(6% 0,100% 0,94% 100%,0 100%);
+  transform:rotate(-2.5deg);
+  box-shadow:4px 4px 0 var(--orange);
+}
+/* the yellow shout plate — the ONE yellow */
+#nt-hud .hero-plate{
+  position:absolute; left:28px; top:42px; z-index:5;
+  background:var(--shout);
+  clip-path:polygon(3% 12%,8% 0,100% 6%,97% 90%,92% 100%,1% 94%);
+  padding:14px 34px 18px 26px;
+  filter:url(#nt-rough2);
+  box-shadow:0 0 0 5px var(--ink), 12px 12px 0 var(--orange);
+}
+#nt-hud .hero-num{
+  font-family:"Anton",sans-serif; font-size:90px; line-height:.82;
+  color:var(--ink); letter-spacing:-0.02em;
+  -webkit-text-stroke:2px var(--ink);
+  text-shadow:4px 4px 0 var(--orange);
+  display:block; transform:skewX(-5deg);
+}
+#nt-hud .hero-num .pound{ font-size:62px; vertical-align:8px; margin-right:2px; }
+/* small "+▲ 3.2%" chip kicking off the corner */
+#nt-hud .hero-delta{
+  position:absolute; right:-26px; bottom:-18px; z-index:7;
+  background:var(--orange); color:var(--ink);
+  font-family:"Oswald",sans-serif; font-weight:700; font-size:21px;
+  letter-spacing:.04em; padding:4px 14px 5px;
+  clip-path:polygon(8% 0,100% 0,92% 100%,0 100%);
+  transform:rotate(6deg);
+  box-shadow:0 0 0 3px var(--ink),5px 5px 0 var(--ink);
+}
+/* permanent-marker scrawl under the number */
+#nt-hud .hero-scrawl{
+  position:absolute; left:38px; top:172px; z-index:8;
+  font-family:"Permanent Marker",cursive; font-size:26px; color:var(--ink);
+  transform:rotate(-3deg); text-shadow:2px 2px 0 var(--teal);
+}
+
+/* ============ ACCOUNT TOGGLE (upper area, tilted bar) ============ */
+#nt-hud .acct{
+  position:absolute; left:40px; top:36px; width:520px; height:96px;
+  transform:rotate(-3deg);
+}
+#nt-hud .acct-bk{
+  position:absolute; left:0; top:8px; width:512px; height:64px;
+  background:var(--ink);
+  clip-path:polygon(0 26%,2% 0,100% 6%,99% 100%,1% 90%);
+  box-shadow:8px 8px 0 var(--orange);
+}
+#nt-hud .acct-row{
+  position:absolute; left:14px; top:14px; display:flex; gap:10px; align-items:center; z-index:4;
+}
+#nt-hud .seg{
+  font-family:"Oswald",sans-serif; font-weight:600; font-size:20px;
+  letter-spacing:.08em; text-transform:uppercase;
+  padding:8px 16px 9px; color:var(--cream); background:transparent;
+  clip-path:polygon(8% 0,100% 0,92% 100%,0 100%);
+  position:relative;
+}
+#nt-hud .seg.on{
+  background:var(--orange); color:var(--ink); font-weight:700;
+  box-shadow:0 0 0 3px var(--ink), 5px 5px 0 var(--ink);
+  transform:rotate(-2deg) scale(1.04);
+}
+#nt-hud .seg .star{ color:var(--shout); }
+#nt-hud .acct-tab{
+  position:absolute; left:6px; top:-22px; z-index:6;
+  font-family:"Bungee",cursive; font-size:13px; letter-spacing:.1em;
+  background:var(--teal); color:var(--ink);
+  padding:3px 12px 4px; transform:rotate(-4deg);
+  clip-path:polygon(6% 0,100% 0,94% 100%,0 100%);
+  box-shadow:3px 3px 0 var(--ink);
+}
+
+/* ============ LIVE + SYNC cluster (top-right) ============ */
+#nt-hud .live{
+  position:absolute; right:42px; top:40px; width:320px; height:120px;
+  transform:rotate(2.5deg);
+}
+#nt-hud .live-tag{
+  position:absolute; right:0; top:0;
+  background:var(--red); color:var(--bone);
+  font-family:"Anton",sans-serif; font-size:30px; letter-spacing:.04em;
+  text-transform:uppercase; padding:6px 20px 8px 30px;
+  clip-path:polygon(12% 0,100% 0,100% 100%,0 100%);
+  box-shadow:0 0 0 4px var(--ink), 7px 7px 0 var(--ink);
+  -webkit-text-stroke:1px var(--ink);
+}
+#nt-hud .live-dot{
+  display:inline-block; width:13px; height:13px; background:var(--shout);
+  margin-right:9px; vertical-align:2px;
+  clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  box-shadow:0 0 0 2px var(--ink);
+}
+#nt-hud .sync{
+  position:absolute; right:-6px; top:58px;
+  background:var(--cream); color:var(--ink);
+  font-family:"Oswald",sans-serif; font-weight:600; font-size:16px;
+  letter-spacing:.07em; text-transform:uppercase;
+  padding:6px 14px 7px 28px;
+  clip-path:polygon(0 0,100% 0,94% 100%,4% 100%);
+  transform:rotate(-3deg);
+  box-shadow:5px 5px 0 var(--ink);
+  border:0;
+}
+#nt-hud .sync b{ color:var(--orange); font-weight:700; }
+/* tiny purple "//" stamp tucked under */
+#nt-hud .sync-stamp{
+  position:absolute; right:120px; top:96px;
+  font-family:"Permanent Marker",cursive; font-size:20px; color:var(--purple);
+  transform:rotate(-8deg);
+}
+
+/* ============ MENU // MAIN tag (mid-right, P5 style) ============ */
+#nt-hud .menutag{
+  position:absolute; right:46px; top:178px; width:320px; height:106px;
+  transform:rotate(-3.5deg);
+}
+#nt-hud .menutag-bk{
+  position:absolute; inset:0; background:var(--bone);
+  clip-path:polygon(0 8%,94% 0,100% 84%,6% 100%);
+  box-shadow:9px 9px 0 var(--ink);
+}
+#nt-hud .menutag-ht{
+  position:absolute; left:8px; top:8px; right:8px; bottom:8px;
+  clip-path:polygon(0 8%,94% 0,100% 84%,6% 100%);
+  opacity:.22;
+}
+#nt-hud .menutag-t1{
+  position:absolute; left:18px; top:16px; z-index:3;
+  font-family:"Anton",sans-serif; font-size:40px; color:var(--ink);
+  letter-spacing:-0.02em; line-height:.86; white-space:nowrap;
+}
+#nt-hud .menutag-t1 .sl{ color:var(--orange); }
+#nt-hud .menutag-t2{
+  position:absolute; left:20px; top:66px; z-index:3;
+  font-family:"Oswald",sans-serif; font-weight:600; font-size:15px;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--ink);
+}
+/* black corner triangle stamp on the menu tag */
+#nt-hud .menutag-cnr{
+  position:absolute; right:-10px; top:-14px; z-index:4;
+  width:0; height:0; border-left:30px solid transparent;
+  border-bottom:30px solid var(--ink); transform:rotate(8deg);
+}
+
+/* ============ CORNER BUTTON PROMPTS (bottom) ============ */
+#nt-hud .prompts{
+  position:absolute; right:34px; bottom:30px;
+  display:flex; gap:16px; align-items:flex-end;
+  transform:rotate(-2deg);
+}
+#nt-hud .prompt{
+  display:flex; align-items:center; gap:9px;
+  background:var(--ink); color:var(--cream);
+  font-family:"Oswald",sans-serif; font-weight:600; font-size:18px;
+  letter-spacing:.08em; text-transform:uppercase;
+  padding:8px 16px 9px 10px;
+  clip-path:polygon(7% 0,100% 0,93% 100%,0 100%);
+  box-shadow:6px 6px 0 var(--ink2);
+}
+#nt-hud .prompt .key{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:30px; height:30px; font-family:"Bungee",cursive; font-size:16px;
+  background:var(--cream); color:var(--ink);
+  clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);
+}
+#nt-hud .prompt.enter{ transform:rotate(-3deg) translateY(-6px); }
+#nt-hud .prompt.enter{ background:var(--orange); color:var(--ink); font-weight:700; }
+#nt-hud .prompt.enter .key{ background:var(--ink); color:var(--shout); }
+#nt-hud .prompt.enter{ box-shadow:0 0 0 3px var(--ink),7px 7px 0 var(--ink); }
+#nt-hud .prompt.close .key{ background:var(--red); color:var(--bone); }
+
+/* stray graffiti marks / stamps */
+#nt-hud .mark-circ{
+  position:absolute; left:628px; top:828px;
+  width:64px; height:64px; border:5px solid var(--orange); border-radius:50%;
+  transform:rotate(-12deg); opacity:.85;
+  clip-path:polygon(0 0,86% 4%,100% 90%,10% 100%);
+}
+#nt-hud .mark-x{
+  position:absolute; left:548px; top:700px;
+  font-family:"Permanent Marker",cursive; font-size:40px; color:var(--purple);
+  transform:rotate(14deg);
+}
+#nt-hud .mark-stamp{
+  position:absolute; left:392px; bottom:128px;
+  font-family:"Bungee",cursive; font-size:14px; letter-spacing:.18em;
+  color:var(--ink); background:var(--shout);
+  padding:5px 14px; transform:rotate(-5deg);
+  clip-path:polygon(4% 0,100% 0,96% 100%,0 100%);
+  box-shadow:0 0 0 3px var(--ink),4px 4px 0 var(--ink);
+  opacity:.95;
+}
+#nt-hud .speed{
+  position:absolute; left:300px; top:820px; width:340px; height:120px;
+  background:repeating-linear-gradient(118deg, var(--orange) 0 3px, transparent 3px 26px);
+  opacity:.28; transform:rotate(-4deg);
+  clip-path:polygon(0 0,100% 8%,96% 100%,4% 92%);
+  z-index:0;
+}
+</style>
+</head>
+<body style="margin:0;background:var(--ink)">
+
+<!-- SVG roughen filters -->
+<svg width="0" height="0" style="position:absolute">
+  <filter id="nt-rough"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.035" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="7"/></filter>
+  <filter id="nt-rough2"><feTurbulence type="fractalNoise" baseFrequency="0.02 0.04" numOctaves="2" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="4"/></filter>
+</svg>
+
+<div id="nt-hud" style="position:absolute;inset:0;width:1512px;height:982px;overflow:visible">
+
+  <!-- speed lines behind hero -->
+  <div class="speed"></div>
+
+  <!-- ===== ACCOUNT TOGGLE ===== -->
+  <div class="acct">
+    <div class="acct-tab">ACCOUNT</div>
+    <div class="acct-bk"></div>
+    <div class="acct-row">
+      <div class="seg">YOU</div>
+      <div class="seg">PARTNER</div>
+      <div class="seg on"><span class="star">★</span> COMBINED</div>
+    </div>
+  </div>
+
+  <!-- ===== LIVE + SYNC ===== -->
+  <div class="live">
+    <div class="live-tag"><span class="live-dot"></span>LIVE</div>
+    <div class="sync">LAST SYNCED <b>14:32</b></div>
+    <div class="sync-stamp">//</div>
+  </div>
+
+  <!-- ===== MENU // MAIN ===== -->
+  <div class="menutag">
+    <div class="menutag-bk"></div>
+    <div class="menutag-ht halftone"></div>
+    <div class="menutag-cnr"></div>
+    <div class="menutag-t1">MENU<span class="sl">//</span><span style="color:var(--orange)">MAIN</span></div>
+    <div class="menutag-t2">SELECT A STATION</div>
+  </div>
+
+  <!-- ===== HERO SHOUT NUMBER ===== -->
+  <div class="hero">
+    <div class="hero-blob"></div>
+    <div class="hero-purple"></div>
+    <div class="hero-label">TODAY · TOTAL P/L</div>
+    <div class="hero-plate">
+      <span class="hero-num"><span class="pound">£</span>14,240</span>
+    </div>
+    <div class="hero-delta">▲ +3.2%</div>
+    <div class="hero-scrawl">on the up.</div>
+  </div>
+
+  <!-- stray marks -->
+  <div class="mark-x">✕</div>
+  <div class="mark-circ"></div>
+  <div class="mark-stamp">★ NETTRADE ★</div>
+
+  <!-- ===== CORNER BUTTON PROMPTS ===== -->
+  <div class="prompts">
+    <div class="prompt close"><span class="key">✕</span>CLOSE</div>
+    <div class="prompt back"><span class="key">B</span>BACK</div>
+    <div class="prompt enter"><span class="key">A</span>ENTER STATION</div>
+  </div>
+
+</div>
+</body>
+</html>

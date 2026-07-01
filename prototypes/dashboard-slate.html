@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1512, height=982">
+<title>NETTRADE // trading station — main menu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800;900&family=Chakra+Petch:wght@500;600;700&family=Space+Mono:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --orange:#FF7A18; --orange-deep:#FF5500;
+    --teal:#2FD0C5; --peri:#8A7FD0; --rust:#C9683C;
+    --ink:#161616; --metal:#cfcfce; --metal-hi:#eef0ef; --metal-lo:#9b9c9e;
+    --glowS:0 0 4px #ff7a18,0 0 12px #ff5500,0 0 24px rgba(255,85,0,.55);
+    --dropO:drop-shadow(0 0 6px rgba(255,90,0,.6));
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1512px;height:982px;overflow:hidden;background:#0a0708}
+  body{
+    font-family:'Space Mono',monospace;color:var(--ink);
+    position:relative;
+    user-select:none;
+  }
+  .stage{position:absolute;inset:0;width:1512px;height:982px;overflow:hidden}
+
+  /* ===== full-bleed smoke ===== */
+  .smoke{position:absolute;inset:0;z-index:0}
+  .smoke svg{width:100%;height:100%;display:block}
+  .vignette{position:absolute;inset:0;z-index:1;pointer-events:none;
+    background:radial-gradient(120% 90% at 30% 18%,rgba(0,0,0,0) 38%,rgba(4,2,3,.55) 100%);}
+  .grain{position:absolute;inset:0;z-index:1;opacity:.5;mix-blend-mode:overlay;pointer-events:none}
+
+  /* ===== layout ===== */
+  .frame{position:absolute;inset:0;z-index:5;padding:30px 34px;display:flex;gap:26px}
+
+  /* ===== shared scuffed metal ===== */
+  .metal{
+    position:relative;border-radius:14px;
+    background:
+      linear-gradient(177deg,rgba(255,255,255,.55),rgba(255,255,255,0) 16%),
+      linear-gradient(92deg,rgba(0,0,0,.10),rgba(0,0,0,0) 9%,rgba(0,0,0,0) 90%,rgba(0,0,0,.16)),
+      repeating-linear-gradient(96deg,rgba(255,255,255,.05) 0 2px,rgba(0,0,0,.045) 2px 4px),
+      radial-gradient(140% 120% at 22% 8%,#f3f4f3 0%,#dadbda 30%,#c2c3c4 60%,#a9aaad 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.85),
+      inset 0 -2px 6px rgba(0,0,0,.28),
+      inset 0 0 0 1px rgba(255,255,255,.18),
+      0 18px 40px rgba(0,0,0,.55),
+      0 2px 0 rgba(0,0,0,.4);
+  }
+  .metal::before{ /* turbulence wear */
+    content:"";position:absolute;inset:0;border-radius:inherit;
+    background:url(#noWear);pointer-events:none;
+  }
+  .wearlayer{position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    mix-blend-mode:overlay;opacity:.55}
+  .grimelayer{position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    mix-blend-mode:multiply;opacity:.22}
+  .scratchCanvas{position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+
+  /* ===== LEFT art panel ===== */
+  .artpanel{
+    width:430px;flex:0 0 430px;position:relative;border-radius:16px;overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(255,180,120,.16),
+      inset 0 1px 0 rgba(255,255,255,.18),
+      0 22px 60px rgba(0,0,0,.6);
+    background:linear-gradient(180deg,#1a0f16,#120a12 60%,#0c0710);
+  }
+  .artpanel .innerSmoke{position:absolute;inset:0;z-index:0}
+  .artpanel .innerSmoke svg{width:100%;height:100%}
+  .artframe{position:absolute;inset:10px;border-radius:12px;z-index:3;pointer-events:none;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),
+      inset 0 0 60px rgba(0,0,0,.55);}
+  .arttop{position:absolute;top:24px;left:26px;right:26px;z-index:4}
+  .kicker{font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:3px;
+    color:rgba(255,222,205,.72);text-transform:uppercase}
+  .arttitle{font-family:'Unbounded',sans-serif;font-weight:800;font-size:21px;letter-spacing:1px;
+    color:#fff;margin-top:8px;line-height:1.15;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+  .arttitle b{color:var(--orange);text-shadow:var(--glowS)}
+  .seriesline{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1.5px;
+    color:rgba(255,190,150,.8);margin-top:10px}
+
+  .sculpt{position:absolute;left:0;right:0;bottom:34px;z-index:4}
+  .sculptcap{position:absolute;left:26px;bottom:8px;z-index:5;
+    font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:2px;
+    color:rgba(255,225,210,.55);text-transform:uppercase}
+
+  /* ===== RIGHT column ===== */
+  .right{flex:1;display:flex;flex-direction:column;gap:16px;min-width:0}
+
+  /* header bar */
+  .topbar{display:flex;align-items:center;gap:18px;padding:16px 22px;min-height:92px}
+  .brandmark{flex:0 0 auto;filter:var(--dropO)}
+  .brandwrap{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .wordmark{font-family:'Unbounded',sans-serif;font-weight:900;font-size:34px;letter-spacing:1px;
+    line-height:.95;color:var(--ink);text-shadow:0 1px 0 rgba(255,255,255,.5)}
+  .wordmark .net{color:var(--ink)}
+  .wordmark .trade{color:var(--orange-deep);text-shadow:var(--glowS)}
+  .subbrand{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:1px;color:#3a3a3a}
+
+  .ledslab{margin-left:auto;flex:0 0 auto;border-radius:12px;padding:12px 18px 11px;
+    background:
+      linear-gradient(180deg,#1c1d20,#0b0c0e);
+    box-shadow:inset 0 2px 8px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,255,255,.06),
+      inset 0 -1px 0 rgba(255,255,255,.05),0 2px 0 rgba(255,255,255,.25);
+    min-width:248px;position:relative;overflow:hidden}
+  .ledslab::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.25) 0 1px,rgba(0,0,0,0) 1px 3px);opacity:.5}
+  .ledrow1{display:flex;align-items:center;justify-content:space-between;gap:14px}
+  .ledmode{font-family:'Share Tech Mono',monospace;font-size:13px;letter-spacing:3px;
+    color:var(--orange);text-shadow:var(--glowS)}
+  .ledlive{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;
+    color:#ffd8c2;display:flex;align-items:center;gap:6px}
+  .ledlive .dot{width:7px;height:7px;border-radius:50%;background:var(--orange);
+    box-shadow:0 0 6px var(--orange),0 0 12px var(--orange-deep)}
+  .ledbal{font-family:'Share Tech Mono',monospace;font-size:38px;letter-spacing:2px;
+    color:#ffe9da;text-shadow:0 0 6px rgba(255,120,40,.5),0 0 16px rgba(255,85,0,.3);
+    line-height:1;margin-top:7px}
+  .ledbal b{color:var(--orange);text-shadow:var(--glowS)}
+  .ledsync{font-family:'Share Tech Mono',monospace;font-size:10.5px;letter-spacing:2px;
+    color:rgba(180,185,195,.7);margin-top:6px}
+
+  /* account toggle */
+  .toggle{display:flex;align-items:center;gap:10px;padding:9px 12px;align-self:flex-start}
+  .toglabel{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:1px;color:#444;margin-right:4px}
+  .seg{display:flex;gap:0;border-radius:9px;overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.25),inset 0 2px 5px rgba(0,0,0,.3)}
+  .seg button{font-family:'Chakra Petch',sans-serif;font-weight:600;font-size:13px;letter-spacing:1.5px;
+    border:0;cursor:default;padding:9px 18px;color:#2c2c2c;
+    background:linear-gradient(180deg,#dadbda,#bdbec0);text-transform:uppercase;position:relative}
+  .seg button + button{box-shadow:inset 1px 0 0 rgba(0,0,0,.18)}
+  .seg button.on{
+    color:#1a0c04;background:
+      linear-gradient(180deg,#ffb066,#ff7a18 55%,#ff5500);
+    text-shadow:0 1px 0 rgba(255,255,255,.25);
+    box-shadow:inset 0 0 0 1px rgba(255,210,170,.8),inset 0 -3px 8px rgba(120,30,0,.45),
+      0 0 14px rgba(255,85,0,.55)}
+
+  /* station list */
+  .stations{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0}
+  .row{display:flex;align-items:center;gap:18px;padding:13px 18px 13px 16px;min-height:64px;
+    border-radius:11px;position:relative}
+  .marker{flex:0 0 auto;width:34px;display:flex;align-items:center;justify-content:center}
+  .marker svg{filter:drop-shadow(0 0 3px rgba(0,0,0,.35))}
+  .rowtxt{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+  .rowname{font-family:'Unbounded',sans-serif;font-weight:700;font-size:18px;letter-spacing:.3px;
+    color:var(--ink);line-height:1.05}
+  .rowtag{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.4px;color:#4a4a4a}
+  .rownum{flex:0 0 auto;font-family:'Share Tech Mono',monospace;font-size:13px;letter-spacing:1px;
+    color:#3d3d3d}
+  .rownum .pos{color:#1f7d54}
+  .rownum .neg{color:var(--rust)}
+  .chev{flex:0 0 auto;opacity:.5}
+
+  /* active row */
+  .row.active{
+    background:
+      linear-gradient(177deg,rgba(255,255,255,.55),rgba(255,255,255,0) 18%),
+      repeating-linear-gradient(96deg,rgba(255,255,255,.05) 0 2px,rgba(0,0,0,.045) 2px 4px),
+      radial-gradient(150% 130% at 14% 0%,#fff3ea 0%,#ffe2cf 26%,#e9cdb8 60%,#d8b59c 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.9),
+      inset 0 0 0 1px rgba(255,150,80,.7),
+      inset 0 -2px 6px rgba(120,40,0,.18),
+      0 0 22px rgba(255,85,0,.5),
+      0 18px 40px rgba(0,0,0,.55);
+  }
+  .row.active .rowname{color:#2a1404}
+  .row.active .rowtag{color:#7a3a16}
+  .row.active::after{content:"";position:absolute;left:0;top:8px;bottom:8px;width:5px;border-radius:4px;
+    background:linear-gradient(180deg,var(--orange),var(--orange-deep));
+    box-shadow:0 0 10px var(--orange),0 0 20px var(--orange-deep)}
+  .row.active .rownum{color:#5a2a10}
+
+  /* back/hint row */
+  .backrow{display:flex;align-items:center;gap:20px;padding:13px 20px;min-height:54px}
+  .backbtn{display:flex;align-items:center;gap:9px;font-family:'Chakra Petch',sans-serif;
+    font-weight:700;font-size:14px;letter-spacing:2px;color:#222;text-transform:uppercase}
+  .backbtn .key{font-family:'Share Tech Mono',monospace;font-size:11px;padding:3px 8px;border-radius:6px;
+    background:linear-gradient(180deg,#2a2b2e,#161719);color:#ffd8c2;
+    box-shadow:inset 0 -2px 4px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.25)}
+  .hint{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:.5px;color:#3d3d3d;
+    display:flex;gap:18px;flex-wrap:wrap}
+  .hint span{display:flex;align-items:center;gap:7px}
+  .hint .ko{font-family:'Share Tech Mono',monospace;color:#1a1a1a;background:rgba(0,0,0,.08);
+    padding:2px 7px;border-radius:5px}
+  .hint .acc{color:var(--orange-deep)}
+  .pushhint{margin-left:auto;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;
+    color:var(--orange);text-shadow:var(--glowS)}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- ============ FULL-BLEED MARBLED SMOKE ============ -->
+  <div class="smoke">
+    <svg viewBox="0 0 1512 982" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="bgMarble" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.006 0.011" numOctaves="5" seed="7" result="turb">
+            <animate attributeName="baseFrequency" dur="62s" repeatCount="indefinite"
+              values="0.006 0.011; 0.009 0.007; 0.005 0.013; 0.006 0.011" calcMode="spline"
+              keyTimes="0;0.34;0.7;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1"/>
+          </feTurbulence>
+          <feDisplacementMap in="SourceGraphic" in2="turb" scale="46" xChannelSelector="R" yChannelSelector="G"/>
+          <feGaussianBlur stdDeviation="2"/>
+        </filter>
+        <radialGradient id="b1" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ff7a18"/><stop offset="55%" stop-color="#b3340e"/><stop offset="100%" stop-color="#1c0a12" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="b2" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#8a7fd0"/><stop offset="60%" stop-color="#43285e"/><stop offset="100%" stop-color="#160a18" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="b3" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#2FD0C5"/><stop offset="55%" stop-color="#1b4f63"/><stop offset="100%" stop-color="#0a1418" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="b4" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ffae5e"/><stop offset="55%" stop-color="#7a2a14"/><stop offset="100%" stop-color="#140810" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <rect width="1512" height="982" fill="#0a0708"/>
+      <g filter="url(#bgMarble)">
+        <rect width="1512" height="982" fill="#0c0810"/>
+        <ellipse cx="300" cy="300" rx="520" ry="430" fill="url(#b2)"/>
+        <ellipse cx="240" cy="720" rx="460" ry="420" fill="url(#b1)"/>
+        <ellipse cx="780" cy="160" rx="540" ry="360" fill="url(#b4)"/>
+        <ellipse cx="1180" cy="380" rx="560" ry="480" fill="url(#b2)"/>
+        <ellipse cx="1320" cy="820" rx="420" ry="380" fill="url(#b1)"/>
+        <ellipse cx="820" cy="760" rx="500" ry="360" fill="url(#b3)" opacity=".6"/>
+        <ellipse cx="640" cy="460" rx="360" ry="300" fill="url(#b4)" opacity=".7"/>
+        <ellipse cx="1080" cy="120" rx="360" ry="260" fill="url(#b1)" opacity=".8"/>
+      </g>
+    </svg>
+  </div>
+  <div class="vignette"></div>
+
+  <!-- grain for whole stage -->
+  <svg class="grain" viewBox="0 0 1512 982" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="grainF"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+        <feColorMatrix type="saturate" values="0"/></filter>
+    </defs>
+    <rect width="1512" height="982" filter="url(#grainF)" opacity="0.5"/>
+  </svg>
+
+  <!-- hidden defs for metal wear (turbulence) -->
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <filter id="metalWear"><feTurbulence type="fractalNoise" baseFrequency="0.62 0.16" numOctaves="3" seed="11" result="n"/>
+        <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.5 0.5 0.5 0 0"/></filter>
+      <filter id="grimeWear"><feTurbulence type="fractalNoise" baseFrequency="0.018 0.05" numOctaves="2" seed="4" result="n"/>
+        <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.7 0.7 0.7 0 0"/></filter>
+    </defs>
+  </svg>
+
+  <!-- ============ FRAME ============ -->
+  <div class="frame">
+
+    <!-- ===== LEFT ART PANEL ===== -->
+    <div class="artpanel">
+      <div class="innerSmoke">
+        <svg viewBox="0 0 430 922" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="artMarble" x="-30%" y="-30%" width="160%" height="160%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.008 0.016" numOctaves="5" seed="21" result="t">
+                <animate attributeName="baseFrequency" dur="54s" repeatCount="indefinite"
+                  values="0.008 0.016; 0.012 0.010; 0.006 0.018; 0.008 0.016" calcMode="spline"
+                  keyTimes="0;0.34;0.7;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1"/>
+              </feTurbulence>
+              <feDisplacementMap in="SourceGraphic" in2="t" scale="42" xChannelSelector="R" yChannelSelector="G"/>
+              <feGaussianBlur stdDeviation="1.4"/>
+            </filter>
+            <radialGradient id="a1" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ff8a2a"/><stop offset="55%" stop-color="#b3340e"/><stop offset="100%" stop-color="#1c0a12" stop-opacity="0"/></radialGradient>
+            <radialGradient id="a2" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#9c8fe0"/><stop offset="58%" stop-color="#48295f"/><stop offset="100%" stop-color="#160a18" stop-opacity="0"/></radialGradient>
+            <radialGradient id="a3" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffd1a0"/><stop offset="55%" stop-color="#7a2a14"/><stop offset="100%" stop-color="#140810" stop-opacity="0"/></radialGradient>
+          </defs>
+          <rect width="430" height="922" fill="#120a14"/>
+          <g filter="url(#artMarble)">
+            <rect width="430" height="922" fill="#150b16"/>
+            <ellipse cx="180" cy="180" rx="280" ry="240" fill="url(#a2)"/>
+            <ellipse cx="120" cy="520" rx="300" ry="320" fill="url(#a1)"/>
+            <ellipse cx="320" cy="360" rx="240" ry="260" fill="url(#a2)"/>
+            <ellipse cx="240" cy="780" rx="320" ry="300" fill="url(#a1)"/>
+            <ellipse cx="300" cy="640" rx="200" ry="220" fill="url(#a3)" opacity=".7"/>
+            <ellipse cx="90" cy="300" rx="200" ry="200" fill="url(#a3)" opacity=".55"/>
+          </g>
+        </svg>
+      </div>
+      <div class="artframe"></div>
+
+      <div class="arttop">
+        <div class="kicker">// broadcast field</div>
+        <div class="arttitle">SIGNAL <b>LOCKED</b><br>the station is live</div>
+        <div class="seriesline">9.0 · 9.6 · 10.1 · 9.7 · 11.2 · 12.4 · 13.1 · 14.2 k</div>
+      </div>
+
+      <!-- DATA-SCULPTURE: antenna emitting warped orange topo contour of the series -->
+      <div class="sculpt">
+        <svg viewBox="0 0 430 360" xmlns="http://www.w3.org/2000/svg" style="display:block">
+          <defs>
+            <linearGradient id="contourG" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#ffb066"/><stop offset="50%" stop-color="#ff7a18"/><stop offset="100%" stop-color="#ff5500"/>
+            </linearGradient>
+            <filter id="oGlow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="4" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <radialGradient id="emit" cx="50%" cy="100%" r="80%">
+              <stop offset="0%" stop-color="rgba(255,120,30,.5)"/><stop offset="100%" stop-color="rgba(255,120,30,0)"/>
+            </radialGradient>
+          </defs>
+
+          <!-- emission glow behind antenna -->
+          <ellipse cx="215" cy="300" rx="200" ry="150" fill="url(#emit)"/>
+
+          <!-- warped topographic contour rings of the value series -->
+          <g fill="none" stroke="url(#contourG)" filter="url(#oGlow)" stroke-linecap="round">
+            <path d="M30 250 Q90 232 150 246 T270 238 T410 244" stroke-width="2" opacity=".42"/>
+            <path d="M26 224 Q92 200 152 220 T272 206 T414 218" stroke-width="2" opacity=".5"/>
+            <path d="M24 196 Q96 162 156 188 T278 168 T418 184" stroke-width="2.2" opacity=".6"/>
+            <path d="M30 166 Q104 120 160 152 T284 124 T414 150" stroke-width="2.4" opacity=".72"/>
+            <path d="M40 132 Q112 78 168 116 T288 84 T408 116" stroke-width="2.6" opacity=".85"/>
+            <path d="M56 96  Q120 40 176 84  T290 50  T398 86"  stroke-width="3" opacity="1"/>
+          </g>
+
+          <!-- antenna / broadcast figure-mark at base -->
+          <g filter="url(#oGlow)">
+            <!-- mast -->
+            <line x1="215" y1="328" x2="215" y2="150" stroke="#ffd9bf" stroke-width="4" stroke-linecap="round"/>
+            <!-- base plate -->
+            <rect x="186" y="324" width="58" height="10" rx="3" fill="#ffb066"/>
+            <line x1="170" y1="338" x2="260" y2="338" stroke="#ff7a18" stroke-width="3" stroke-linecap="round"/>
+            <!-- cross spars -->
+            <line x1="178" y1="206" x2="252" y2="206" stroke="#ff7a18" stroke-width="3" stroke-linecap="round"/>
+            <line x1="186" y1="240" x2="244" y2="240" stroke="#ff7a18" stroke-width="3" stroke-linecap="round"/>
+            <line x1="194" y1="274" x2="236" y2="274" stroke="#ff7a18" stroke-width="3" stroke-linecap="round"/>
+            <!-- emitter node -->
+            <circle cx="215" cy="142" r="9" fill="#fff" />
+            <circle cx="215" cy="142" r="9" fill="none" stroke="#ff5500" stroke-width="2"/>
+            <!-- broadcast arcs -->
+            <path d="M215 116 A40 40 0 0 1 254 150" fill="none" stroke="#ffb066" stroke-width="2.5" opacity=".9"/>
+            <path d="M215 116 A40 40 0 0 0 176 150" fill="none" stroke="#ffb066" stroke-width="2.5" opacity=".9"/>
+            <path d="M215 98 A60 60 0 0 1 272 156" fill="none" stroke="#ff7a18" stroke-width="2" opacity=".6"/>
+            <path d="M215 98 A60 60 0 0 0 158 156" fill="none" stroke="#ff7a18" stroke-width="2" opacity=".6"/>
+          </g>
+        </svg>
+        <div class="sculptcap">live value series · +£5,200 ytd</div>
+      </div>
+    </div>
+
+    <!-- ===== RIGHT COLUMN ===== -->
+    <div class="right">
+
+      <!-- header -->
+      <div class="topbar metal" data-scratch="1">
+        <span class="wearlayer" style="background:linear-gradient(0deg,transparent,transparent)"></span>
+        <svg class="brandmark" width="54" height="54" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg">
+          <g fill="none" stroke="#FF5500" stroke-width="3" stroke-linecap="round">
+            <line x1="27" y1="48" x2="27" y2="20"/>
+            <circle cx="27" cy="15" r="5.5" fill="#FF7A18" stroke="#FF5500"/>
+            <path d="M27 7 A20 20 0 0 1 47 28" stroke="#FF7A18" opacity=".9"/>
+            <path d="M27 7 A20 20 0 0 0 7 28" stroke="#FF7A18" opacity=".9"/>
+            <path d="M27 1 A26 26 0 0 1 53 30" opacity=".5"/>
+            <path d="M27 1 A26 26 0 0 0 1 30" opacity=".5"/>
+            <line x1="18" y1="44" x2="36" y2="44"/>
+          </g>
+        </svg>
+        <div class="brandwrap">
+          <div class="wordmark"><span class="net">NET</span><span class="trade">TRADE</span></div>
+          <div class="subbrand">// trading station — main menu</div>
+        </div>
+
+        <div class="ledslab">
+          <div class="ledrow1">
+            <span class="ledmode">COMBINED</span>
+            <span class="ledlive"><span class="dot"></span>* LIVE</span>
+          </div>
+          <div class="ledbal"><b>£</b>14,240</div>
+          <div class="ledsync">last synced 14:32 · acct: you + partner</div>
+        </div>
+      </div>
+
+      <!-- account toggle -->
+      <div class="toggle metal" data-scratch="1">
+        <span class="toglabel">account //</span>
+        <div class="seg">
+          <button>YOU</button>
+          <button>PARTNER</button>
+          <button class="on">COMBINED</button>
+        </div>
+      </div>
+
+      <!-- station list -->
+      <div class="stations">
+
+        <div class="row active metal" data-scratch="1">
+          <span class="marker">
+            <svg width="26" height="26" viewBox="0 0 26 26"><polygon points="4,5 20,13 4,21" fill="#FF5500" style="filter:drop-shadow(0 0 6px rgba(255,90,0,.7))"/></svg>
+          </span>
+          <span class="rowtxt"><span class="rowname">Dashboard</span><span class="rowtag">the truth at a glance</span></span>
+          <span class="rownum">£14,240 · <span class="pos">▲ +2.1%</span></span>
+          <span class="chev"><svg width="20" height="20" viewBox="0 0 20 20"><polyline points="6,4 13,10 6,16" fill="none" stroke="#7a3a16" stroke-width="2.4" stroke-linecap="round"/></svg></span>
+        </div>
+
+        <div class="row metal" data-scratch="1">
+          <span class="marker"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="2" fill="none" stroke="#FF7A18" stroke-width="2"/></svg></span>
+          <span class="rowtxt"><span class="rowname">Positions</span><span class="rowtag">what you hold</span></span>
+          <span class="rownum">17 open · <span class="pos">▲ +£312</span></span>
+          <span class="chev"><svg width="20" height="20" viewBox="0 0 20 20"><polyline points="6,4 13,10 6,16" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+
+        <div class="row metal" data-scratch="1">
+          <span class="marker"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="2" fill="none" stroke="#FF7A18" stroke-width="2"/></svg></span>
+          <span class="rowtxt"><span class="rowname">Watchlist</span><span class="rowtag">on the radar · delayed</span></span>
+          <span class="rownum">9 tracked</span>
+          <span class="chev"><svg width="20" height="20" viewBox="0 0 20 20"><polyline points="6,4 13,10 6,16" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+
+        <div class="row metal" data-scratch="1">
+          <span class="marker"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="2" fill="none" stroke="#FF7A18" stroke-width="2"/></svg></span>
+          <span class="rowtxt"><span class="rowname">Performance</span><span class="rowtag">realised vs paper, over time</span></span>
+          <span class="rownum"><span class="pos">▲ +£5,200 ytd</span></span>
+          <span class="chev"><svg width="20" height="20" viewBox="0 0 20 20"><polyline points="6,4 13,10 6,16" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+
+        <div class="row metal" data-scratch="1">
+          <span class="marker"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="2" fill="none" stroke="#FF7A18" stroke-width="2"/></svg></span>
+          <span class="rowtxt"><span class="rowname">Compare</span><span class="rowtag">you vs partner</span></span>
+          <span class="rownum">you <span class="pos">▲</span> · partner <span class="neg">▼</span></span>
+          <span class="chev"><svg width="20" height="20" viewBox="0 0 20 20"><polyline points="6,4 13,10 6,16" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+
+        <div class="row metal" data-scratch="1">
+          <span class="marker"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="2" fill="none" stroke="#FF7A18" stroke-width="2"/></svg></span>
+          <span class="rowtxt"><span class="rowname">Journal</span><span class="rowtag">did the move pay off</span></span>
+          <span class="rownum">42 entries</span>
+          <span class="chev"><svg width="20" height="20" viewBox="0 0 20 20"><polyline points="6,4 13,10 6,16" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+
+        <div class="row metal" data-scratch="1">
+          <span class="marker"><svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="2" fill="none" stroke="#FF7A18" stroke-width="2"/></svg></span>
+          <span class="rowtxt"><span class="rowname">Settings</span><span class="rowtag">keys · sync · sound</span></span>
+          <span class="rownum">2 keys · synced</span>
+          <span class="chev"><svg width="20" height="20" viewBox="0 0 20 20"><polyline points="6,4 13,10 6,16" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </div>
+
+      </div>
+
+      <!-- back / hint row -->
+      <div class="backrow metal" data-scratch="1">
+        <span class="backbtn"><span class="key">ESC</span> BACK</span>
+        <span class="hint">
+          <span><span class="ko">↑ ↓</span> navigate</span>
+          <span><span class="ko">↵</span> <span class="acc">enter station</span></span>
+          <span><span class="ko">TAB</span> switch account</span>
+        </span>
+        <span class="pushhint">// SIGNAL OK</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---- scatter scratches, paint chips & hex bolts onto every scuffed metal panel ----
+  function rnd(a,b){return a+Math.random()*(b-a);}
+  function hex(cx,cy,r){
+    var p='';for(var i=0;i<6;i++){var ang=Math.PI/180*(60*i-30);
+      p+=(i?'L':'M')+(cx+r*Math.cos(ang)).toFixed(1)+' '+(cy+r*Math.sin(ang)).toFixed(1)+' ';}
+    return p+'Z';
+  }
+  document.querySelectorAll('[data-scratch]').forEach(function(panel){
+    var w=panel.clientWidth,h=panel.clientHeight;
+    if(!w||!h)return;
+    var svgns='http://www.w3.org/2000/svg';
+    var svg=document.createElementNS(svgns,'svg');
+    svg.setAttribute('class','scratchCanvas');
+    svg.setAttribute('viewBox','0 0 '+w+' '+h);
+    svg.setAttribute('preserveAspectRatio','none');
+
+    // turbulence wear overlay (filter-based grime streaks)
+    var wear=document.createElementNS(svgns,'rect');
+    wear.setAttribute('width',w);wear.setAttribute('height',h);
+    wear.setAttribute('filter','url(#metalWear)');
+    wear.setAttribute('opacity','0.10');
+    wear.style.mixBlendMode='overlay';
+    svg.appendChild(wear);
+    var grime=document.createElementNS(svgns,'rect');
+    grime.setAttribute('width',w);grime.setAttribute('height',h);
+    grime.setAttribute('filter','url(#grimeWear)');
+    grime.setAttribute('opacity','0.07');
+    grime.style.mixBlendMode='multiply';
+    svg.appendChild(grime);
+
+    var active=panel.classList.contains('active');
+    // thin scratch strokes
+    var n=Math.max(14,Math.round(w*h/2600));
+    for(var i=0;i<n;i++){
+      var x=rnd(6,w-6),y=rnd(4,h-4),len=rnd(8,46),ang=rnd(-0.35,0.35);
+      var x2=x+Math.cos(ang)*len,y2=y+Math.sin(ang)*len;
+      var l=document.createElementNS(svgns,'line');
+      l.setAttribute('x1',x.toFixed(1));l.setAttribute('y1',y.toFixed(1));
+      l.setAttribute('x2',x2.toFixed(1));l.setAttribute('y2',y2.toFixed(1));
+      var dark=Math.random()<0.5;
+      l.setAttribute('stroke',dark?'rgba(0,0,0,'+rnd(.06,.16).toFixed(2)+')':'rgba(255,255,255,'+rnd(.10,.28).toFixed(2)+')');
+      l.setAttribute('stroke-width',rnd(.5,1.2).toFixed(2));
+      svg.appendChild(l);
+    }
+    // paint chips
+    var chips=Math.max(5,Math.round(w*h/16000));
+    for(var c=0;c<chips;c++){
+      var ch=document.createElementNS(svgns,'circle');
+      ch.setAttribute('cx',rnd(8,w-8).toFixed(1));ch.setAttribute('cy',rnd(6,h-6).toFixed(1));
+      ch.setAttribute('r',rnd(.8,2.4).toFixed(1));
+      ch.setAttribute('fill',Math.random()<0.6?'rgba(0,0,0,'+rnd(.08,.2).toFixed(2)+')':'rgba(255,255,255,'+rnd(.2,.4).toFixed(2)+')');
+      svg.appendChild(ch);
+    }
+    // a few hex bolts in corners
+    var corners=[[18,18],[w-18,18],[18,h-18],[w-18,h-18]];
+    corners.forEach(function(pt,idx){
+      if(h<70 && idx>1) return;
+      var g=document.createElementNS(svgns,'path');
+      g.setAttribute('d',hex(pt[0],pt[1],6.5));
+      g.setAttribute('fill','rgba(70,70,72,.5)');
+      g.setAttribute('stroke','rgba(255,255,255,.35)');
+      g.setAttribute('stroke-width','.8');
+      svg.appendChild(g);
+      var dot=document.createElementNS(svgns,'circle');
+      dot.setAttribute('cx',pt[0]);dot.setAttribute('cy',pt[1]);dot.setAttribute('r','1.6');
+      dot.setAttribute('fill','rgba(0,0,0,.4)');
+      svg.appendChild(dot);
+    });
+    panel.appendChild(svg);
+  });
+})();
+</script>
+</body>
+</html>

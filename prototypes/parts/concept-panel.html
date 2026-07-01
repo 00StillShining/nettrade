@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NET TRADE — Main Menu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Anton&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#EDE6D2;
+    --cream2:#F2ECE0;
+    --ink:#14110D;
+    --orange:#FF5A1F;
+    --orange2:#E8632A;
+    --purple:#5D5A86;
+    --teal:#2FB5A8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:1512px;height:982px;overflow:hidden;background:var(--ink);}
+  body{font-family:'Oswald',sans-serif;}
+  .stage{
+    position:relative;width:1512px;height:982px;
+    background:var(--cream);
+    overflow:hidden;
+  }
+  /* grain + halftone over the cream field */
+  .grain{position:absolute;inset:0;pointer-events:none;z-index:40;opacity:.5;mix-blend-mode:multiply;}
+  .halftone-field{position:absolute;inset:0;pointer-events:none;z-index:1;opacity:.13;}
+
+  /* ===== outer ink frame + corner ticks ===== */
+  .frame{position:absolute;inset:26px;border:3px solid var(--ink);z-index:30;pointer-events:none;}
+  .tick{position:absolute;width:34px;height:34px;border:3px solid var(--ink);z-index:31;}
+  .tick.tl{top:14px;left:14px;border-right:0;border-bottom:0;}
+  .tick.tr{top:14px;right:14px;border-left:0;border-bottom:0;}
+  .tick.bl{bottom:14px;left:14px;border-right:0;border-top:0;}
+  .tick.br{bottom:14px;right:14px;border-left:0;border-top:0;}
+
+  /* ===== HERO marble block (left, hard angled) ===== */
+  .hero{
+    position:absolute;top:60px;left:60px;width:520px;height:862px;
+    z-index:5;
+    clip-path:polygon(0 0, 100% 0, 100% 84%, 0 100%);
+    box-shadow:14px 14px 0 var(--ink);
+    background:var(--ink);
+    overflow:hidden;
+    border:3px solid var(--ink);
+  }
+  .hero svg{position:absolute;inset:0;width:100%;height:100%;}
+  .hero .marblewrap{position:absolute;inset:-8%;width:116%;height:116%;animation:drift 26s ease-in-out infinite alternate;}
+  @keyframes drift{
+    0%{transform:translate(-2%,-1%) scale(1.05) rotate(-1deg);}
+    100%{transform:translate(2%,2%) scale(1.12) rotate(1.5deg);}
+  }
+  /* halftone over marble bottom for printed depth */
+  .hero .htover{position:absolute;inset:0;opacity:.18;mix-blend-mode:screen;}
+
+  /* sheared "STATION" parallelogram tag pinned over hero top */
+  .herotag{
+    position:absolute;top:96px;left:30px;z-index:9;
+    background:var(--orange);
+    transform:skewX(-13deg) rotate(-2deg);
+    padding:7px 26px 9px;
+    box-shadow:7px 7px 0 var(--ink);
+    border:3px solid var(--ink);
+  }
+  .herotag span{
+    display:block;transform:skewX(13deg);
+    font-family:'Oswald',sans-serif;font-weight:700;
+    font-size:18px;letter-spacing:.42em;color:var(--ink);
+    text-transform:uppercase;padding-left:.42em;
+  }
+
+  /* tiny account-mode status chip, bottom of hero (the single allowed extra) */
+  .status{
+    position:absolute;bottom:118px;left:24px;z-index:9;
+    background:var(--cream2);border:3px solid var(--ink);
+    box-shadow:6px 6px 0 var(--ink);
+    transform:skewX(-13deg);
+    padding:8px 20px 9px 18px;display:flex;align-items:center;gap:11px;
+  }
+  .status span{display:block;transform:skewX(13deg);font-family:'Oswald';font-weight:700;
+    font-size:14px;letter-spacing:.26em;color:var(--ink);text-transform:uppercase;}
+  .status .dot{width:11px;height:11px;background:var(--teal);transform:skewX(13deg);box-shadow:2px 2px 0 var(--ink);}
+
+  /* ===== TITLE — big stylised orange display, top right ===== */
+  .titlewrap{
+    position:absolute;top:74px;left:628px;z-index:20;
+    transform:rotate(-2.4deg);
+  }
+  .title-net{
+    font-family:'Anton',sans-serif;font-weight:400;
+    font-size:158px;line-height:.8;letter-spacing:-.01em;
+    color:var(--orange);
+    -webkit-text-stroke:5px var(--ink);
+    text-shadow:11px 11px 0 var(--ink);
+    text-transform:uppercase;
+  }
+  .title-trade{
+    font-family:'Anton',sans-serif;
+    font-size:158px;line-height:.78;letter-spacing:-.01em;
+    color:var(--cream2);
+    -webkit-text-stroke:5px var(--ink);
+    text-shadow:11px 11px 0 var(--ink);
+    text-transform:uppercase;
+    margin-left:84px;
+  }
+  /* signature orange slash under the title */
+  .slash{
+    position:absolute;z-index:19;top:360px;left:638px;
+    width:430px;height:20px;background:var(--orange);
+    transform:skewX(-40deg) rotate(-2.4deg);
+    box-shadow:6px 6px 0 var(--ink);border:3px solid var(--ink);
+  }
+
+  /* ===== MENU panel — framed cream, sheared list ===== */
+  .menupanel{
+    position:absolute;top:412px;left:626px;width:826px;height:516px;
+    z-index:15;
+    background:var(--cream2);
+    border:3px solid var(--ink);
+    box-shadow:13px 13px 0 var(--ink);
+    clip-path:polygon(0 0, 100% 0, 100% 100%, 5% 100%);
+  }
+  .menupanel .htpanel{position:absolute;inset:0;opacity:.10;pointer-events:none;}
+  /* angled tab header on the menu panel */
+  .menutab{
+    position:absolute;top:-3px;left:-3px;z-index:16;
+    background:var(--ink);
+    clip-path:polygon(0 0, 100% 0, 86% 100%, 0 100%);
+    padding:9px 64px 11px 28px;
+  }
+  .menutab span{font-family:'Oswald';font-weight:700;font-size:16px;letter-spacing:.4em;
+    color:var(--cream2);text-transform:uppercase;}
+
+  .menu{position:absolute;top:70px;left:46px;right:34px;display:flex;flex-direction:column;gap:9px;}
+  .item{
+    position:relative;display:flex;align-items:center;
+    height:45px;padding:0 20px;
+    transform:skewX(-11deg);
+    transition:transform .14s ease, background .14s ease;
+  }
+  .item .lbl{
+    transform:skewX(11deg);
+    font-family:'Unbounded',sans-serif;font-weight:700;
+    font-size:25px;letter-spacing:.005em;text-transform:uppercase;
+    color:var(--ink);
+  }
+  .item .idx{
+    transform:skewX(11deg);
+    font-family:'Oswald';font-weight:700;font-size:14px;letter-spacing:.18em;
+    color:var(--ink);opacity:.55;width:34px;
+  }
+  /* inactive tags: ghost cream with ink hairline */
+  .item.ghost{background:transparent;}
+  .item.ghost::before{content:"";position:absolute;inset:0;border:2.5px solid var(--ink);}
+  .item.ghost:hover{transform:skewX(-11deg) translateX(10px);}
+  /* active: solid orange block inverted */
+  .item.active{
+    background:var(--orange);
+    border:3px solid var(--ink);
+    box-shadow:8px 8px 0 var(--ink);
+    height:56px;
+    margin:1px 0 4px;
+  }
+  .item.active .lbl{
+    font-family:'Unbounded';font-weight:900;font-size:31px;
+    color:var(--ink);
+    -webkit-text-stroke:0;
+  }
+  .item.active .idx{color:var(--ink);opacity:.85;font-size:15px;}
+  /* tiny tagline only on a couple items, kept clean */
+  .item .tag{
+    transform:skewX(11deg);
+    margin-left:auto;
+    font-family:'Oswald';font-weight:600;font-size:12px;letter-spacing:.22em;
+    color:var(--ink);opacity:.5;text-transform:uppercase;
+  }
+  .item.active .tag{opacity:.78;font-weight:700;}
+
+  @media (prefers-reduced-motion: reduce){
+    .hero .marblewrap{animation:none;}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- halftone field over cream -->
+  <svg class="halftone-field" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="ben" x="0" y="0" width="15" height="15" patternUnits="userSpaceOnUse">
+        <circle cx="3" cy="3" r="2.1" fill="#14110D"/>
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#ben)"/>
+  </svg>
+
+  <!-- ===== HERO MARBLE ===== -->
+  <div class="hero">
+    <div class="marblewrap">
+      <svg viewBox="0 0 520 862" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <!-- warp field that pushes the colour bands into liquid swirls -->
+          <filter id="warp" x="-30%" y="-30%" width="160%" height="160%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.0036 0.0072" numOctaves="4" seed="11" result="t"/>
+            <feDisplacementMap in="SourceGraphic" in2="t" scale="240" xChannelSelector="R" yChannelSelector="G"/>
+          </filter>
+          <!-- contour bands: turbulence sliced into hard liquid ribbons -->
+          <filter id="ribbon" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.0075 0.0125" numOctaves="3" seed="4" result="n"/>
+            <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0" result="g"/>
+            <feComponentTransfer in="g" result="b">
+              <feFuncA type="discrete" tableValues="0 1 0 1 1 0 1 0 1 0"/>
+            </feComponentTransfer>
+          </filter>
+        </defs>
+        <!-- striped colour source that the warp turns into marble -->
+        <g filter="url(#warp)">
+          <rect width="520" height="862" fill="#27243f"/>
+          <g>
+            <rect x="-120" y="-80"  width="760" height="120" fill="#5D5A86"/>
+            <rect x="-120" y="60"   width="760" height="70"  fill="#E8632A"/>
+            <rect x="-120" y="150"  width="760" height="150" fill="#5D5A86"/>
+            <rect x="-120" y="300"  width="760" height="55"  fill="#2FB5A8"/>
+            <rect x="-120" y="360"  width="760" height="130" fill="#100d1f"/>
+            <rect x="-120" y="480"  width="760" height="110" fill="#5D5A86"/>
+            <rect x="-120" y="585"  width="760" height="80"  fill="#E8632A"/>
+            <rect x="-120" y="660"  width="760" height="120" fill="#27243f"/>
+            <rect x="-120" y="770"  width="760" height="90"  fill="#5D5A86"/>
+          </g>
+        </g>
+        <!-- thin liquid ribbons of accent on top for detail -->
+        <rect width="520" height="862" fill="#FF7A3D" filter="url(#ribbon)" opacity="0.5"/>
+        <rect width="520" height="862" fill="#2FB5A8" filter="url(#ribbon)" opacity="0.3"/>
+      </svg>
+    </div>
+    <svg class="htover" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="ben2" x="0" y="0" width="13" height="13" patternUnits="userSpaceOnUse">
+          <circle cx="3" cy="3" r="2.4" fill="#EDE6D2"/>
+        </pattern>
+        <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0.45" stop-color="#000" stop-opacity="0"/>
+          <stop offset="1" stop-color="#000" stop-opacity="1"/>
+        </linearGradient>
+        <mask id="m"><rect width="100%" height="100%" fill="url(#fade)"/></mask>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#ben2)" mask="url(#m)"/>
+    </svg>
+  </div>
+
+  <div class="herotag"><span>STATION</span></div>
+
+  <div class="status">
+    <div class="dot"></div>
+    <span>COMBINED</span>
+  </div>
+
+  <!-- ===== TITLE ===== -->
+  <div class="titlewrap">
+    <div class="title-net">NET</div>
+    <div class="title-trade">TRADE</div>
+  </div>
+  <div class="slash"></div>
+
+  <!-- ===== MENU PANEL ===== -->
+  <div class="menupanel">
+    <svg class="htpanel" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="url(#ben)"/>
+    </svg>
+    <div class="menutab"><span>SELECT STATION</span></div>
+
+    <div class="menu">
+      <div class="item active">
+        <div class="idx">01</div>
+        <div class="lbl">Dashboard</div>
+        <div class="tag">LIVE OVERVIEW</div>
+      </div>
+      <div class="item ghost">
+        <div class="idx">02</div>
+        <div class="lbl">Positions</div>
+        <div class="tag">OPEN HOLDINGS</div>
+      </div>
+      <div class="item ghost">
+        <div class="idx">03</div>
+        <div class="lbl">Watchlist</div>
+      </div>
+      <div class="item ghost">
+        <div class="idx">04</div>
+        <div class="lbl">Performance</div>
+      </div>
+      <div class="item ghost">
+        <div class="idx">05</div>
+        <div class="lbl">Compare</div>
+      </div>
+      <div class="item ghost">
+        <div class="idx">06</div>
+        <div class="lbl">Journal</div>
+      </div>
+      <div class="item ghost">
+        <div class="idx">07</div>
+        <div class="lbl">Settings</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- frame + ticks -->
+  <div class="frame"></div>
+  <div class="tick tl"></div><div class="tick tr"></div>
+  <div class="tick bl"></div><div class="tick br"></div>
+
+  <!-- grain -->
+  <svg class="grain" xmlns="http://www.w3.org/2000/svg">
+    <filter id="gr"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .5 0"/></filter>
+    <rect width="100%" height="100%" filter="url(#gr)"/>
+  </svg>
+
+</div>
+</body>
+</html>

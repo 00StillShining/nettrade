@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NET TRADE — Watchlist (FINAL · Scanner Radar)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;600;700&family=Space+Mono:wght@400;700&family=Bungee&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================================
+     NETTRADE — WATCHLIST SCREEN  (a SCANNER / RADAR for non-owned instruments)
+     Carries the shipped chrome from positions-final.html VERBATIM: CRT overlay,
+     #ntMarble liquid-marble symbol + MarbleDefs, fitCanvas/line helpers, the EXP
+     click-to-expand machinery (z100 overlay above CRT; .exp-frame no clip-path +
+     overflow:visible; ?expand= deep-link; Esc close), top/bottom status bars,
+     halftone, the TIGHT spacing tokens. The ONLY re-skin is MAGENTA -> SKY, applied
+     by overriding --accent / --accent-dk / --area-accent-* and the six --mrb-* vars
+     on .screen. The LAYOUT is distinct from the Positions deck: a SCANNER grid of
+     watch cards (left) + a FOCAL selected-instrument panel with candlesticks and
+     RSI / MACD / volume sub-lanes (right). The locked semantic pair (--gain teal /
+     --loss red), --purple, the creams, --ink and --orange (warning) are NEVER recoloured.
+     ============================================================================ */
+  :root{
+    --cream:#EDE6D2; --cream2:#F2ECE0; --ink:#14110D; --orange:#FF5A1F;
+    /* fixed semantic pair — NEVER recoloured per screen */
+    --gain:#2FB5A8; --loss:#C8402F;
+    --purple:#5D5A86;
+    /* shared parallelogram system (shipped tokens — clip-path, never skewX) */
+    --slant:16px; --slant-sm:9px; --vslant:14px;
+    --skew:0deg; --unskew:0deg;                /* neutralised no-ops */
+    --pad:clamp(5px,0.7vw,11px);
+    --gap:clamp(4px,0.45vw,7px);
+    /* viz-layer named tokens (so no inline literal leaks into states/hover) */
+    --grid:rgba(20,17,13,.12);
+    --rule:rgba(20,17,13,.18);
+    --waterline:rgba(20,17,13,.22);
+    --tick-text:rgba(20,17,13,.66);
+    --axis-faint:rgba(20,17,13,.5);
+    --ink-shadow-line:rgba(20,17,13,.25);
+    --ink-tint-085:rgba(20,17,13,.085);
+    /* viz fills/lines promoted from inline literals (single source of truth) */
+    --area-loss:rgba(200,64,47,.07);   /* RSI overbought band tint */
+    --area-gain:rgba(47,181,168,.07);  /* RSI oversold band tint */
+    --vol-bar:rgba(20,17,13,.34);      /* neutral ink volume bars (no direction colour) */
+    --sig-line:rgba(20,17,13,.6);      /* MACD signal dashed line */
+    --label-faint:rgba(20,17,13,.55);  /* faint canvas captions/labels */
+    --orange-faint:rgba(255,90,31,.6); /* error-lane dashed silhouette */
+  }
+  /* ===== .screen — per-screen pigment binding. WATCHLIST = SKY BLUE. =====
+     This is the ONLY block a new screen overrides.
+     CONTRAST PROOF: --accent #1FA6F0 is the bright azure that RIDES the ink-stamp
+     (it never carries text on cream). --accent-dk #0A5C96 = 5.65:1 on --cream
+     (clears the 4.5:1 text floor) so every text/label use is accessible. Sky is
+     clearly distinct from gain-teal #2FB5A8 (green-cyan), loss #C8402F, purple
+     #5D5A86 (slate) and orange #FF5A1F (warning). Where sky would read near the
+     candle-up teal, sky stays the OUTLINE / focal stroke; gain/loss stay the fills. */
+  .screen{
+    --accent:#1FA6F0; --accent-dk:#0A5C96;
+    --area-accent-top:rgba(31,166,240,.40);
+    --area-accent-bot:rgba(31,166,240,.03);
+    /* SKY-family marble (same lightness structure as the teal/magenta originals:
+       deep navy base -> vivid azure core -> bright sky highlight) */
+    --mrb-base:#0e3a63;    /* deepest field — deep ocean navy */
+    --mrb-deep:#06223d;    /* darkest navy-ink shadow blobs */
+    --mrb-veil:#125586;    /* deep azure mass */
+    --mrb-mid:#1f86cf;     /* mid azure */
+    --mrb-core:#0A5C96;    /* azure core */
+    --mrb-bright:#7fd0ff;  /* bright sky highlight */
+  }
+  *{margin:0;padding:0;box-sizing:border-box;border-radius:0;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#070a0c;}
+  body{font-family:'Oswald',sans-serif;color:var(--ink);}
+
+  /* ============ FLUID FULL-VIEWPORT ROOT (shipped) ============ */
+  #screen{position:fixed;inset:0;overflow:hidden;background:var(--mrb-deep);
+    --bezel:clamp(14px,1.9vw,30px);}
+  #screen > .screenmarble{position:absolute;inset:0;z-index:0;}
+  #screen > .screenmarble > svg{position:absolute;top:-6%;left:-6%;width:112%;height:112%;}
+  #stage{position:absolute;inset:var(--bezel);z-index:1;overflow:hidden;
+    background:var(--cream);
+    border:6px solid var(--ink);box-shadow:0 0 0 3px var(--mrb-deep), 16px 16px 0 var(--ink);
+    display:flex;flex-direction:column;
+    gap:var(--gap);
+    padding:var(--pad);
+    padding-top:calc(var(--pad) + 2px);}
+
+  .stage-bg{position:absolute;inset:0;background:var(--cream);z-index:0;}
+  .halftone{position:absolute;inset:0;z-index:0;
+    background-image:radial-gradient(var(--ink) 1.35px, transparent 1.55px);
+    background-size:15px 15px;opacity:.07;mix-blend-mode:multiply;pointer-events:none;}
+  .dotcluster{position:absolute;right:-70px;bottom:-60px;width:560px;height:420px;z-index:0;
+    opacity:.15;pointer-events:none;}
+  .dotcluster2{position:absolute;left:-40px;top:70px;width:340px;height:300px;z-index:0;
+    opacity:.10;pointer-events:none;}
+  .bgslash{position:absolute;right:-60px;bottom:-40px;width:520px;height:360px;z-index:0;
+    clip-path:polygon(100% 38%,0 100%,100% 100%);background:var(--ink);opacity:.05;pointer-events:none;}
+
+  /* ================= TOP STATUS BAR — CLEAN, NO SKEW (shipped) ================= */
+  .topbar{position:relative;z-index:20;flex:0 0 auto;
+    height:clamp(56px,6.4vh,74px);
+    background:var(--ink);box-shadow:9px 9px 0 var(--ink);
+    display:flex;align-items:stretch;}
+  .tb-inner{display:flex;align-items:center;width:100%;height:100%;padding:0 clamp(12px,1.5vw,22px);gap:0;}
+  .tb-logo{font-family:'Bungee',sans-serif;font-size:clamp(24px,2.4vw,34px);color:var(--accent);
+    letter-spacing:.02em;line-height:1;text-shadow:3px 3px 0 #000;padding-right:clamp(10px,1.2vw,18px);}
+  .tb-screen{font-family:'Anton';font-size:clamp(13px,1.2vw,17px);letter-spacing:.14em;color:var(--cream2);
+    text-transform:uppercase;border-left:3px solid rgba(242,236,224,.16);padding:0 clamp(10px,1.2vw,18px);
+    display:flex;align-items:center;height:46px;}
+  .tb-screen b{color:var(--accent);}
+  .tb-seg{display:flex;flex-direction:column;justify-content:center;
+    padding:0 clamp(12px,1.5vw,22px);height:46px;border-left:3px solid rgba(242,236,224,.16);}
+  .tb-seg .k{font-family:'Oswald';font-weight:700;font-size:11px;letter-spacing:.22em;
+    color:rgba(242,236,224,.55);text-transform:uppercase;}
+  .tb-seg .v{font-family:'Space Mono',monospace;font-weight:700;font-size:clamp(15px,1.45vw,21px);
+    color:var(--cream2);line-height:1.05;margin-top:2px;font-variant-numeric:tabular-nums;}
+  .tb-seg .v.accent{color:var(--accent);}
+  .tb-seg .v.gain{color:var(--gain);}
+  .tb-seg .v.loss{color:var(--loss);}
+  .tb-spacer{flex:1;}
+  .tb-live{display:flex;align-items:center;gap:10px;padding:0 clamp(8px,1vw,16px);}
+  .tb-live .dot{width:13px;height:13px;background:var(--accent);
+    animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%{opacity:1;}50%{opacity:.35;}100%{opacity:1;}}
+  .tb-live .lv{font-family:'Anton';font-size:clamp(16px,1.4vw,20px);letter-spacing:.06em;color:var(--ink);
+    background:var(--accent);padding:3px 18px;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);}
+  .tb-live .lv span.txt{display:inline-block;transform:skewX(var(--unskew));}
+  .tb-live .sy{font-family:'Space Mono';font-size:12px;color:rgba(242,236,224,.6);letter-spacing:.04em;
+    font-variant-numeric:tabular-nums;}
+
+  /* ================= MAIN REGION — SCANNER GRID + FOCAL PANEL ================= */
+  .main{position:relative;z-index:10;flex:1 1 auto;min-height:0;
+    display:flex;gap:var(--gap);align-items:stretch;}
+
+  /* ===== LEFT — THE SCANNER (grid of watch cards) ===== */
+  .scanner{position:relative;flex:1.5 1 0;min-width:0;min-height:0;
+    background:var(--cream2);border:6px solid var(--ink);box-shadow:10px 10px 0 var(--ink);
+    clip-path:polygon(var(--slant) 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
+    display:flex;flex-direction:column;overflow:hidden;}
+  .scan-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    background:var(--ink);padding:9px 22px;gap:12px;}
+  .scan-head .sh-tag{position:relative;overflow:hidden;display:inline-flex;align-items:center;
+    background:var(--mrb-deep);padding:5px 16px;border:3px solid var(--cream2);
+    clip-path:polygon(var(--slant-sm) 0,100% 0,calc(100% - var(--slant-sm)) 100%,0 100%);}
+  .scan-head .sh-tag .nt-marble{z-index:0;}
+  .scan-head .sh-tag::after{content:'';position:absolute;inset:0;z-index:1;background:rgba(20,17,13,.42);}
+  .scan-head .sh-tag .nm{position:relative;z-index:2;font-family:'Anton';
+    font-size:clamp(15px,1.5vw,21px);letter-spacing:.05em;color:var(--cream2);text-transform:uppercase;
+    line-height:1;text-shadow:2px 2px 0 var(--ink);white-space:nowrap;}
+  .scan-head .sh-meta{font-family:'Space Mono';font-weight:700;font-size:clamp(10px,.92vw,13px);
+    color:var(--cream2);letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .scan-head .sh-meta b{color:var(--accent);}
+  /* ADD-INSTRUMENT affordance — sky-outline pill, the scanner's CTA */
+  .addbtn{font-family:'Oswald';font-weight:700;font-size:clamp(10px,.92vw,12px);letter-spacing:.12em;
+    text-transform:uppercase;color:var(--accent);background:transparent;border:2px solid var(--accent);
+    padding:5px 13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);
+    transition:background .12s,color .12s;}
+  .addbtn svg{width:12px;height:12px;display:block;}
+  .addbtn:hover{background:var(--accent);color:var(--ink);}
+  .addbtn:focus-visible{outline:3px solid var(--cream2);outline-offset:2px;}
+
+  /* the scanner grid */
+  .scan-grid{flex:1 1 auto;min-height:0;overflow:auto;padding:var(--gap);
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap);align-content:start;}
+  /* scanner-level state panels (empty / error) — full-grid stamped ink messages */
+  .scan-state{grid-column:1 / -1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:12px;padding:clamp(22px,5vh,48px) 18px;text-align:center;
+    border:3px dashed rgba(20,17,13,.32);background:var(--cream);}
+  .scan-state.err{border-color:var(--orange);}
+  .scan-state .ss-h{font-family:'Anton';font-size:clamp(18px,2vw,26px);letter-spacing:.04em;
+    text-transform:uppercase;color:var(--ink);}
+  .scan-state.err .ss-h{color:var(--orange);}
+  .scan-state .ss-s{font-family:'Oswald';font-weight:600;font-size:clamp(11px,1vw,13px);letter-spacing:.08em;
+    text-transform:uppercase;color:rgba(20,17,13,.6);max-width:38ch;}
+  /* --orange RETRY chip (hard-edged, never rounded) */
+  .retry{font-family:'Oswald';font-weight:700;font-size:clamp(11px,1vw,13px);letter-spacing:.14em;
+    text-transform:uppercase;color:var(--cream2);background:var(--orange);border:3px solid var(--ink);
+    box-shadow:5px 5px 0 var(--ink);padding:7px 18px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);
+    transition:transform .1s;}
+  .retry:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--ink);}
+  .retry:focus-visible{outline:3px solid var(--ink);outline-offset:3px;}
+  .exp-retry{margin-top:10px;align-self:flex-start;}
+  .exp-retry[hidden]{display:none;}
+  /* explicit expand affordance on a selected card (separate node, role=button) */
+  .wc-expand{position:absolute;right:6px;bottom:6px;z-index:5;font-family:'Oswald';font-weight:700;
+    font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-dk);
+    background:var(--cream2);border:1.5px solid var(--accent-dk);padding:1px 6px;cursor:pointer;
+    display:none;align-items:center;gap:4px;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);}
+  .wcard.sel .wc-expand{display:inline-flex;}
+  .wc-expand:hover{background:var(--accent-dk);color:var(--cream2);}
+  .wc-expand:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
+  /* stale marker on the focal-strip Freshness value */
+  .fs-seg .v.fresh-v.stale{color:var(--orange);}
+
+  /* a single WATCH CARD */
+  .wcard{position:relative;background:var(--cream);border:4px solid var(--ink);
+    box-shadow:6px 6px 0 var(--ink);cursor:pointer;overflow:hidden;min-width:0;
+    display:flex;flex-direction:column;
+    transition:transform .14s cubic-bezier(.2,1.3,.3,1),box-shadow .14s;}
+  .wcard:hover{transform:translate(-3px,-3px);box-shadow:11px 11px 0 var(--accent-dk);}
+  .wcard:focus-visible{outline:3px solid var(--ink);outline-offset:2px;}
+  .wcard.sel{box-shadow:9px 9px 0 var(--accent-dk);border-color:var(--accent-dk);}
+  .wcard.sel::before{content:'';position:absolute;left:0;top:0;bottom:0;width:6px;z-index:4;background:var(--accent);}
+  /* card head: ticker + name + freshness tag */
+  .wc-head{flex:0 0 auto;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;
+    padding:7px 10px 4px;border-bottom:2px solid rgba(20,17,13,.14);}
+  .wc-id{min-width:0;}
+  .wc-id .tk{font-family:'Oswald';font-weight:700;font-size:clamp(14px,1.35vw,18px);letter-spacing:.04em;
+    line-height:1;color:var(--ink);text-transform:uppercase;white-space:nowrap;}
+  .wc-id .tk .mkt{display:inline-block;font-family:'Space Mono';font-weight:700;font-size:8px;
+    color:var(--accent-dk);border:1.5px solid var(--accent-dk);padding:0 3px;margin-left:5px;vertical-align:2px;}
+  .wc-id .nm{font-family:'Oswald';font-weight:600;font-size:clamp(8px,.72vw,10px);letter-spacing:.03em;
+    text-transform:uppercase;color:rgba(20,17,13,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    margin-top:2px;}
+  /* freshness tag — sky marble fill, on the card HEADER only */
+  .fresh{position:relative;overflow:hidden;flex:0 0 auto;display:inline-flex;align-items:center;
+    padding:2px 7px;border:2px solid var(--ink);}
+  .fresh .nt-marble{z-index:0;}
+  .fresh::after{content:'';position:absolute;inset:0;z-index:1;background:rgba(20,17,13,.5);}
+  .fresh .ft{position:relative;z-index:2;font-family:'Space Mono';font-weight:700;font-size:8.5px;
+    letter-spacing:.04em;color:var(--cream2);white-space:nowrap;text-shadow:1px 1px 0 var(--ink);}
+  .fresh.eod::after{background:rgba(20,17,13,.62);}
+  /* card price row */
+  .wc-px{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:5px 10px 3px;}
+  .wc-px .last{font-family:'Space Mono';font-weight:700;font-size:clamp(15px,1.5vw,20px);color:var(--ink);
+    font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1;}
+  .wc-px .chg{display:inline-flex;align-items:center;gap:4px;font-family:'Space Mono';font-weight:700;
+    font-size:clamp(10px,1vw,13px);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .wc-px .chg .tri{font-size:9px;line-height:1;}
+  .wc-px .chg.up{color:var(--gain);} .wc-px .chg.dn{color:var(--loss);}
+  /* mini candle / spark strip */
+  .wc-strip{position:relative;height:clamp(34px,4.6vh,46px);margin:1px 8px 3px;}
+  .wc-strip canvas{position:absolute;inset:0;width:100%;height:100%;}
+  /* indicator/signal chips row */
+  .wc-sig{display:flex;flex-wrap:wrap;gap:4px;padding:3px 9px 8px;}
+  .chip{display:inline-flex;align-items:center;gap:4px;font-family:'Space Mono';font-weight:700;
+    font-size:9.5px;letter-spacing:.01em;padding:1px 6px;border:1.5px solid var(--ink);
+    background:var(--cream2);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .chip .tri{font-size:8px;line-height:1;}
+  .chip .ck{color:rgba(20,17,13,.55);font-weight:700;}
+  .chip.up{border-color:var(--gain);} .chip.up .tri{color:var(--gain);}
+  .chip.dn{border-color:var(--loss);} .chip.dn .tri{color:var(--loss);}
+  .chip.hot{background:var(--accent);border-color:var(--ink);color:var(--ink);}     /* sky = focal signal */
+  .chip.warnz{border-color:var(--orange);} .chip.warnz .ck{color:var(--orange);}
+
+  /* ===== RIGHT — FOCAL SELECTED-INSTRUMENT PANEL ===== */
+  .focal{position:relative;flex:1 1 0;min-width:0;min-height:0;
+    background:var(--cream2);border:6px solid var(--ink);box-shadow:10px 10px 0 var(--ink);
+    clip-path:polygon(var(--slant) 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
+    display:flex;flex-direction:column;overflow:hidden;}
+  .focal-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    background:var(--ink);padding:8px 18px;gap:10px;cursor:pointer;transition:background .14s;}
+  .focal-head:hover{background:#241f17;}
+  .focal-head .fh-id{display:flex;align-items:baseline;gap:9px;min-width:0;}
+  .focal-head .fh-id .tk{font-family:'Anton';font-size:clamp(16px,1.7vw,23px);letter-spacing:.03em;
+    color:var(--cream2);text-transform:uppercase;line-height:1;white-space:nowrap;}
+  .focal-head .fh-id .tk b{color:var(--accent);}
+  /* market suffix in the focal head — tokenised (no inline font literals in JS) */
+  .focal-head .fh-id .tk .mkt{font-family:'Oswald';font-weight:600;font-size:.62em;letter-spacing:.04em;}
+  .focal-head .fh-id .nm{font-family:'Oswald';font-weight:600;font-size:clamp(9px,.85vw,12px);
+    letter-spacing:.05em;text-transform:uppercase;color:rgba(242,236,224,.55);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;}
+  .focal-head .ex{font-family:'Oswald';font-weight:700;font-size:10px;letter-spacing:.16em;
+    color:var(--accent);text-transform:uppercase;border:2px solid var(--accent);padding:2px 11px;
+    white-space:nowrap;display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);
+    transition:background .12s,color .12s;}
+  .focal-head:hover .ex{background:var(--accent);color:var(--ink);border-color:var(--ink);}
+  .focal-head .ex svg{width:11px;height:11px;display:block;}
+  .focal-head:focus-visible{outline:3px solid var(--accent);outline-offset:-3px;}
+  /* focal readout strip — last / chg / RSI / MACD compact figures */
+  .focal-strip{flex:0 0 auto;display:flex;align-items:stretch;background:var(--cream);
+    border-bottom:3px solid var(--ink);}
+  .fs-seg{flex:1 1 0;min-width:0;padding:5px 12px;border-right:2px solid rgba(20,17,13,.15);
+    display:flex;flex-direction:column;gap:1px;}
+  .fs-seg:last-child{border-right:0;}
+  .fs-seg .k{font-family:'Oswald';font-weight:700;font-size:8.5px;letter-spacing:.16em;
+    text-transform:uppercase;color:rgba(20,17,13,.55);}
+  .fs-seg .v{font-family:'Space Mono';font-weight:700;font-size:clamp(12px,1.2vw,16px);color:var(--ink);
+    font-variant-numeric:tabular-nums;line-height:1;display:inline-flex;align-items:center;gap:4px;}
+  .fs-seg .v .tri{font-size:9px;line-height:1;}
+  .fs-seg .v.up{color:var(--gain);} .fs-seg .v.dn{color:var(--loss);} .fs-seg .v.accent{color:var(--accent-dk);}
+  .fs-seg .v.fresh-v{font-size:clamp(10px,1vw,13px);}
+  /* the chart stack: candles + RSI lane + MACD lane + volume lane */
+  .focal-body{flex:1 1 auto;min-height:0;position:relative;display:flex;flex-direction:column;}
+  .lane{position:relative;min-height:0;border-bottom:2px solid rgba(20,17,13,.16);}
+  .lane:last-child{border-bottom:0;}
+  .lane.candles{flex:2.3 1 0;}
+  .lane.rsi{flex:1 1 0;}
+  .lane.macd{flex:1 1 0;}
+  .lane.vol{flex:.8 1 0;}
+  .lane > canvas{position:absolute;inset:0;width:100%;height:100%;}
+  .lane .ll{position:absolute;left:7px;top:5px;z-index:3;font-family:'Oswald';font-weight:700;
+    font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:rgba(20,17,13,.6);
+    background:var(--cream2);padding:1px 6px;border:1.5px solid rgba(20,17,13,.3);pointer-events:none;}
+  /* transparent scrub layer for focal candle lane */
+  .lane .scrub{position:absolute;inset:0;z-index:4;outline:0;cursor:crosshair;}
+  .lane .scrub:focus-visible{outline:3px solid var(--ink);outline-offset:-3px;}
+  .scrubtip{position:absolute;z-index:6;pointer-events:none;display:none;
+    background:var(--cream);color:var(--ink);border:2.5px solid var(--ink);
+    box-shadow:3px 3px 0 var(--ink);padding:3px 9px;white-space:nowrap;
+    font-family:'Space Mono',monospace;font-weight:700;font-size:12px;font-variant-numeric:tabular-nums;
+    letter-spacing:-.01em;transform:translate(-50%,-130%);}
+  .scrubtip.on{display:block;}
+  .scrubtip .st-k{color:rgba(20,17,13,.55);margin-right:6px;}
+  .scrubtip .st-up{color:var(--gain);} .scrubtip .st-dn{color:var(--loss);}
+
+  /* visually-hidden mirror (a11y) */
+  .vh{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0 0 0 0);white-space:nowrap;border:0;}
+
+  /* ================= BOTTOM STATUS BAR — CLEAN, NO SKEW (shipped) ================= */
+  .botbar{position:relative;z-index:20;flex:0 0 auto;
+    height:clamp(44px,5.4vh,54px);
+    background:var(--cream2);border:5px solid var(--ink);box-shadow:8px 8px 0 var(--ink);
+    display:flex;align-items:center;}
+  .bb-inner{display:flex;align-items:center;width:100%;height:100%;padding:0 clamp(12px,1.5vw,22px);}
+  .bb-seg{font-family:'Oswald';font-weight:700;font-size:clamp(11px,1vw,13px);letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink);padding:0 clamp(12px,1.4vw,20px);display:flex;align-items:center;gap:8px;
+    border-right:3px solid rgba(20,17,13,.18);white-space:nowrap;}
+  .bb-seg:last-child{border-right:0;}
+  .bb-seg b{color:var(--accent-dk);font-variant-numeric:tabular-nums;}
+  .bb-seg.warn b{color:var(--orange);}
+  .bb-seg.up b{color:var(--gain);} .bb-seg.dn b{color:var(--loss);}
+  .bb-spacer{flex:1;}
+  .bb-pill{font-family:'Anton';font-size:clamp(13px,1.2vw,15px);letter-spacing:.1em;color:var(--cream2);
+    background:var(--ink);padding:6px 22px;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);}
+  .bb-pill span.txt{display:inline-block;transform:skewX(var(--unskew));}
+  .bb-pill.t{background:var(--accent-dk);}
+
+  /* ================= EXPANDED OVERLAY — VIEWPORT-LEVEL, NEVER CLIPPED (shipped) ================= */
+  #expand{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+    padding:clamp(58px,8vh,84px) clamp(16px,3vw,40px) clamp(34px,5vh,52px);}
+  #expand.on{display:flex;}
+  #expand .scrim{position:absolute;inset:0;background:rgba(7,10,12,.66);}
+  .exp-frame{position:relative;z-index:2;
+    width:min(1300px,92vw);max-height:min(80vh,720px);height:auto;
+    display:flex;flex-direction:column;
+    background:var(--accent-dk);padding:16px;box-shadow:0 0 0 6px var(--ink),26px 26px 0 rgba(20,17,13,.5);
+    overflow:visible;}
+
+  /* ===== ANIMATED SKY LIQUID-MARBLE — REUSABLE .nt-marble (shipped technique) ===== */
+  .nt-marble{position:absolute;inset:0;overflow:hidden;pointer-events:none;
+    background:var(--mrb-base);}
+  .nt-marble > svg{position:absolute;top:-8%;left:-8%;width:116%;height:116%;}
+  .nt-marble .marble-drift{transform-origin:52% 46%;
+    animation:frdrift 34s ease-in-out infinite alternate;}
+  @keyframes frdrift{
+    0%{transform:translate(0,0) scale(1.08) rotate(0deg);}
+    100%{transform:translate(-22px,-34px) scale(1.18) rotate(3deg);}}
+
+  .exp-frame .frmarble{z-index:1;}
+  .exp-frame .frhalf{position:absolute;inset:0;z-index:2;
+    background-image:radial-gradient(var(--ink) 2px, transparent 2.2px);
+    background-size:14px 14px;opacity:.20;pointer-events:none;}
+  .exp-frame .frhatch{position:absolute;left:0;right:0;height:16px;z-index:2;pointer-events:none;opacity:.5;
+    background-image:repeating-linear-gradient(90deg,var(--ink) 0 4px,transparent 4px 13px);}
+  .exp-frame .frhatch.t{top:0;} .exp-frame .frhatch.b{bottom:0;}
+  .exp-frame .frtag{position:absolute;left:30px;top:-22px;z-index:5;overflow:hidden;
+    background:var(--mrb-deep);color:var(--accent);font-family:'Bungee';font-size:clamp(14px,1.5vw,19px);
+    letter-spacing:.05em;padding:8px 20px;border:3px solid var(--ink);
+    box-shadow:6px 6px 0 rgba(20,17,13,.4);white-space:nowrap;}
+  .exp-frame .frtag .nt-marble{z-index:0;}
+  .exp-frame .frtag::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+    background:rgba(20,17,13,.5);}
+  .exp-frame .frtag .txt{position:relative;z-index:2;
+    text-shadow:2px 2px 0 var(--ink),0 0 6px rgba(20,17,13,.85);}
+  .exp-close{position:absolute;right:26px;top:-22px;z-index:6;cursor:pointer;
+    background:var(--ink);color:var(--cream2);font-family:'Anton';font-size:clamp(14px,1.4vw,18px);letter-spacing:.1em;
+    padding:9px 18px;border:0;box-shadow:6px 6px 0 rgba(20,17,13,.4);white-space:nowrap;
+    transition:background .12s,color .12s;}
+  .exp-close:hover{background:var(--loss);color:var(--cream2);}
+  .exp-close:focus-visible{outline:3px solid var(--cream2);outline-offset:2px;}
+
+  .exp-inner{position:relative;z-index:3;width:100%;flex:1 1 auto;min-height:0;background:var(--cream2);
+    border:5px solid var(--ink);display:grid;grid-template-columns:1fr minmax(360px,470px);}
+  .exp-viz{position:relative;padding:clamp(14px,2.4vh,24px) clamp(16px,1.8vw,24px);border-right:5px solid var(--ink);
+    display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+  .exp-viz::before{content:'';position:absolute;inset:0;z-index:0;
+    background-image:radial-gradient(var(--ink) 1.35px,transparent 1.55px);
+    background-size:15px 15px;opacity:.05;mix-blend-mode:multiply;pointer-events:none;}
+  .exp-viz > *{position:relative;z-index:1;}
+  .exp-viz .evh{font-family:'Anton';font-size:clamp(20px,2.2vw,28px);letter-spacing:.03em;text-transform:uppercase;color:var(--ink);}
+  .exp-viz .evh b{color:var(--accent-dk);}
+  .exp-viz .evs{font-family:'Oswald';font-weight:600;font-size:clamp(10px,.95vw,13px);letter-spacing:.12em;
+    text-transform:uppercase;color:rgba(20,17,13,.55);margin-top:2px;}
+  .exp-viz .evbody{flex:1 1 auto;position:relative;margin-top:12px;min-height:0;display:flex;flex-direction:column;}
+  /* expanded multi-lane stack */
+  .exp-viz .evlane{position:relative;min-height:0;border-bottom:2px solid rgba(20,17,13,.16);}
+  .exp-viz .evlane:last-child{border-bottom:0;}
+  .exp-viz .evlane.big{flex:2.4 1 0;}
+  .exp-viz .evlane.sub{flex:1 1 0;}
+  .exp-viz .evlane.volsub{flex:.7 1 0;}
+  .exp-viz .evlane > canvas{position:absolute;inset:0;width:100%;height:100%;}
+  .exp-viz .evlane .ll{position:absolute;left:6px;top:4px;z-index:3;font-family:'Oswald';font-weight:700;
+    font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(20,17,13,.6);
+    background:var(--cream2);padding:1px 6px;border:1.5px solid rgba(20,17,13,.3);pointer-events:none;}
+
+  /* DATA PANEL — boxed value tags, alternating bands, one ink hero row */
+  .exp-data{padding:clamp(16px,2.6vh,26px) clamp(16px,1.8vw,24px);display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+  .exp-data .edh{font-family:'Anton';font-size:clamp(14px,1.4vw,18px);letter-spacing:.1em;color:var(--ink);
+    background:var(--accent);display:inline-block;padding:6px 12px;align-self:flex-start;
+    border:3px solid var(--ink);box-shadow:5px 5px 0 var(--ink);text-transform:uppercase;}
+  .edlist{margin-top:14px;display:flex;flex-direction:column;gap:0;border:3px solid var(--ink);
+    box-shadow:6px 6px 0 var(--ink);overflow:auto;min-height:0;}
+  .edrow{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:clamp(5px,.9vh,8px) 12px;border-bottom:2px solid var(--ink);position:relative;}
+  .edrow:last-child{border-bottom:0;}
+  .edrow:nth-child(odd){background:var(--cream2);}
+  .edrow:nth-child(even){background:var(--ink-tint-085);}
+  .edrow .lbl{font-family:'Oswald';font-weight:700;font-size:clamp(11px,1.05vw,14px);letter-spacing:.05em;
+    text-transform:uppercase;color:rgba(20,17,13,.82);}
+  .edrow .val{font-family:'Space Mono';font-weight:700;font-size:clamp(12px,1.2vw,15px);color:var(--ink);
+    letter-spacing:-.01em;background:var(--cream);border:2.5px solid var(--ink);
+    padding:3px 10px;box-shadow:3px 3px 0 var(--ink);min-width:96px;text-align:right;white-space:nowrap;
+    font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;justify-content:flex-end;gap:5px;}
+  .edrow .val .tri{font-size:10px;line-height:1;}
+  .edrow .val.gain{background:var(--gain);color:var(--ink);}
+  .edrow .val.loss{background:var(--loss);color:var(--cream2);}
+  .edrow .val.accent{background:var(--accent);color:var(--ink);}
+  .edrow.hero{background:var(--ink);padding:clamp(8px,1.3vh,12px) 12px;}
+  .edrow.hero .lbl{font-size:clamp(12px,1.15vw,15px);color:var(--cream2);font-weight:700;letter-spacing:.08em;}
+  .edrow.hero .val{font-family:'Anton';font-size:clamp(18px,2vw,25px);padding:2px 12px;letter-spacing:.02em;
+    background:var(--accent);color:var(--ink);box-shadow:4px 4px 0 rgba(242,236,224,.25);}
+  .edrow.hero .val.gain{background:var(--gain);color:var(--ink);}
+  .edrow.hero .val.loss{background:var(--loss);color:var(--cream2);}
+  .ed-foot{margin-top:12px;font-family:'Oswald';font-weight:600;font-size:clamp(10px,.9vw,11px);letter-spacing:.14em;
+    text-transform:uppercase;color:rgba(20,17,13,.45);padding-top:4px;flex:0 0 auto;}
+
+  /* ================= CRT — FULL VIEWPORT (shipped verbatim) ================= */
+  #crt{position:fixed;inset:0;z-index:90;pointer-events:none;overflow:hidden;}
+  #crt .bulge{position:absolute;inset:0;mix-blend-mode:soft-light;opacity:.9;
+    background:radial-gradient(120% 130% at 50% 46%,
+      rgba(255,255,255,.30) 0%, rgba(255,255,255,.06) 32%,
+      transparent 52%, rgba(20,17,13,.28) 80%, rgba(20,17,13,.55) 100%);}
+  #crt .scan{position:absolute;inset:0;mix-blend-mode:multiply;opacity:.26;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.62) 0 1px, transparent 1px 3px);}
+  #crt .grille{position:absolute;inset:0;mix-blend-mode:multiply;opacity:.06;
+    background:repeating-linear-gradient(90deg,rgba(0,0,0,.5) 0 1px, transparent 1px 3px);}
+  #crt .vig{position:absolute;inset:0;
+    background:radial-gradient(125% 135% at 50% 50%,
+      transparent 52%, rgba(20,17,13,.18) 75%, rgba(20,17,13,.44) 92%, rgba(20,17,13,.72) 100%);}
+  #crt .corners{position:absolute;inset:0;
+    background:
+      radial-gradient(42% 42% at 0% 0%,   rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 100% 0%, rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 0% 100%, rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 100% 100%,rgba(20,17,13,.46) 0%, transparent 62%);}
+  #crt .sheen{position:absolute;inset:0;mix-blend-mode:screen;opacity:.10;
+    background:radial-gradient(70% 42% at 28% -4%, #fff 0%, transparent 58%);}
+  #crt .bezel{position:absolute;inset:0;border-radius:46px;
+    box-shadow:
+      inset 0 0 0 4px rgba(20,17,13,.85),
+      inset 0 0 0 16px rgba(20,17,13,.42),
+      inset 0 0 90px 26px rgba(20,17,13,.40),
+      inset 0 0 4px 2px rgba(255,255,255,.10);}
+  #crt .glassmask{position:absolute;inset:10px;border-radius:38px;
+    box-shadow:inset 0 0 0 2px rgba(242,236,224,.10), inset 0 0 40px 8px rgba(20,17,13,.28);}
+
+  @media (prefers-reduced-motion: reduce){
+    .tb-live .dot{animation:none;}
+    .wcard,.wcard:hover{transition:none;}
+    .nt-marble .marble-drift{animation-duration:180s;}
+  }
+</style>
+</head>
+<body class="screen">
+ <!-- ============================================================================
+      SHARED ANIMATED LIQUID-MARBLE DEFINITION (shipped #ntMarble symbol, verbatim).
+      Reads colours from the --mrb-* vars on .screen — now the SKY family — so every
+      marble instance (screen frame, scanner head tag, card freshness tags, modal
+      border) re-skins from that one place. Never placed behind a chart or number.
+      ============================================================================ -->
+ <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+   <defs>
+     <filter id="ntWarp" x="-15%" y="-15%" width="130%" height="130%">
+       <feTurbulence type="fractalNoise" baseFrequency="0.0085 0.0052" numOctaves="3" seed="11" result="w">
+         <animate attributeName="baseFrequency" dur="34s" repeatCount="indefinite"
+           values="0.0085 0.0052; 0.0125 0.0082; 0.0070 0.0046; 0.0085 0.0052"
+           calcMode="spline" keyTimes="0;0.34;0.7;1"
+           keySplines="0.42 0 0.58 1; 0.42 0 0.58 1; 0.42 0 0.58 1"/>
+       </feTurbulence>
+       <feDisplacementMap in="SourceGraphic" in2="w" scale="240" xChannelSelector="R" yChannelSelector="G"/>
+     </filter>
+     <filter id="ntWarp2" x="-15%" y="-15%" width="130%" height="130%">
+       <feTurbulence type="fractalNoise" baseFrequency="0.013 0.020" numOctaves="2" seed="4" result="w2">
+         <animate attributeName="baseFrequency" dur="26s" repeatCount="indefinite"
+           values="0.013 0.020; 0.019 0.027; 0.013 0.020"
+           calcMode="spline" keyTimes="0;0.5;1"
+           keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>
+       </feTurbulence>
+       <feDisplacementMap in="SourceGraphic" in2="w2" scale="90" xChannelSelector="R" yChannelSelector="G"/>
+     </filter>
+     <pattern id="ntDots" width="14" height="14" patternUnits="userSpaceOnUse">
+       <circle cx="3" cy="3" r="1.5" fill="#0c1012"/>
+     </pattern>
+     <symbol id="ntMarble" viewBox="0 0 1300 760" preserveAspectRatio="xMidYMid slice">
+       <g class="marble-drift">
+         <rect x="-120" y="-120" width="1540" height="1000" fill="var(--mrb-base)"/>
+         <g filter="url(#ntWarp)">
+           <path d="M-120,80 C300,10 360,320 200,520 C40,700 380,720 300,980 L-160,980 Z" fill="var(--mrb-veil)"/>
+           <path d="M1300,-60 C1120,180 1240,400 980,560 C720,720 980,940 820,1080 L1360,1080 L1360,-80 Z" fill="var(--mrb-veil)"/>
+           <path d="M-100,300 C260,220 360,480 200,620 C80,730 360,740 300,940 L120,1000 L-120,1000 Z" fill="var(--mrb-mid)"/>
+           <path d="M620,-60 C840,120 660,360 900,500 C1140,640 980,860 1240,960 L1360,1000 L1360,-80 Z" fill="var(--mrb-bright)" opacity="0.55"/>
+           <path d="M-60,480 C220,420 280,640 160,740 C60,820 280,860 260,1000 L120,1040 L-120,1040 Z" fill="var(--mrb-core)"/>
+           <path d="M860,540 C940,660 840,800 980,880 C1120,960 1020,1060 1180,1120 L1360,1160 L1360,560 Z" fill="var(--mrb-base)"/>
+           <path d="M220,560 C360,520 400,760 280,840 C170,910 280,640 220,680 C340,600 140,600 220,560 Z" fill="var(--mrb-bright)"/>
+           <path d="M640,700 C740,660 780,860 680,920 C600,960 660,760 600,780 Z" fill="var(--mrb-mid)" opacity="0.92"/>
+           <path d="M-120,860 C200,820 300,1000 180,1080 L-120,1120 Z" fill="var(--mrb-deep)"/>
+           <ellipse cx="430" cy="140" rx="110" ry="150" fill="var(--mrb-deep)"/>
+           <ellipse cx="1080" cy="240" rx="120" ry="160" fill="var(--mrb-bright)" opacity="0.35"/>
+         </g>
+         <g filter="url(#ntWarp2)" opacity="0.7">
+           <path d="M-120,150 C300,120 600,260 980,320" fill="none" stroke="var(--mrb-deep)" stroke-width="34"/>
+           <path d="M-120,260 C320,230 600,360 980,420" fill="none" stroke="var(--mrb-bright)" stroke-width="18" opacity="0.7"/>
+           <path d="M-120,560 C320,530 600,660 980,720" fill="none" stroke="var(--mrb-bright)" stroke-width="22" opacity="0.85"/>
+           <path d="M-120,680 C300,650 560,760 940,840" fill="none" stroke="var(--mrb-veil)" stroke-width="26"/>
+           <path d="M-120,860 C300,830 560,920 940,1000" fill="none" stroke="var(--mrb-mid)" stroke-width="30"/>
+         </g>
+         <rect x="-120" y="-120" width="1540" height="1000" fill="url(#ntDots)" opacity="0.10"/>
+       </g>
+     </symbol>
+   </defs>
+ </svg>
+
+ <div id="screen">
+  <!-- OUTER SCREEN FRAME: drifting SKY marble bezel ring (shipped scaffolding) -->
+  <div class="nt-marble screenmarble"><svg><use href="#ntMarble"/></svg></div>
+  <div id="stage">
+    <div class="stage-bg"></div>
+    <div class="halftone"></div>
+    <canvas class="dotcluster" id="dotcl" width="560" height="420" aria-hidden="true"></canvas>
+    <canvas class="dotcluster2" id="dotcl2" width="340" height="300" aria-hidden="true"></canvas>
+    <div class="bgslash"></div>
+
+    <!-- ============ TOP STATUS BAR ============ -->
+    <div class="topbar"><div class="tb-inner">
+      <div class="tb-logo">NT</div>
+      <div class="tb-screen">WATCH<b>LIST</b></div>
+      <div class="tb-seg"><div class="k">Watched</div><div class="v accent" id="tbCount">—</div></div>
+      <div class="tb-seg"><div class="k">Movers Up</div><div class="v gain" id="tbUp">—</div></div>
+      <div class="tb-seg"><div class="k">Movers Dn</div><div class="v loss" id="tbDn">—</div></div>
+      <div class="tb-seg"><div class="k">Signals</div><div class="v" id="tbSig">—</div></div>
+      <div class="tb-spacer"></div>
+      <div class="tb-live"><div class="dot"></div><div class="lv"><span class="txt">SCAN</span></div>
+        <div class="sy">RADAR · SWEPT&nbsp;14:32</div></div>
+    </div></div>
+
+    <!-- ============ MAIN: SCANNER GRID (left) + FOCAL PANEL (right) ============ -->
+    <div class="main">
+
+      <!-- ===== LEFT — THE SCANNER ===== -->
+      <section class="scanner" aria-label="Watchlist scanner">
+        <div class="scan-head">
+          <div class="sh-tag"><div class="nt-marble"><svg><use href="#ntMarble"/></svg></div>
+            <span class="nm">Scanner</span></div>
+          <div class="sh-meta"><b id="shCount">—</b> WATCHED · <b id="shHot">—</b> SIGNALS</div>
+          <button type="button" class="addbtn" id="addBtn" aria-label="Add instrument to watchlist">
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 1V11M1 6H11"/></svg>
+            ADD INSTRUMENT
+          </button>
+        </div>
+        <div class="scan-grid" id="scanGrid" role="list" aria-label="Watched instruments"><!-- cards injected --></div>
+      </section>
+
+      <!-- ===== RIGHT — FOCAL SELECTED-INSTRUMENT PANEL ===== -->
+      <section class="focal" aria-label="Focal instrument">
+        <div class="focal-head" id="focalHead" tabindex="0" role="button" aria-label="Expand focal instrument chart">
+          <div class="fh-id"><div class="tk" id="fhTk">—</div><div class="nm" id="fhNm">—</div></div>
+          <div class="ex">EXPAND <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2H10V8M10 2L2 10"/></svg></div>
+        </div>
+        <div class="focal-strip">
+          <div class="fs-seg"><div class="k">Last</div><div class="v" id="fsLast">—</div></div>
+          <div class="fs-seg"><div class="k">Day</div><div class="v" id="fsDay">—</div></div>
+          <div class="fs-seg"><div class="k">RSI 14</div><div class="v accent" id="fsRsi">—</div></div>
+          <div class="fs-seg"><div class="k">MACD</div><div class="v" id="fsMacd">—</div></div>
+          <div class="fs-seg"><div class="k">Freshness</div><div class="v fresh-v" id="fsFresh">—</div></div>
+        </div>
+        <div class="focal-body">
+          <div class="lane candles">
+            <span class="ll" id="focal-candles-ll">PRICE · CANDLES + EMA9 · 30D</span>
+            <canvas id="cv-candles" aria-hidden="true"></canvas>
+            <div class="scrub" id="scrub-candles" tabindex="0" role="img" aria-label="Candlestick price chart"></div>
+            <span class="vh" id="vh-candles"></span>
+          </div>
+          <div class="lane rsi">
+            <span class="ll">RSI 14</span>
+            <canvas id="cv-rsi" role="img" aria-label="RSI lane"></canvas>
+          </div>
+          <div class="lane macd">
+            <span class="ll">MACD 12·26·9</span>
+            <canvas id="cv-macd" role="img" aria-label="MACD histogram lane"></canvas>
+          </div>
+          <div class="lane vol">
+            <span class="ll">VOLUME</span>
+            <canvas id="cv-vol" role="img" aria-label="Volume bars lane"></canvas>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============ BOTTOM STATUS BAR ============ -->
+    <div class="botbar"><div class="bb-inner">
+      <div class="bb-seg"><b id="bbCount">—</b>&nbsp;WATCHED</div>
+      <div class="bb-seg up">UP&nbsp;·&nbsp;<b id="bbUp">—</b></div>
+      <div class="bb-seg dn">DOWN&nbsp;·&nbsp;<b id="bbDn">—</b></div>
+      <div class="bb-seg">SIGNALS&nbsp;·&nbsp;<b id="bbSig">—</b></div>
+      <div class="bb-seg warn">QUOTES&nbsp;·&nbsp;<b>MIXED DELAYED&nbsp;15M / EOD</b></div>
+      <div class="bb-spacer"></div>
+      <div class="bb-seg">BASE&nbsp;·&nbsp;<b>GBP</b></div>
+      <div class="bb-pill t"><span class="txt">RADAR · NOT HELD</span></div>
+    </div></div>
+  </div>
+ </div>
+
+ <!-- ============ EXPANDED OVERLAY (shipped z100 machinery) ============ -->
+ <div id="expand" role="dialog" aria-modal="true" aria-labelledby="expVizHead">
+   <div class="scrim" onclick="closeExpand()"></div>
+   <div class="exp-frame">
+     <div class="nt-marble frmarble"><svg><use href="#ntMarble"/></svg></div>
+     <div class="frhalf"></div>
+     <div class="frhatch t"></div>
+     <div class="frhatch b"></div>
+     <div class="frtag" id="expTag"><div class="nt-marble"><svg><use href="#ntMarble"/></svg></div><span class="txt">INSTRUMENT DETAIL</span></div>
+     <button class="exp-close" onclick="closeExpand()">✕ CLOSE</button>
+     <div class="exp-inner">
+       <div class="exp-viz">
+         <div class="evh" id="expVizHead">—</div>
+         <div class="evs" id="expVizSub">—</div>
+         <button type="button" class="retry exp-retry" id="expRetry" hidden>↻ RETRY</button>
+         <div class="evbody">
+           <div class="evlane big"><span class="ll" id="exp-candles-ll"></span><canvas id="cv-exp-candles"></canvas></div>
+           <div class="evlane sub"><span class="ll">RSI 14</span><canvas id="cv-exp-rsi"></canvas></div>
+           <div class="evlane sub"><span class="ll">MACD 12·26·9</span><canvas id="cv-exp-macd"></canvas></div>
+           <div class="evlane volsub"><span class="ll">VOLUME</span><canvas id="cv-exp-vol"></canvas></div>
+         </div>
+       </div>
+       <div class="exp-data">
+         <div class="edh" id="expDataHead">READOUTS</div>
+         <div class="edlist" id="expRows"></div>
+         <div class="ed-foot" id="expFoot">Watchlist radar · not held · delayed/EOD quotes · swept 14:32</div>
+       </div>
+     </div>
+   </div>
+ </div>
+
+ <!-- ============ CRT (shipped verbatim) ============ -->
+ <div id="crt" aria-hidden="true">
+   <div class="bulge"></div>
+   <div class="scan"></div>
+   <div class="grille"></div>
+   <div class="sheen"></div>
+   <div class="vig"></div>
+   <div class="corners"></div>
+   <div class="bezel"></div>
+   <div class="glassmask"></div>
+ </div>
+
+<script>
+/* ---------- TOKENS mirrored as JS consts (named tokens, no stray inline hex) ---------- */
+const INK='#14110D', CREAM='#EDE6D2', CREAM2='#F2ECE0',
+      ACCENT='#1FA6F0', ACCENT_DK='#0A5C96',
+      GAIN='#2FB5A8', LOSS='#C8402F', ORANGE='#FF5A1F', PURPLE='#5D5A86',
+      GRID='rgba(20,17,13,.12)', RULE='rgba(20,17,13,.18)', WATER='rgba(20,17,13,.22)',
+      TICKTXT='rgba(20,17,13,.66)', INKSHADOW='rgba(20,17,13,.25)',
+      AREA_LOSS='rgba(200,64,47,.07)', AREA_GAIN='rgba(47,181,168,.07)',
+      VOL_BAR='rgba(20,17,13,.34)', SIGLINE='rgba(20,17,13,.6)',
+      LABELFAINT='rgba(20,17,13,.55)', ORANGEFAINT='rgba(255,90,31,.6)';
+/* DOM glyph triangles carry U+FE0E (text-presentation) so emoji fonts never colourise
+   them; canvas markers are drawn as paths via triCanvas(), never glyphs. */
+const TRI_UP='▲︎', TRI_DN='▼︎', MINUS='−';
+/* The candle overlay series — drawCandles() plots EMA9. The modal lane label and
+   sub-caption both read THIS constant so the picture can never disagree with its
+   own label (CHART_CRAFT §10/§12). Change the draw fn + this together, never one alone. */
+const CANDLE_OVERLAY_LABEL='CANDLES + EMA9';
+/* reduced-motion gate (shared): the ONLY sanctioned perpetual motion is the loading
+   sweep; under reduce we skip it and render a static skeleton frame instead. */
+let REDUCED_MOTION=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- Intl formatters (GBP base; never string-concat a symbol) ---------- */
+const LOCALE='en-GB', CCY='GBP';
+const fmtPct=new Intl.NumberFormat(LOCALE,{style:'percent',minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtNum1=new Intl.NumberFormat(LOCALE,{minimumFractionDigits:1,maximumFractionDigits:1});
+const fmtNum2=new Intl.NumberFormat(LOCALE,{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtInt=new Intl.NumberFormat(LOCALE,{maximumFractionDigits:0});
+/* price formatters cached PER decimal count — decimals are pinned per instrument
+   (a fixed `digits` field on each UNIVERSE row), NEVER chosen by live value. A quote
+   tick can never reflow the decimal count, so tabular-nums alignment stays honest
+   (CHART_CRAFT §9). priceFmt(v) is bound to the focal/selected instrument's digits
+   via PRICE_DIGITS; pass an explicit count for any other instrument. */
+const _moneyFmtCache={};
+function moneyFmt(digits){
+  return _moneyFmtCache[digits]||(_moneyFmtCache[digits]=new Intl.NumberFormat(LOCALE,
+    {style:'currency',currency:CCY,minimumFractionDigits:digits,maximumFractionDigits:digits}));
+}
+let PRICE_DIGITS=2;   // set to the focal instrument's pinned digits on each select
+function priceFmt(v,digits){return moneyFmt(digits==null?PRICE_DIGITS:digits).format(v);}
+function pctSigned(v){const s=fmtPct.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+function num1Signed(v){const s=fmtNum1.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+function num2Signed(v){const s=fmtNum2.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+function volFmt(v){if(v>=1e6)return fmtNum1.format(v/1e6)+'M';if(v>=1e3)return fmtNum1.format(v/1e3)+'K';return fmtInt.format(v);}
+
+/* ====================================================================
+   HONEST, SELF-CONSISTENT MOCK DATA (mixed UK/EU/US, delayed-15m or EOD).
+   These are NON-OWNED instruments being watched — no qty/avg/P-L; the numbers
+   are quote + client-side indicators (SMA/EMA/RSI/MACD/volume). Each carries a
+   30-bar OHLCV series (GBP per share); RSI/MACD/EMA are DERIVED from it (never
+   invented), so the focal chart, chips, strip and modal can never disagree.
+   ==================================================================== */
+/* seeded PRNG so the mock is identical every load (honest + reproducible) */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};}
+/* build a 30-bar OHLC series with a given drift + volatility + start, and volumes */
+function makeSeries(seed,start,drift,vol){
+  const rnd=mulberry32(seed);const bars=[];let c=start;
+  for(let i=0;i<30;i++){
+    const o=c;
+    const step=drift + (rnd()-0.5)*2*vol;
+    c=Math.max(start*0.25,o*(1+step));
+    const hi=Math.max(o,c)*(1+rnd()*vol*0.7);
+    const lo=Math.min(o,c)*(1-rnd()*vol*0.7);
+    const baseV=1+rnd()*1.0;
+    const v=Math.round((baseV+Math.abs(step)*40)*1e6);    // volume scales with move
+    bars.push({o,h:hi,l:lo,c,v});
+  }
+  return bars;
+}
+/* indicator helpers (standard formulas; derived from close series) */
+function closes(bars){return bars.map(b=>b.c);}
+function ema(arr,p){const k=2/(p+1);const out=[];let prev;
+  arr.forEach((v,i)=>{if(i===0){prev=v;}else{prev=v*k+prev*(1-k);}out.push(prev);});return out;}
+function sma(arr,p){return arr.map((_,i)=>{const a=arr.slice(Math.max(0,i-p+1),i+1);return a.reduce((s,x)=>s+x,0)/a.length;});}
+function rsi(arr,p){const out=[];let g=0,l=0;
+  for(let i=1;i<arr.length;i++){const d=arr[i]-arr[i-1];const up=Math.max(0,d),dn=Math.max(0,-d);
+    if(i<=p){g+=up;l+=dn;if(i===p){g/=p;l/=p;out.length=0;for(let j=0;j<p;j++)out.push(50);
+      out.push(100-100/(1+(l===0?100:g/l)));}}
+    else{g=(g*(p-1)+up)/p;l=(l*(p-1)+dn)/p;out.push(100-100/(1+(l===0?100:g/l)));}}
+  while(out.length<arr.length)out.unshift(50);
+  return out;}
+function macd(arr){const e12=ema(arr,12),e26=ema(arr,26);
+  const line=arr.map((_,i)=>e12[i]-e26[i]);const signal=ema(line,9);
+  const hist=line.map((v,i)=>v-signal[i]);return {line,signal,hist};}
+
+/* watch universe: [ticker, name, market, freshness, seed, start, drift, vol, digits]
+   freshness: 'D15' = delayed 15m (live markets), 'EOD' = end-of-day
+   digits: decimals PINNED per instrument so a quote tick never reflows the column
+   (penny/pence stocks 4dp, everything else 2dp) — see priceFmt note. */
+const UNIVERSE=[
+  ['NVDA','Nvidia Corp','NASDAQ','D15', 17, 88.0,  0.0072, 0.024, 2],
+  ['ASML','ASML Holding','AMS·EUR','D15', 13, 612.0, 0.0012, 0.017, 2],
+  ['SHEL','Shell PLC','LSE','D15', 21, 24.6,  0.0008, 0.014, 2],
+  ['VUSA','Vanguard S&P 500','LSE·ETF','D15', 33, 70.4, 0.0010, 0.010, 2],
+  ['TSLA','Tesla Inc','NASDAQ','D15', 41, 205.0,-0.0060, 0.027, 2],
+  ['AZN','AstraZeneca PLC','LSE','D15', 52, 102.5, 0.0006, 0.012, 2],
+  ['SAP','SAP SE','XETRA·EUR','EOD', 64, 158.0, 0.0014, 0.013, 2],
+  ['BARC','Barclays PLC','LSE','D15', 77, 1.92, -0.0009, 0.019, 4],
+  ['VOD','Vodafone Group','LSE','EOD', 88, 0.71, -0.0052, 0.016, 4],
+  ['AMD','Advanced Micro Dev','NASDAQ','D15', 44, 96.0, 0.0024, 0.025, 2],
+];
+const FRESH_LABEL={D15:'DELAYED 15m',EOD:'EOD'};
+/* Freshness as a DATA-QUALITY axis the screen exists to surface, not just a text tag.
+   A quote is treated as STALE when its age exceeds STALE_THRESHOLD_MIN — EOD quotes
+   always are. Stale instruments get the mandated viz treatment (dimmed fills/node +
+   dashed hatch band + a tabular chip on the plot), per CHART_CRAFT §ChartStates. */
+const QUOTE_AGE_MIN={D15:15,EOD:1140};     // delayed-15m vs ~19h since the EOD close
+const STALE_THRESHOLD_MIN=30;
+function isStale(w){return w.fresh==='EOD'||(w.ageMin||0)>STALE_THRESHOLD_MIN;}
+function staleAgeLabel(w){
+  if(w.fresh==='EOD')return 'EOD';
+  const m=w.ageMin||0;
+  return m>=60?('DELAYED '+fmtNum1.format(m/60)+'h'):('DELAYED '+m+'m');
+}
+
+const WATCH=UNIVERSE.map(([ticker,name,market,fresh,seed,start,drift,vol,digits])=>{
+  const bars=makeSeries(seed,start,drift,vol);
+  const cs=closes(bars);
+  const last=cs[cs.length-1], prev=cs[cs.length-2];
+  const dayChg=(last-prev)/prev;
+  const r=rsi(cs,14), rNow=r[r.length-1];
+  const m=macd(cs), histNow=m.hist[m.hist.length-1], macdNow=m.line[m.line.length-1];
+  const sma20=sma(cs,20), ema9=ema(cs,9);
+  const aboveSMA=last>=sma20[sma20.length-1];
+  const hi30=Math.max(...bars.map(b=>b.h)), lo30=Math.min(...bars.map(b=>b.l));
+  /* NOTE: no synthetic 52w envelope — a multiplied guess off the 30-bar range
+     would read as a real stat; the 52w row is rendered as 'to confirm' instead. */
+  const volNow=bars[bars.length-1].v, volAvg=bars.reduce((s,b)=>s+b.v,0)/bars.length;
+  const ageMin=QUOTE_AGE_MIN[fresh]||0;
+  return {ticker,name,market,fresh,digits,ageMin,bars,cs,last,prev,dayChg,
+    rsi:r,rNow,macd:m,histNow,macdNow,sma20,ema9,aboveSMA,
+    hi30,lo30,volNow,volAvg};
+});
+
+/* portfolio-of-watch summary (honest counts) */
+const UP=WATCH.filter(w=>w.dayChg>=0).length;
+const DN=WATCH.length-UP;
+/* a "signal" = an actionable indicator extreme: RSI>70 / RSI<30 / MACD histogram cross direction strong */
+function signalsFor(w){
+  const out=[];
+  if(w.rNow>=70)out.push({t:'RSI '+Math.round(w.rNow),k:'warnz',note:'overbought'});
+  else if(w.rNow<=30)out.push({t:'RSI '+Math.round(w.rNow),k:'warnz',note:'oversold'});
+  if(w.histNow>=0)out.push({t:'MACD',k:'up',note:'bull',tri:TRI_UP});
+  else out.push({t:'MACD',k:'dn',note:'bear',tri:TRI_DN});
+  out.push({t:(w.aboveSMA?'>SMA20':'<SMA20'),k:w.aboveSMA?'up':'dn',note:'sma',tri:w.aboveSMA?TRI_UP:TRI_DN});
+  return out;
+}
+function hotCount(w){return (w.rNow>=70||w.rNow<=30)?1:0;}
+const SIGNALS=WATCH.reduce((s,w)=>s+hotCount(w),0);
+
+let SELECTED=WATCH[0].ticker;   // focal instrument
+
+/* ====================================================================
+   STATE MACHINE — every canvas branches on STATE, not on data presence.
+   STATE ∈ loading | empty | error | populated  (CHART_CRAFT §12 four in-frame states).
+   The mock boots straight to 'populated' (WATCH has data); SCANNER_STATE/FOCAL_STATE
+   can be flipped (e.g. on a fetch failure or an emptied watchlist) and the SAME draw
+   pipeline then renders skeletons / empty CTA / error+Retry instead of bare canvases.
+   ==================================================================== */
+let SCANNER_STATE='populated', FOCAL_STATE='populated';
+let LOAD_SWEEP=0, LOAD_RAF=null;
+function anyLoading(){return SCANNER_STATE==='loading'||FOCAL_STATE==='loading';}
+function tickLoadSweep(){
+  LOAD_SWEEP=(LOAD_SWEEP+0.02)%1;
+  if(SCANNER_STATE==='loading')buildScanner();
+  if(FOCAL_STATE==='loading')drawFocal();
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on')&&FOCAL_STATE==='loading')drawExpand();
+  LOAD_RAF=anyLoading()?requestAnimationFrame(tickLoadSweep):null;
+}
+function ensureLoadSweep(){if(anyLoading()&&!LOAD_RAF&&!REDUCED_MOTION)LOAD_RAF=requestAnimationFrame(tickLoadSweep);}
+/* test/dev hook: flip states from the console (e.g. setState('focal','error')) */
+function setState(which,s){
+  if(which==='scanner')SCANNER_STATE=s;else FOCAL_STATE=s;
+  renderAll();
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))drawExpand();
+  ensureLoadSweep();
+}
+
+/* fill chrome */
+function fillChrome(){
+  document.getElementById('tbCount').textContent=String(WATCH.length);
+  document.getElementById('tbUp').textContent=TRI_UP+' '+UP;
+  document.getElementById('tbDn').textContent=TRI_DN+' '+DN;
+  document.getElementById('tbSig').textContent=String(SIGNALS);
+  document.getElementById('shCount').textContent=String(WATCH.length);
+  document.getElementById('shHot').textContent=String(SIGNALS);
+  document.getElementById('bbCount').textContent=String(WATCH.length);
+  document.getElementById('bbUp').textContent=String(UP);
+  document.getElementById('bbDn').textContent=String(DN);
+  document.getElementById('bbSig').textContent=String(SIGNALS);
+}
+
+/* ---------- shipped helpers (verbatim) ---------- */
+function px(c){ return c.getContext('2d'); }
+function line(ctx,pts,col,w){ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineJoin='round';ctx.beginPath();
+  pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();}
+function fitCanvas(c){
+  const r=c.getBoundingClientRect();
+  let w=Math.max(1,Math.round(r.width)), h=Math.max(1,Math.round(r.height));
+  if(!w||!h){ w=c.width||300; h=c.height||150; }
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  c.width=Math.round(w*dpr); c.height=Math.round(h*dpr);
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+function drawDotCluster(c,fade){
+  const ctx=px(c),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+  const step=15,r=2.0;
+  for(let row=0,y=0;y<H;y+=step,row++){
+    for(let x=0;x<W;x+=step){
+      let d=fade(x/W,y/H);
+      if(Math.random()>d) continue;
+      ctx.fillStyle=INK;ctx.beginPath();ctx.arc(x+(row%2?step/2:0),y,r,0,7);ctx.fill();
+    }
+  }
+}
+/* small ▲/▼ triangle drawn as a canvas path (one icon voice, never an emoji) */
+function triCanvas(ctx,x,y,s,up,col){ctx.fillStyle=col;ctx.beginPath();
+  if(up){ctx.moveTo(x,y-s);ctx.lineTo(x+s,y+s);ctx.lineTo(x-s,y+s);}
+  else  {ctx.moveTo(x,y+s);ctx.lineTo(x+s,y-s);ctx.lineTo(x-s,y-s);}
+  ctx.closePath();ctx.fill();}
+
+/* ---------- STATE / STALE canvas primitives (CHART_CRAFT §ChartStates / §12) ---------- */
+/* a tabular ink chip stamped ON the plot (worded, hard-edged, never a pill) */
+function stampChip(ctx,x,y,text,big,fg,bg){
+  ctx.font="700 "+(big?12:9.5)+"px 'Space Mono'";ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  const padX=big?7:5,padY=big?5:3.5,tw=ctx.measureText(text).width,fs=big?12:9.5;
+  const w=tw+padX*2,h=fs+padY*2;
+  ctx.fillStyle=INK;ctx.fillRect(x+1.5,y+1.5,w,h);          // hard offset shadow
+  ctx.fillStyle=bg;ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=INK;ctx.lineWidth=1.5;ctx.strokeStyle=INK;ctx.strokeRect(x,y,w,h);
+  ctx.fillStyle=fg;ctx.fillText(text,x+padX,y+padY+fs*0.82);
+  return {w,h};
+}
+/* dashed ink hatch band across a lane — the stale signature */
+function staleHatch(ctx,x0,y0,x1,y1){
+  ctx.save();ctx.globalAlpha=0.5;ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.setLineDash([4,9]);
+  ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y0);ctx.stroke();
+  ctx.restore();
+}
+/* loading: dashed hollow ink marks inside the lane silhouette + ONE hard-edged sweep
+   (no spinner, no glow). sweep01 in 0..1 is the translateX phase (driven by rAF). */
+function drawLoadingLane(ctx,x0,y0,x1,y1,sweep01){
+  ctx.save();
+  ctx.strokeStyle=RULE;ctx.lineWidth=1.4;ctx.setLineDash([5,5]);
+  // hollow dashed silhouette marks (a few ghost bars)
+  const n=8,cw=(x1-x0)/n;
+  for(let i=0;i<n;i++){const bx=x0+cw*i+cw*0.3,bw=cw*0.4,bh=(y1-y0)*(0.25+((i*7)%5)/12);
+    ctx.strokeRect(bx,y1-bh,bw,bh);}
+  ctx.setLineDash([]);
+  // single hard-edged vertical sweep
+  const sx=x0+(x1-x0)*sweep01;
+  ctx.globalAlpha=0.22;ctx.fillStyle=ACCENT;ctx.fillRect(sx-2,y0,4,y1-y0);
+  ctx.restore();
+}
+/* measure + ellipsis-truncate a single line so worded lane messages cannot overflow
+   the narrow collapsed sub-lanes (padL=46 eats width). Font must already be set. */
+function fitLaneText(ctx,txt,maxW){
+  const avail=maxW-8;
+  if(avail<=0||ctx.measureText(txt).width<=avail)return txt;
+  let s=txt;
+  while(s.length>1&&ctx.measureText(s+'…').width>avail)s=s.slice(0,-1);
+  return s+'…';
+}
+/* empty: a stamped ink message centred in the lane silhouette */
+function drawEmptyLane(ctx,x0,y0,x1,y1,msg){
+  ctx.save();
+  ctx.strokeStyle=RULE;ctx.lineWidth=1.4;ctx.setLineDash([3,6]);ctx.strokeRect(x0,y0,x1-x0,y1-y0);
+  ctx.setLineDash([]);
+  ctx.fillStyle=SIGLINE;ctx.font="700 11px 'Oswald'";ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(fitLaneText(ctx,msg,x1-x0),(x0+x1)/2,(y0+y1)/2);
+  ctx.restore();
+}
+/* error: worded cause + a hint that an --orange Retry chip sits below the lane */
+function drawErrorLane(ctx,x0,y0,x1,y1,cause){
+  ctx.save();
+  ctx.strokeStyle=ORANGEFAINT;ctx.lineWidth=1.6;ctx.setLineDash([4,5]);ctx.strokeRect(x0,y0,x1-x0,y1-y0);
+  ctx.setLineDash([]);
+  ctx.fillStyle=ORANGE;ctx.font="700 11px 'Oswald'";ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(fitLaneText(ctx,cause,x1-x0),(x0+x1)/2,(y0+y1)/2-6);
+  ctx.fillStyle=LABELFAINT;ctx.font="700 9px 'Space Mono'";
+  ctx.fillText(fitLaneText(ctx,'use RETRY to refetch',x1-x0),(x0+x1)/2,(y0+y1)/2+10);
+  ctx.restore();
+}
+
+/* ====================================================================
+   MINI STRIP (per-card) — drawMiniCandle
+   compressed candle/whisker strip; up/down via gain/loss FILL + the ink stamp.
+   ==================================================================== */
+function drawMiniCandle(c,w){
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  // SCANNER_STATE === 'loading' draws the per-card skeleton inside the strip silhouette
+  if(SCANNER_STATE==='loading'){drawLoadingLane(ctx,3,3,W-3,H-3,LOAD_SWEEP);c.setAttribute('aria-hidden','true');return;}
+  const bars=w.bars;const padT=4,padB=4,padX=3;const stale=isStale(w);
+  const hi=Math.max(...bars.map(b=>b.h)),lo=Math.min(...bars.map(b=>b.l));
+  const Y=v=>(H-padB)-((H-padT-padB))*(v-lo)/((hi-lo)||1);
+  const n=bars.length, cw=(W-padX*2)/n;
+  // baseline rule at series low (house texture)
+  ctx.strokeStyle=RULE;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(padX,H-padB);ctx.lineTo(W-padX,H-padB);ctx.stroke();
+  ctx.save();if(stale)ctx.globalAlpha=0.45;
+  bars.forEach((b,i)=>{
+    const x=padX+cw*i+cw/2;const up=b.c>=b.o;const col=up?GAIN:LOSS;
+    const bw=Math.max(1.4,cw*0.56);
+    // wick
+    ctx.strokeStyle=INK;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,Y(b.h));ctx.lineTo(x,Y(b.l));ctx.stroke();
+    // body: ink stamp then colour
+    const yo=Y(b.o),yc=Y(b.c);const top=Math.min(yo,yc),bh=Math.max(1.2,Math.abs(yc-yo));
+    ctx.fillStyle=INK;ctx.fillRect(x-bw/2+0.6,top+0.6,bw,bh);
+    ctx.fillStyle=col;ctx.fillRect(x-bw/2,top,bw,bh);
+  });
+  ctx.restore();
+  if(stale)staleHatch(ctx,padX,padT,W-padX,H-padB);
+  c.setAttribute('aria-hidden','true');
+}
+
+/* Branch a lane on FOCAL_STATE. Returns true if a non-populated state was drawn
+   (so the caller skips its populated branch). 'kind' picks the empty/error wording. */
+function laneStateGate(ctx,x0,y0,x1,y1,big,kind){
+  if(FOCAL_STATE==='populated')return false;
+  if(FOCAL_STATE==='loading'){drawLoadingLane(ctx,x0,y0,x1,y1,LOAD_SWEEP);return true;}
+  if(FOCAL_STATE==='empty'){drawEmptyLane(ctx,x0,y0,x1,y1,'NO INSTRUMENT SELECTED');return true;}
+  if(FOCAL_STATE==='error'){drawErrorLane(ctx,x0,y0,x1,y1,'QUOTE FETCH FAILED');return true;}
+  return false;
+}
+
+/* ====================================================================
+   FOCAL CANDLE LANE — drawCandles(c, big, w)
+   full candlesticks + SMA20 (ink dashed) + EMA9 (sky 3-pass accent overlay)
+   ==================================================================== */
+let SCRUB_IDX=null;
+function drawCandles(c,big,w){
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const bars=w.bars;
+  const padL=big?60:46,padR=big?16:10,padT=big?16:10,padB=big?22:14;
+  const x0=padL,x1=W-padR,y0=padT,y1=H-padB;
+  if(laneStateGate(ctx,x0,y0,x1,y1,big,'candles'))return;
+  const stale=isStale(w);
+  const hi=Math.max(...bars.map(b=>b.h)),lo=Math.min(...bars.map(b=>b.l));
+  const pad=(hi-lo)*0.06||1, mn=lo-pad, mx=hi+pad;
+  const X=i=>x0+(x1-x0)*(i+0.5)/bars.length;
+  const Y=v=>y1-(y1-y0)*(v-mn)/(mx-mn);
+  // gridlines + £ labels
+  ctx.strokeStyle=GRID;ctx.lineWidth=1;
+  for(let g=0;g<=4;g++){const yy=y0+(y1-y0)*g/4;ctx.beginPath();ctx.moveTo(x0,yy);ctx.lineTo(x1,yy);ctx.stroke();
+    const val=mx-(mx-mn)*g/4;ctx.fillStyle=TICKTXT;ctx.font=(big?"12px":"10px")+" 'Space Mono'";ctx.textAlign='right';
+    ctx.fillText(priceFmt(val,w.digits).replace(/[£]/,'£'),x0-6,yy+4);}
+  // SMA20 — ink dashed reference (house texture, sub-layer)
+  ctx.save();ctx.setLineDash([6,4]);
+  line(ctx,w.sma20.map((v,i)=>[X(i),Y(v)]),RULE,big?2:1.4);ctx.restore();
+  // candles — fills dimmed when the quote is stale (data-quality cue)
+  const cw=(x1-x0)/bars.length;
+  ctx.save();if(stale)ctx.globalAlpha=0.42;
+  bars.forEach((b,i)=>{
+    const x=X(i);const up=b.c>=b.o;const col=up?GAIN:LOSS;
+    const bw=Math.max(big?3:1.8,cw*0.6);
+    ctx.strokeStyle=INK;ctx.lineWidth=big?1.6:1;ctx.beginPath();ctx.moveTo(x,Y(b.h));ctx.lineTo(x,Y(b.l));ctx.stroke();
+    const yo=Y(b.o),yc=Y(b.c);const top=Math.min(yo,yc),bh=Math.max(big?1.6:1.2,Math.abs(yc-yo));
+    ctx.fillStyle=INK;ctx.fillRect(x-bw/2+(big?1.5:0.8),top+(big?1.5:0.8),bw,bh);
+    ctx.fillStyle=col;ctx.fillRect(x-bw/2,top,bw,bh);
+  });
+  ctx.restore();
+  // EMA9 — SKY accent 3-pass line (the focal series; accent rides the ink-stamp).
+  // The ink-shadow underlay is run one pass wider than the accent-dk casing so the
+  // focal stroke is always framed by dark ink — it can never collapse into the
+  // gain-teal candle-up fills it crosses (sky-vs-teal is the known collision).
+  const epts=w.ema9.map((v,i)=>[X(i),Y(v)]);
+  line(ctx,epts.map(p=>[p[0]+2,p[1]+2]),INKSHADOW,big?7:4.4);
+  line(ctx,epts,ACCENT_DK,big?5:3);
+  line(ctx,epts,ACCENT,big?3:2);
+  // last-close node: ink square + sky square (dimmed when stale)
+  const ln=epts[epts.length-1];
+  const ns=big?5:3.5;ctx.fillStyle=INK;ctx.fillRect(ln[0]-ns,ln[1]-ns,ns*2,ns*2);
+  ctx.save();if(stale)ctx.globalAlpha=0.45;
+  ctx.fillStyle=ACCENT;ctx.fillRect(ln[0]-ns+1.2,ln[1]-ns+1.2,ns*2-2.4,ns*2-2.4);
+  ctx.restore();
+  // scrub crosshair (focal collapsed only)
+  if(!big&&SCRUB_IDX!=null&&SCRUB_IDX>=0&&SCRUB_IDX<bars.length){
+    const xc=X(SCRUB_IDX);ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle=INK;ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(xc,y0);ctx.lineTo(xc,y1);ctx.stroke();ctx.restore();
+    const b=bars[SCRUB_IDX];const yc=Y(b.c);
+    ctx.fillStyle=INK;ctx.fillRect(xc-4,yc-4,8,8);ctx.fillStyle=ACCENT;ctx.fillRect(xc-2.4,yc-2.4,4.8,4.8);
+  }
+  // big-mode EMA legend tag
+  if(big){
+    ctx.fillStyle=ACCENT_DK;ctx.font="700 12px 'Space Mono'";ctx.textAlign='left';
+    ctx.fillText('EMA9 '+priceFmt(w.ema9[w.ema9.length-1],w.digits),x0+4,y0+14);
+    ctx.fillStyle=LABELFAINT;ctx.fillText('SMA20 '+priceFmt(w.sma20[w.sma20.length-1],w.digits),x0+4,y0+30);
+  }
+  // x labels (sparse)
+  ctx.fillStyle=LABELFAINT;ctx.font=(big?"12px":"9px")+" 'Space Mono'";ctx.textAlign='center';
+  const ticks=big?[0,7,14,21,29]:[0,14,29];
+  ticks.forEach(i=>ctx.fillText(i===29?'NOW':'D'+(i+1),X(i),y1+(big?16:11)));
+  // STALE treatment — dashed ink hatch band + a tabular chip stamped on the plot
+  if(stale){
+    staleHatch(ctx,x0,y0+(big?8:5),x1,y1);
+    stampChip(ctx,x1-(big?108:78),y0+(big?6:4),'STALE · '+staleAgeLabel(w),big,INK,ORANGE);
+  }
+  c.setAttribute('role','img');
+  c.setAttribute('aria-label',w.ticker+' '+w.name+' candlesticks over 30 days, last '+priceFmt(w.last,w.digits)+', day '+(w.dayChg>=0?'up':'down')+' '+pctSigned(w.dayChg)+', EMA9 '+priceFmt(w.ema9[w.ema9.length-1],w.digits)+', '+(w.aboveSMA?'above':'below')+' SMA20');
+}
+
+/* ====================================================================
+   RSI LANE — drawRsi(c, big, w)  (0..100 banded, 30/70 dashed guides)
+   ==================================================================== */
+function drawRsi(c,big,w){
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const padL=big?60:46,padR=big?16:10,padT=big?8:6,padB=big?6:5;
+  const x0=padL,x1=W-padR,y0=padT,y1=H-padB;
+  if(laneStateGate(ctx,x0,y0,x1,y1,big,'rsi'))return;
+  const stale=isStale(w);
+  const series=w.rsi.slice(-30);
+  const Y=v=>y1-(y1-y0)*(v/100);
+  const X=i=>x0+(x1-x0)*(i+0.5)/series.length;
+  // overbought/oversold bands (faint ink fills, sub-layer)
+  ctx.fillStyle=AREA_LOSS;ctx.fillRect(x0,y0,x1-x0,Y(70)-y0);          // >70 overbought (loss tint)
+  ctx.fillStyle=AREA_GAIN;ctx.fillRect(x0,Y(30),x1-x0,y1-Y(30));      // <30 oversold (gain tint)
+  // 70 / 50 / 30 reference rules (dashed house texture)
+  ctx.save();ctx.setLineDash([5,4]);
+  [[70,RULE],[30,RULE]].forEach(([lv,col])=>{line(ctx,[[x0,Y(lv)],[x1,Y(lv)]],col,1.2);});
+  ctx.restore();
+  ctx.strokeStyle=GRID;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,Y(50));ctx.lineTo(x1,Y(50));ctx.stroke();
+  // axis labels
+  ctx.fillStyle=TICKTXT;ctx.font=(big?"11px":"9px")+" 'Space Mono'";ctx.textAlign='right';
+  [70,30].forEach(lv=>ctx.fillText(String(lv),x0-5,Y(lv)+3));
+  // RSI line — SKY accent 3-pass (the focal indicator)
+  const pts=series.map((v,i)=>[X(i),Y(v)]);
+  line(ctx,pts.map(p=>[p[0]+1.5,p[1]+1.5]),INKSHADOW,big?4:2.6);
+  line(ctx,pts,ACCENT_DK,big?4:2.6);
+  line(ctx,pts,ACCENT,big?2.4:1.8);
+  // end node — a triangle (shape channel, via triCanvas) pointing in the last RSI
+  // direction; colour still encodes overbought(loss)/oversold(gain)/neutral(ink).
+  const rNow=series[series.length-1],rPrev=series[series.length-2];
+  const rUp=rNow>=rPrev;
+  const ncol=rNow>=70?LOSS:rNow<=30?GAIN:INK;
+  const ln=pts[pts.length-1],ts=big?6:4.5;
+  ctx.save();if(stale)ctx.globalAlpha=0.5;
+  triCanvas(ctx,ln[0],ln[1],ts+1.4,rUp,INK);                    // ink stamp
+  triCanvas(ctx,ln[0],ln[1],ts,rUp,ncol===INK?ACCENT:ncol);     // colour fill
+  ctx.restore();
+  if(stale){staleHatch(ctx,x0,y0+(big?5:3),x1,y1);}
+  c.setAttribute('aria-label','RSI 14 now '+fmtNum1.format(rNow)+(rNow>=70?' (overbought)':rNow<=30?' (oversold)':' (neutral)')+', '+(rUp?'rising':'falling')+(stale?', stale quote':''));
+}
+
+/* ====================================================================
+   MACD LANE — drawMacd(c, big, w)  (histogram bars + MACD/signal lines)
+   ==================================================================== */
+function drawMacd(c,big,w){
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const padL=big?60:46,padR=big?16:10,padT=big?8:6,padB=big?6:5;
+  const x0=padL,x1=W-padR,y0=padT,y1=H-padB;
+  if(laneStateGate(ctx,x0,y0,x1,y1,big,'macd'))return;
+  const stale=isStale(w);
+  const hist=w.macd.hist.slice(-30),mline=w.macd.line.slice(-30),sig=w.macd.signal.slice(-30);
+  const all=[...hist,...mline,...sig];
+  const mx=Math.max(...all.map(Math.abs))||1;
+  const Y=v=>(y0+y1)/2-((y1-y0)/2)*(v/(mx*1.15));
+  const X=i=>x0+(x1-x0)*(i+0.5)/hist.length;
+  // zero spine (structural rule, heavier)
+  ctx.strokeStyle=WATER;ctx.lineWidth=big?2:1.4;ctx.beginPath();ctx.moveTo(x0,Y(0));ctx.lineTo(x1,Y(0));ctx.stroke();
+  ctx.fillStyle=TICKTXT;ctx.font=(big?"11px":"9px")+" 'Space Mono'";ctx.textAlign='right';ctx.fillText('0',x0-5,Y(0)+3);
+  // histogram — gain/loss FILLS with ink stamp (diverging around zero; honest sign)
+  const cw=(x1-x0)/hist.length, bw=Math.max(big?3:1.6,cw*0.62);
+  ctx.save();if(stale)ctx.globalAlpha=0.42;
+  hist.forEach((v,i)=>{const x=X(i);const yv=Y(v),y0z=Y(0);const top=Math.min(yv,y0z),bh=Math.max(1,Math.abs(yv-y0z));
+    const col=v>=0?GAIN:LOSS;
+    ctx.fillStyle=INK;ctx.fillRect(x-bw/2+(big?1.4:0.7),top+(big?1.4:0.7),bw,bh);
+    ctx.fillStyle=col;ctx.fillRect(x-bw/2,top,bw,bh);});
+  ctx.restore();
+  // MACD line (sky accent) + signal line (ink dashed) — accent = focal stroke
+  const mp=mline.map((v,i)=>[X(i),Y(v)]);
+  line(ctx,mp.map(p=>[p[0]+1.3,p[1]+1.3]),INKSHADOW,big?3.6:2.4);
+  line(ctx,mp,ACCENT,big?2.6:1.8);
+  ctx.save();ctx.setLineDash([5,4]);line(ctx,sig.map((v,i)=>[X(i),Y(v)]),SIGLINE,big?2.2:1.6);ctx.restore();
+  // MACD end node — triangle (shape channel) pointing in the histogram sign; gain/loss colour
+  const mEnd=mp[mp.length-1],mts=big?6:4.5,mUp=w.histNow>=0;
+  ctx.save();if(stale)ctx.globalAlpha=0.5;
+  triCanvas(ctx,mEnd[0],mEnd[1],mts+1.4,mUp,INK);
+  triCanvas(ctx,mEnd[0],mEnd[1],mts,mUp,mUp?GAIN:LOSS);
+  ctx.restore();
+  if(big){ctx.fillStyle=ACCENT_DK;ctx.font="700 11px 'Space Mono'";ctx.textAlign='left';
+    ctx.fillText('MACD '+num2Signed(mline[mline.length-1]),x0+4,y0+12);
+    ctx.fillStyle=LABELFAINT;ctx.fillText('SIGNAL (dashed)',x0+4,y1-4);}
+  if(stale){staleHatch(ctx,x0,y0+(big?5:3),x1,y1);}
+  c.setAttribute('aria-label','MACD histogram now '+num2Signed(w.histNow)+', '+(w.histNow>=0?'bullish (above signal)':'bearish (below signal)')+(stale?', stale quote':''));
+}
+
+/* ====================================================================
+   VOLUME LANE — drawVol(c, big, w)  (neutral ink-stamped magnitude bars, last vs avg;
+   direction is NOT colour-encoded here — that is the candle lane's job)
+   ==================================================================== */
+function drawVol(c,big,w){
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const padL=big?60:46,padR=big?16:10,padT=big?8:5,padB=big?6:4;
+  const x0=padL,x1=W-padR,y0=padT,y1=H-padB;
+  if(laneStateGate(ctx,x0,y0,x1,y1,big,'vol'))return;
+  const stale=isStale(w);
+  const bars=w.bars;const mx=Math.max(...bars.map(b=>b.v))||1;
+  const Y=v=>y1-(y1-y0)*(v/mx);
+  const X=i=>x0+(x1-x0)*(i+0.5)/bars.length;
+  // baseline
+  ctx.strokeStyle=RULE;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,y1);ctx.lineTo(x1,y1);ctx.stroke();
+  const cw=(x1-x0)/bars.length, bw=Math.max(big?3:1.6,cw*0.62);
+  ctx.save();if(stale)ctx.globalAlpha=0.45;
+  // VOLUME = MAGNITUDE ONLY. Direction is NOT encoded here (it lives in the candle
+  // lane, which carries the §5 non-colour channels). Tinting volume bars by candle
+  // up/down would be colour-only direction (illegible under CVD), so all bars are one
+  // neutral ink-on-cream; the sky avg-volume line is the only focal accent.
+  bars.forEach((b,i)=>{const x=X(i);
+    const top=Y(b.v),bh=Math.max(1,y1-top);
+    ctx.fillStyle=INK;ctx.fillRect(x-bw/2+(big?1.2:0.6),top+(big?1.2:0.6),bw,bh);
+    ctx.fillStyle=VOL_BAR;ctx.fillRect(x-bw/2,top,bw,bh);});
+  ctx.restore();
+  // avg-volume dashed reference (sky accent stroke — focal)
+  ctx.save();ctx.setLineDash([6,4]);line(ctx,[[x0,Y(w.volAvg)],[x1,Y(w.volAvg)]],ACCENT,big?2.2:1.6);ctx.restore();
+  if(big){ctx.fillStyle=ACCENT_DK;ctx.font="700 11px 'Space Mono'";ctx.textAlign='left';
+    ctx.fillText('AVG '+volFmt(w.volAvg),x0+4,Y(w.volAvg)-4);}
+  ctx.fillStyle=TICKTXT;ctx.font=(big?"11px":"9px")+" 'Space Mono'";ctx.textAlign='right';
+  ctx.fillText(volFmt(mx),x0-5,y0+9);
+  if(stale){staleHatch(ctx,x0,y0+(big?5:3),x1,y1);}
+  c.setAttribute('aria-label','Volume bars, latest '+volFmt(w.volNow)+' versus average '+volFmt(w.volAvg)+(stale?', stale quote':''));
+}
+
+/* ====================================================================
+   BUILD THE SCANNER GRID (watch cards)
+   ==================================================================== */
+function buildScanner(){
+  const grid=document.getElementById('scanGrid');grid.innerHTML='';
+  // EMPTY — stamped ink message + the existing ADD INSTRUMENT CTA (re-used, focused)
+  if(SCANNER_STATE==='empty'){
+    const p=document.createElement('div');p.className='scan-state';
+    p.innerHTML='<div class="ss-h">WATCHLIST EMPTY</div>'
+      +'<div class="ss-s">No instruments are being watched. Add one to start the radar sweep.</div>'
+      +'<button type="button" class="retry" id="emptyAdd">'
+      +'<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 1V11M1 6H11"/></svg> ADD INSTRUMENT</button>';
+    grid.appendChild(p);
+    const ea=document.getElementById('emptyAdd');if(ea)ea.addEventListener('click',()=>document.getElementById('addBtn').click());
+    return;
+  }
+  // ERROR — worded cause + an --orange RETRY chip (refetches → populated)
+  if(SCANNER_STATE==='error'){
+    const p=document.createElement('div');p.className='scan-state err';
+    p.innerHTML='<div class="ss-h">SCAN FAILED</div>'
+      +'<div class="ss-s">Quote feed unreachable — the radar could not sweep the watchlist.</div>'
+      +'<button type="button" class="retry" id="scanRetry">↻ RETRY</button>';
+    grid.appendChild(p);
+    const rt=document.getElementById('scanRetry');if(rt)rt.addEventListener('click',()=>setState('scanner','populated'));
+    return;
+  }
+  // LOADING — skeleton cards (dashed silhouettes + sweep) for the same count
+  if(SCANNER_STATE==='loading'){
+    WATCH.forEach(w=>{
+      const card=document.createElement('div');card.className='wcard';card.setAttribute('aria-hidden','true');
+      card.innerHTML='<div class="wc-head"><div class="wc-id"><div class="tk">'+w.ticker+'</div></div></div>'
+        +'<div class="wc-strip"><canvas id="ms-'+w.ticker+'"></canvas></div><div class="wc-sig"></div>';
+      grid.appendChild(card);
+    });
+    WATCH.forEach(w=>{const c=document.getElementById('ms-'+w.ticker);if(c)drawMiniCandle(c,w);});
+    return;
+  }
+  WATCH.forEach(w=>{
+    const up=w.dayChg>=0;
+    const card=document.createElement('div');
+    card.className='wcard'+(w.ticker===SELECTED?' sel':'');
+    card.tabIndex=0;card.setAttribute('role','listitem');
+    const sigs=signalsFor(w);
+    const selected=w.ticker===SELECTED;
+    const stale=isStale(w);
+    card.setAttribute('aria-label',w.ticker+' '+w.name+', '+staleAgeLabel(w)+(stale?' (stale)':'')+', last '+priceFmt(w.last,w.digits)
+      +', day '+(up?'up':'down')+' '+pctSigned(w.dayChg)+', RSI '+Math.round(w.rNow)
+      +', MACD '+(w.histNow>=0?'bullish':'bearish')
+      +(selected?'. Selected — activate to open the expanded detail.':'. Activate to focus this instrument; activate again to open its expanded detail.'));
+    const stripId='ms-'+w.ticker;
+    const chipsHtml=sigs.map(s=>{
+      const tri=s.tri?'<span class="tri">'+s.tri+'</span>':'';
+      const lead=s.k==='warnz'?'<span class="ck">'+s.note.toUpperCase()+'</span>':'';
+      return '<span class="chip '+s.k+'">'+tri+s.t+(lead?' '+lead:'')+'</span>';
+    }).join('');
+    // vh TABLE MIRROR for the aria-hidden mini candle strip (the cards had none)
+    const mirrorRows=w.bars.map((b,i)=>'<tr><td>D'+(i+1)+'</td><td>'+priceFmt(b.o,w.digits)+'</td><td>'+priceFmt(b.h,w.digits)+'</td><td>'+priceFmt(b.l,w.digits)+'</td><td>'+priceFmt(b.c,w.digits)+'</td></tr>').join('');
+    const mirror='<table class="vh"><caption>'+w.ticker+' 30-bar OHLC mini series</caption>'
+      +'<thead><tr><th>Bar</th><th>Open</th><th>High</th><th>Low</th><th>Close</th></tr></thead><tbody>'+mirrorRows+'</tbody></table>';
+    card.innerHTML=
+      '<div class="wc-head">'
+        +'<div class="wc-id"><div class="tk">'+w.ticker+'<span class="mkt">'+w.market+'</span></div>'
+        +'<div class="nm">'+w.name+'</div></div>'
+        +'<div class="fresh '+(w.fresh==='EOD'?'eod':'')+'"><div class="nt-marble"><svg><use href="#ntMarble"/></svg></div>'
+        +'<span class="ft">'+(stale?'STALE · '+staleAgeLabel(w):FRESH_LABEL[w.fresh])+'</span></div>'
+      +'</div>'
+      +'<div class="wc-px"><span class="last">'+priceFmt(w.last,w.digits)+'</span>'
+        +'<span class="chg '+(up?'up':'dn')+'"><span class="tri">'+(up?TRI_UP:TRI_DN)+'</span>'+pctSigned(w.dayChg)+'</span></div>'
+      +'<div class="wc-strip"><canvas id="'+stripId+'"></canvas></div>'
+      +mirror
+      +'<div class="wc-sig">'+chipsHtml+'</div>'
+      +'<span class="wc-expand" role="button" tabindex="0" aria-label="Open expanded detail for '+w.ticker+'">EXPAND <svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2H10V8M10 2L2 10"/></svg></span>';
+    card.addEventListener('click',()=>{ if(w.ticker===SELECTED){LAST_TRIGGER=card;openExpand(w.ticker);} else {selectFocal(w.ticker);} });
+    card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();
+      if(w.ticker===SELECTED){LAST_TRIGGER=card;openExpand(w.ticker);}else{selectFocal(w.ticker);}}});
+    // explicit expand node — always opens the detail (a separate affordance from select)
+    const xp=card.querySelector('.wc-expand');
+    if(xp){
+      const openIt=e=>{e.stopPropagation();LAST_TRIGGER=xp;if(w.ticker!==SELECTED)selectFocal(w.ticker);openExpand(w.ticker);};
+      xp.addEventListener('click',openIt);
+      xp.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openIt(e);}});
+    }
+    grid.appendChild(card);
+  });
+  WATCH.forEach(w=>{const c=document.getElementById('ms-'+w.ticker);if(c)drawMiniCandle(c,w);});
+}
+
+/* ---------- FOCAL panel render ---------- */
+function focalWatch(){return WATCH.find(w=>w.ticker===SELECTED)||WATCH[0];}
+function fillFocalStrip(){
+  const w=focalWatch();const up=w.dayChg>=0;
+  document.getElementById('fhTk').innerHTML=w.ticker+' <b>·</b> <span class="mkt">'+w.market+'</span>';
+  document.getElementById('fhNm').textContent=w.name;
+  document.getElementById('fsLast').textContent=priceFmt(w.last,w.digits);
+  const fd=document.getElementById('fsDay');
+  fd.className='v '+(up?'up':'dn');
+  fd.innerHTML='<span class="tri">'+(up?TRI_UP:TRI_DN)+'</span>'+pctSigned(w.dayChg);
+  document.getElementById('fsRsi').textContent=fmtNum1.format(w.rNow);
+  const fm=document.getElementById('fsMacd');
+  fm.className='v '+(w.histNow>=0?'up':'dn');
+  fm.innerHTML='<span class="tri">'+(w.histNow>=0?TRI_UP:TRI_DN)+'</span>'+num2Signed(w.histNow);
+  const ff=document.getElementById('fsFresh');
+  const stale=isStale(w);
+  ff.className='v fresh-v'+(stale?' stale':'');
+  ff.textContent=stale?('STALE · '+staleAgeLabel(w)):FRESH_LABEL[w.fresh];
+}
+function drawFocal(){
+  const w=focalWatch();
+  const cC=document.getElementById('cv-candles');if(cC)drawCandles(cC,false,w);
+  const cR=document.getElementById('cv-rsi');if(cR)drawRsi(cR,false,w);
+  const cM=document.getElementById('cv-macd');if(cM)drawMacd(cM,false,w);
+  const cV=document.getElementById('cv-vol');if(cV)drawVol(cV,false,w);
+  // a11y mirror for the candle scrub layer
+  const vh=document.getElementById('vh-candles');
+  if(vh)vh.textContent=w.ticker+' candlestick chart, last '+priceFmt(w.last,w.digits)+', RSI '+fmtNum1.format(w.rNow)+', MACD '+num2Signed(w.histNow);
+}
+function selectFocal(ticker){
+  SELECTED=ticker;SCRUB_IDX=null;
+  PRICE_DIGITS=(focalWatch().digits);   // pin decimals to the focal instrument
+  document.querySelectorAll('.wcard').forEach(el=>el.classList.remove('sel'));
+  // re-mark selected
+  buildScanner();
+  fillFocalStrip();drawFocal();
+}
+
+/* ====================================================================
+   EXPAND CONFIG — focal instrument detail (candles + RSI + MACD + volume)
+   ==================================================================== */
+function instrRows(w){
+  const up=w.dayChg>=0;
+  const rsiState=w.rNow>=70?'overbought':w.rNow<=30?'oversold':'neutral';
+  const rsiKind=w.rNow>=70?'loss':w.rNow<=30?'gain':'plain';
+  return [
+    ['hero','Last price', priceFmt(w.last,w.digits),'accent'],
+    ['Day change',(up?TRI_UP+' ':TRI_DN+' ')+pctSigned(w.dayChg),up?'gain':'loss'],
+    ['RSI 14',fmtNum1.format(w.rNow)+' · '+rsiState,rsiKind],
+    ['MACD hist',(w.histNow>=0?TRI_UP+' ':TRI_DN+' ')+num2Signed(w.histNow),w.histNow>=0?'gain':'loss'],
+    ['MACD line',num2Signed(w.macdNow),'plain'],
+    ['SMA 20',priceFmt(w.sma20[w.sma20.length-1],w.digits)+(w.aboveSMA?' · above':' · below'),w.aboveSMA?'gain':'loss'],
+    ['EMA 9',priceFmt(w.ema9[w.ema9.length-1],w.digits),'plain'],
+    ['Volume (last)',volFmt(w.volNow),'plain'],
+    ['Avg volume',volFmt(w.volAvg),'plain'],
+    ['30D range',priceFmt(w.lo30,w.digits)+' … '+priceFmt(w.hi30,w.digits),'plain'],
+    /* No genuine 52-week series exists in this mock, so we DO NOT invent one.
+       Render an explicit em-dash 'to confirm' tag rather than a multiplied guess
+       that would read as a real 52w stat (CHART_CRAFT §12 bans filler numbers). */
+    ['52w range','— · to confirm','plain'],
+    ['Freshness',isStale(w)?('STALE · '+staleAgeLabel(w)):FRESH_LABEL[w.fresh],isStale(w)?'loss':'plain'],
+    ['Market',w.market,'plain'],
+  ];
+}
+let CURRENT_EXP=null,LAST_TRIGGER=null;
+function openExpand(ticker){
+  const w=WATCH.find(x=>x.ticker===ticker)||focalWatch();
+  CURRENT_EXP={w};
+  document.getElementById('expVizHead').innerHTML=w.ticker+' <b>·</b> '+w.name;
+  document.getElementById('expVizSub').textContent='Candles + EMA9 · RSI 14 · MACD 12·26·9 · volume · '+w.market+' · '+(isStale(w)?('STALE · '+staleAgeLabel(w)):FRESH_LABEL[w.fresh]);
+  document.getElementById('exp-candles-ll').textContent='PRICE · '+CANDLE_OVERLAY_LABEL;
+  document.getElementById('expRetry').hidden=(FOCAL_STATE!=='error');
+  document.getElementById('expDataHead').textContent=w.ticker+' · READOUTS';
+  document.querySelector('#expTag .txt').textContent='INSTRUMENT DETAIL';
+  const rowsEl=document.getElementById('expRows');rowsEl.innerHTML='';
+  instrRows(w).forEach(r=>{
+    const hero=r[0]==='hero';
+    const lbl=hero?r[1]:r[0],val=hero?r[2]:r[1],kind=hero?r[3]:r[2];
+    const d=document.createElement('div');d.className='edrow'+(hero?' hero':'');
+    const cls=kind==='gain'?'gain':kind==='loss'?'loss':kind==='accent'?'accent':'';
+    d.innerHTML='<div class="lbl">'+lbl+'</div><div class="val '+cls+'">'+val+'</div>';
+    rowsEl.appendChild(d);
+  });
+  document.getElementById('expand').classList.add('on');
+  try{const u=new URL(location);u.searchParams.set('expand',ticker);history.replaceState(null,'',u);}catch(e){}
+  requestAnimationFrame(()=>drawExpand());
+  setTimeout(()=>{const cb=document.querySelector('.exp-close');if(cb)cb.focus();},0);
+}
+function drawExpand(){
+  if(!CURRENT_EXP)return;const w=CURRENT_EXP.w;
+  drawCandles(document.getElementById('cv-exp-candles'),true,w);
+  drawRsi(document.getElementById('cv-exp-rsi'),true,w);
+  drawMacd(document.getElementById('cv-exp-macd'),true,w);
+  drawVol(document.getElementById('cv-exp-vol'),true,w);
+}
+function closeExpand(){
+  CURRENT_EXP=null;
+  document.getElementById('expand').classList.remove('on');
+  try{const u=new URL(location);u.searchParams.delete('expand');history.replaceState(null,'',u);}catch(e){}
+  /* return focus to the trigger; fall back to focalHead if it is gone/detached */
+  let tgt=LAST_TRIGGER;
+  if(!tgt||!tgt.isConnected||typeof tgt.focus!=='function')tgt=document.getElementById('focalHead');
+  if(tgt&&tgt.focus)tgt.focus();
+  LAST_TRIGGER=null;
+}
+/* focal head opens expand for the selected instrument */
+const fh=document.getElementById('focalHead');
+fh.addEventListener('click',()=>{LAST_TRIGGER=fh;openExpand(SELECTED);});
+fh.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();LAST_TRIGGER=fh;openExpand(SELECTED);}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeExpand();});
+/* focus trap inside modal — a real cycle, not a cage. Collect focusable nodes
+   inside .exp-frame; Shift+Tab from first wraps to last, Tab from last wraps to
+   first; interior Tab order is left intact (CHART_CRAFT §10). */
+document.getElementById('expand').addEventListener('keydown',e=>{
+  if(e.key!=='Tab')return;
+  const frame=document.querySelector('.exp-frame');if(!frame)return;
+  const nodes=Array.from(frame.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  )).filter(n=>!n.disabled&&n.offsetParent!==null);
+  if(!nodes.length)return;
+  const first=nodes[0],last=nodes[nodes.length-1],a=document.activeElement;
+  if(e.shiftKey){
+    if(a===first||!frame.contains(a)){e.preventDefault();last.focus();}
+  }else{
+    if(a===last||!frame.contains(a)){e.preventDefault();first.focus();}
+  }
+});
+/* modal error Retry — refetch the focal instrument (error -> populated) */
+document.getElementById('expRetry').addEventListener('click',()=>{
+  FOCAL_STATE='populated';
+  document.getElementById('expRetry').hidden=true;
+  drawFocal();drawExpand();
+});
+/* add-instrument affordance (mock — flashes a confirm; honest "no fake fetch") */
+document.getElementById('addBtn').addEventListener('click',function(){
+  const b=this;const old=b.innerHTML;
+  b.innerHTML='<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6L5 9L10 3"/></svg> SEARCH TICKER…';
+  setTimeout(()=>{b.innerHTML=old;},1300);
+});
+
+/* ---------- SCRUB layer over the focal candle lane ---------- */
+function wireScrub(){
+  const sc=document.getElementById('scrub-candles');if(!sc)return;
+  const body=sc.parentElement;
+  let tip=body.querySelector('.scrubtip');
+  if(!tip){tip=document.createElement('div');tip.className='scrubtip';body.appendChild(tip);}
+  function show(cx,cy){
+    const w=focalWatch();const r=body.getBoundingClientRect();
+    const padL=46,padR=10;const relx=(cx-r.left-padL)/(r.width-padL-padR);
+    const idx=Math.min(w.bars.length-1,Math.max(0,Math.round(relx*(w.bars.length-1))));
+    SCRUB_IDX=idx;const b=w.bars[idx];const up=b.c>=b.o;
+    drawCandles(document.getElementById('cv-candles'),false,w);
+    tip.innerHTML='<span class="st-k">D'+(idx+1)+'</span><span class="'+(up?'st-up':'st-dn')+'">'+priceFmt(b.c,w.digits)+'</span>';
+    tip.style.left=Math.max(8,Math.min(r.width-8,cx-r.left))+'px';
+    tip.style.top=Math.max(20,cy-r.top)+'px';tip.classList.add('on');
+  }
+  function hide(){tip.classList.remove('on');SCRUB_IDX=null;drawCandles(document.getElementById('cv-candles'),false,focalWatch());}
+  sc.addEventListener('pointermove',e=>show(e.clientX,e.clientY));
+  sc.addEventListener('pointerdown',e=>show(e.clientX,e.clientY));
+  sc.addEventListener('pointerleave',hide);
+  sc.addEventListener('blur',hide);
+  sc.addEventListener('focus',()=>{const r=body.getBoundingClientRect();show(r.left+r.width*0.7,r.top+r.height*0.4);});
+  sc.addEventListener('keydown',e=>{
+    const w=focalWatch();
+    if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();
+      let i=SCRUB_IDX==null?w.bars.length-1:SCRUB_IDX;i+=e.key==='ArrowRight'?1:-1;
+      i=Math.max(0,Math.min(w.bars.length-1,i));SCRUB_IDX=i;
+      const r=body.getBoundingClientRect();const x=r.left+46+(r.width-56)*(i+0.5)/w.bars.length;
+      show(x,r.top+r.height*0.4);}
+    if(e.key==='Enter'){e.preventDefault();LAST_TRIGGER=sc;openExpand(SELECTED);}
+  });
+}
+
+/* ---------- render all + responsive ---------- */
+function renderAll(){
+  fillChrome();
+  buildScanner();
+  fillFocalStrip();drawFocal();
+  wireScrub();
+  drawDotCluster(document.getElementById('dotcl'),(x,y)=>Math.max(0,1-Math.hypot(1-x,1-y)*0.95));
+  drawDotCluster(document.getElementById('dotcl2'),(x,y)=>Math.max(0,1-Math.hypot(x,y)*1.05));
+}
+
+if('ResizeObserver' in window){
+  const ro=new ResizeObserver(entries=>{for(const e of entries){const fn=e.target.__draw;if(fn)fn();}});
+  ['cv-candles','cv-rsi','cv-macd','cv-vol'].forEach(id=>{
+    const c=document.getElementById(id);if(!c||!c.parentElement)return;
+    const box=c.parentElement;box.__draw=()=>drawFocal();ro.observe(box);});
+  const grid=document.getElementById('scanGrid');
+  if(grid){grid.__draw=()=>{WATCH.forEach(w=>{const c=document.getElementById('ms-'+w.ticker);if(c)drawMiniCandle(c,w);});};ro.observe(grid);}
+  ['cv-exp-candles','cv-exp-rsi','cv-exp-macd','cv-exp-vol'].forEach(id=>{
+    const c=document.getElementById(id);if(!c||!c.parentElement)return;
+    const box=c.parentElement;box.__draw=()=>{if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))drawExpand();};ro.observe(box);});
+}
+let rzT=null;
+function onResize(){clearTimeout(rzT);rzT=setTimeout(()=>{
+  buildScanner();drawFocal();
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))drawExpand();
+},80);}
+window.addEventListener('resize',onResize);
+
+function go(){
+  // optional ?state= / ?focalState= boot the four-state machine (dev + design review);
+  // values: loading | empty | error | populated. Default is 'populated'.
+  const sp=new URLSearchParams(location.search);
+  const ALLOWED=['loading','empty','error','populated'];
+  const s=sp.get('state'); if(ALLOWED.includes(s))SCANNER_STATE=FOCAL_STATE=s;
+  const fs=sp.get('focalState'); if(ALLOWED.includes(fs))FOCAL_STATE=fs;
+  renderAll();
+  ensureLoadSweep();
+  const m=location.search.match(/[?&]expand=([^&]+)/);
+  if(m){const tk=decodeURIComponent(m[1]);if(WATCH.find(w=>w.ticker===tk)){selectFocal(tk);openExpand(tk);}}
+}
+function redrawPass(){drawFocal();WATCH.forEach(w=>{const c=document.getElementById('ms-'+w.ticker);if(c)drawMiniCandle(c,w);});
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))drawExpand();}
+if(document.fonts&&document.fonts.ready){
+  document.fonts.ready.then(()=>{go();
+    requestAnimationFrame(redrawPass);
+    setTimeout(redrawPass,240);});
+}else{window.addEventListener('load',go);}
+window.addEventListener('load',()=>{setTimeout(redrawPass,380);});
+
+/* ---------- prefers-reduced-motion: pause marble SMIL (shipped) ---------- */
+(function(){
+  const mq=window.matchMedia('(prefers-reduced-motion: reduce)');
+  function apply(){
+    REDUCED_MOTION=mq.matches;
+    document.querySelectorAll('svg').forEach(svg=>{try{if(mq.matches){svg.pauseAnimations();}else{svg.unpauseAnimations();}}catch(e){}});
+    // under reduce we don't run the loading sweep loop; draw one static skeleton frame
+    if(REDUCED_MOTION){if(LOAD_RAF){cancelAnimationFrame(LOAD_RAF);LOAD_RAF=null;}
+      if(SCANNER_STATE==='loading')buildScanner();if(FOCAL_STATE==='loading')drawFocal();}
+    else ensureLoadSweep();
+  }
+  apply();if(mq.addEventListener)mq.addEventListener('change',apply);
+})();
+</script>
+</body>
+</html>

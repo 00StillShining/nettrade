@@ -1,0 +1,242 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;600;700&family=Permanent+Marker&family=Bungee&display=swap');
+
+:root{
+  --ink:#0D0D0D; --ink2:#1A1A17; --paper:#F2ECE0; --cream:#EDE6D2; --bone:#FFFFFF;
+  --orange:#FF5A1F; --orange2:#FF7A18; --teal:#2FD0C5; --purple:#8A7FD0;
+  --red:#E60012; --shout:#FFE100;
+}
+
+#nt-title *{ box-sizing:border-box; border-radius:0; }
+
+/* ---------- liquid marble field behind wordmark ---------- */
+#nt-title .marble{
+  position:absolute; left:60px; top:78px; width:980px; height:300px;
+  background:
+    radial-gradient(120% 140% at 18% 30%, var(--teal) 0%, transparent 42%),
+    radial-gradient(120% 130% at 78% 70%, var(--purple) 0%, transparent 46%),
+    radial-gradient(110% 120% at 50% 50%, var(--orange) 0%, transparent 38%),
+    var(--ink);
+  filter:url(#nt-liquid);
+  clip-path:polygon(2% 8%,46% 0,72% 7%,100% 2%,98% 86%,60% 100%,30% 92%,0 100%);
+  transform:rotate(-4deg);
+  mix-blend-mode:screen;
+  opacity:1;
+  animation:nt-drift 14s ease-in-out infinite alternate;
+}
+@keyframes nt-drift{ from{transform:rotate(-4deg) translate(0,0)} to{transform:rotate(-4deg) translate(14px,-10px)} }
+
+/* ---------- halftone field ---------- */
+#nt-title .halftone{
+  position:absolute; left:40px; top:60px; width:1040px; height:330px;
+  background-image:radial-gradient(var(--ink) 1.6px, transparent 1.7px);
+  background-size:9px 9px;
+  transform:rotate(-4deg);
+  -webkit-mask-image:radial-gradient(80% 70% at 30% 40%, #000 0%, transparent 75%);
+          mask-image:radial-gradient(80% 70% at 30% 40%, #000 0%, transparent 75%);
+  opacity:.35; mix-blend-mode:multiply; pointer-events:none;
+}
+
+/* ---------- speed line streaks ---------- */
+#nt-title .streaks{
+  position:absolute; left:520px; top:120px; width:560px; height:240px;
+  background:repeating-linear-gradient(118deg,
+    var(--orange) 0 4px, transparent 4px 26px);
+  transform:rotate(-4deg);
+  clip-path:polygon(0 18%,100% 0,100% 78%,0 100%);
+  opacity:.55; mix-blend-mode:screen; pointer-events:none;
+}
+
+/* ---------- big torn paper backing plate ---------- */
+#nt-title .plate{
+  position:absolute; left:74px; top:96px; width:850px; height:268px;
+  background:var(--paper);
+  clip-path:polygon(0 6%,9% 0,34% 5%,58% 0,82% 5%,100% 0,97% 90%,72% 100%,40% 94%,14% 100%,0 96%);
+  transform:rotate(-4deg);
+  box-shadow:14px 16px 0 var(--ink);
+  filter:url(#nt-print);
+}
+#nt-title .plate-dots{
+  position:absolute; inset:0;
+  background-image:radial-gradient(var(--ink) 1.3px, transparent 1.4px);
+  background-size:7px 7px; opacity:.14;
+}
+
+/* small teal sticker behind */
+#nt-title .chip-teal{
+  position:absolute; left:48px; top:150px; width:120px; height:120px;
+  background:var(--teal); transform:rotate(-12deg);
+  clip-path:polygon(8% 0,100% 6%,92% 100%,0 90%);
+  box-shadow:8px 8px 0 var(--ink);
+}
+#nt-title .chip-purple{
+  position:absolute; left:858px; top:108px; width:96px; height:96px;
+  background:var(--purple); transform:rotate(10deg);
+  clip-path:polygon(0 8%,90% 0,100% 92%,6% 100%);
+  box-shadow:7px 7px 0 var(--ink);
+}
+
+/* ---------- WORDMARK ---------- */
+#nt-title .mark{
+  position:absolute; left:96px; top:96px; width:860px; height:280px;
+  transform:rotate(-4deg);
+}
+
+/* NET tag */
+#nt-title .word-net{
+  position:absolute; left:18px; top:6px;
+  background:var(--ink);
+  padding:6px 30px 14px 24px;
+  clip-path:polygon(5% 0,100% 0,95% 100%,0 100%);
+  transform:rotate(-2deg);
+  box-shadow:10px 10px 0 var(--orange);
+}
+#nt-title .word-net span{
+  font-family:"Anton",sans-serif; font-size:150px; line-height:.82;
+  text-transform:uppercase; letter-spacing:-0.03em;
+  color:var(--bone);
+  -webkit-text-stroke:3px var(--ink);
+  text-shadow:7px 7px 0 var(--orange), 7px 7px 0 var(--ink);
+  display:block;
+}
+
+/* TRADE tag - offset down-right, overlapping */
+#nt-title .word-trade{
+  position:absolute; left:300px; top:118px;
+  background:var(--orange);
+  padding:6px 38px 16px 30px;
+  clip-path:polygon(3% 0,100% 0,97% 100%,0 100%);
+  transform:rotate(-5deg);
+  box-shadow:11px 11px 0 var(--ink);
+}
+#nt-title .word-trade span{
+  font-family:"Anton",sans-serif; font-size:158px; line-height:.82;
+  text-transform:uppercase; letter-spacing:-0.04em;
+  color:var(--paper);
+  -webkit-text-stroke:3px var(--ink);
+  text-shadow:8px 8px 0 var(--ink);
+  display:block;
+}
+
+/* orange slash accent through wordmark */
+#nt-title .slash{
+  position:absolute; left:470px; top:40px; width:360px; height:30px;
+  background:var(--orange); transform:rotate(-30deg);
+  clip-path:polygon(0 40%,100% 0,100% 60%,0 100%);
+  box-shadow:5px 5px 0 var(--ink);
+}
+#nt-title .slash2{
+  position:absolute; left:200px; top:250px; width:240px; height:18px;
+  background:var(--teal); transform:rotate(-22deg);
+  clip-path:polygon(0 30%,100% 0,100% 70%,0 100%);
+}
+
+/* ---------- graffiti scrawl ---------- */
+#nt-title .scrawl{
+  position:absolute; left:118px; top:392px;
+  font-family:"Permanent Marker",cursive;
+  font-size:40px; color:var(--teal);
+  transform:rotate(-6deg);
+  text-shadow:3px 3px 0 var(--ink);
+  white-space:nowrap;
+}
+#nt-title .scrawl-underline{
+  position:absolute; left:128px; top:442px; width:330px; height:8px;
+  background:var(--orange); transform:rotate(-7deg);
+  clip-path:polygon(0 50%,12% 0,30% 60%,55% 10%,80% 70%,100% 20%,100% 100%,0 100%);
+}
+
+/* ---------- Bungee boxed MENU // MAIN tag ---------- */
+#nt-title .menu-tag{
+  position:absolute; left:946px; top:96px;
+  background:var(--ink);
+  border:5px solid var(--bone);
+  padding:12px 22px 14px;
+  transform:rotate(4deg);
+  clip-path:polygon(4% 0,100% 4%,96% 100%,0 96%);
+  box-shadow:9px 9px 0 var(--purple);
+}
+#nt-title .menu-tag .mt-main{
+  font-family:"Bungee",cursive; font-size:30px; line-height:1;
+  text-transform:uppercase; color:var(--bone); letter-spacing:.01em;
+  display:block;
+}
+#nt-title .menu-tag .mt-main em{ color:var(--orange); font-style:normal; }
+#nt-title .menu-tag .mt-sub{
+  font-family:"Oswald",sans-serif; font-weight:600; font-size:14px;
+  text-transform:uppercase; letter-spacing:.22em; color:var(--teal);
+  display:block; margin-top:6px;
+}
+
+/* small stamp */
+#nt-title .stamp{
+  position:absolute; left:470px; top:392px;
+  font-family:"Oswald",sans-serif; font-weight:700; font-size:16px;
+  letter-spacing:.16em; text-transform:uppercase;
+  color:var(--paper); background:var(--ink);
+  border:2px solid var(--orange);
+  padding:6px 14px; transform:rotate(-8deg);
+  clip-path:polygon(6% 0,100% 0,94% 100%,0 100%);
+  box-shadow:5px 5px 0 var(--ink);
+}
+
+/* tick marks scatter */
+#nt-title .ticks{
+  position:absolute; left:600px; top:392px; width:300px; height:40px;
+  transform:rotate(-4deg);
+  background:repeating-linear-gradient(90deg, var(--ink) 0 3px, transparent 3px 16px);
+  -webkit-mask-image:linear-gradient(90deg,#000,transparent);
+          mask-image:linear-gradient(90deg,#000,transparent);
+  opacity:.5; height:14px;
+}
+</style>
+</head>
+<body style="margin:0;background:var(--ink)">
+
+<svg width="0" height="0" style="position:absolute">
+  <filter id="nt-print">
+    <feTurbulence type="fractalNoise" baseFrequency="0.012 0.04" numOctaves="2" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="6"/>
+  </filter>
+  <filter id="nt-liquid">
+    <feTurbulence type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="3" seed="11" result="t">
+      <animate attributeName="baseFrequency" dur="22s" values="0.008 0.012;0.011 0.016;0.008 0.012" repeatCount="indefinite"/>
+    </feTurbulence>
+    <feDisplacementMap in="SourceGraphic" in2="t" scale="70"/>
+  </filter>
+</svg>
+
+<div id="nt-title" style="position:absolute;inset:0;width:1512px;height:982px;overflow:visible">
+
+  <div class="marble"></div>
+  <div class="halftone"></div>
+  <div class="chip-teal"></div>
+  <div class="chip-purple"></div>
+  <div class="plate"><div class="plate-dots"></div></div>
+  <div class="streaks"></div>
+
+  <div class="mark">
+    <div class="slash"></div>
+    <div class="word-net"><span>NET</span></div>
+    <div class="word-trade"><span>TRADE</span></div>
+    <div class="slash2"></div>
+  </div>
+
+  <div class="scrawl">// trading station</div>
+  <div class="scrawl-underline"></div>
+  <div class="ticks"></div>
+
+  <div class="stamp">EST. LIVE</div>
+
+  <div class="menu-tag">
+    <span class="mt-main">MENU <em>//</em> MAIN</span>
+    <span class="mt-sub">SELECT A STATION</span>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,684 @@
+/* PositionDetailModal — the ~80%-screen dossier over a clicked roster card.
+   SCREEN_PATTERNS.md §7 cream-paper recipe (paper fill + inert paper-grain +
+   ~3px ink outline + solid-colour ribbon) on the dark CRT frame. The body is a
+   two-column SDN grid (SCREEN_PATTERNS §1 fill-the-space law): a left main
+   column (hero + price-pure gauge + P/L anatomy + cost-vs-value bars) and a
+   right dossier rail, so the dialog's ~80vh is earned by real content instead
+   of trailing into empty cream below a short single column.
+
+   ANTI-BRICK (actuality-ui §7): the scrim is a plain rgba dim — NO
+   backdrop-filter, NO mix-blend-mode, NO live filter anywhere. The grain is the
+   same static SVG data-URI every panel uses. Only `transform` + `opacity`
+   animate on open. Rendered inside the screen, so it sits beneath the baked CRT
+   like every cream surface (centre-clear vignette keeps it legible). */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vmin;
+  box-sizing: border-box;
+  /* Plain dim — dark, semi-transparent. NOT a backdrop-filter (that bricked v1). */
+  background: rgba(9, 12, 18, 0.62);
+  animation: scrimIn 140ms ease-out;
+}
+
+@keyframes scrimIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---- Dialog: ~80% of the screen, capped so it never sprawls ---- */
+.dialog {
+  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/></svg>");
+  --gain-ink: #3f6f45;
+  --loss-ribbon: #b83129;
+
+  width: 80vw;
+  height: 80vh;
+  max-width: 1120px;
+  max-height: 800px;
+  min-width: 320px;
+  box-sizing: border-box;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 7px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Static lift off the dimmed screen — a fixed shadow, never animated. */
+  box-shadow: 0 26px 84px -14px rgba(0, 0, 0, 0.72);
+  animation: dialogIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Inert paper-grain over the whole dialog (below content, z-index:1 items). */
+.dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+/* ============================== RIBBON ============================== */
+
+.ribbon {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+}
+
+.ribbonGain {
+  background: var(--gain-ink);
+}
+
+.ribbonLoss {
+  background: var(--loss-ribbon);
+}
+
+.ribbonFlat {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.ribbonFlat .ribbonSymbol,
+.ribbonFlat .ribbonName {
+  color: var(--ink);
+}
+
+.ribbonFlat .close {
+  background: rgba(43, 36, 28, 0.08);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.ribbonFlat .close:hover {
+  background: rgba(43, 36, 28, 0.16);
+}
+
+.ribbonFlat .close:focus-visible {
+  outline-color: var(--ink);
+}
+
+.ribbonLeft {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.ribbonSymbol {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+
+.ribbonName {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--paper);
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Close X — obviously pressable, paper on the coloured ribbon. */
+.close {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(236, 226, 206, 0.14);
+  border: 1.5px solid var(--paper);
+  border-radius: 5px;
+  color: var(--paper);
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.close:hover {
+  background: rgba(236, 226, 206, 0.3);
+}
+
+.close:active {
+  transform: scale(0.94);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: 2px;
+}
+
+.close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================== BODY ============================== */
+
+/* Two-column SDN dossier grid (fix 4 — fill-the-space law, SCREEN_PATTERNS §1):
+   left main column carries the hero/gauge/breakdown panels, right rail carries
+   the key/value dossier so it fills the dialog height instead of leaving cream
+   deadspace below a short left column. `.body` stays the internal scroller
+   (flex:1, min-height:0, overflow-y:auto) so small windows never clip anything
+   (viewport-lock law, SCREEN_PATTERNS §2) — the grid just arranges its content,
+   scrolling still happens on this one element. */
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  position: relative;
+  z-index: 1;
+  padding: var(--s5) var(--s5) var(--s4);
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 1fr);
+  grid-template-rows: minmax(min-content, 1fr);
+  gap: var(--s5);
+  align-items: stretch;
+}
+
+/* Collapse to one column on narrow windows so the rail never crushes. */
+@media (max-width: 880px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  justify-content: space-between;
+  min-width: 0;
+}
+
+/* ---- Right rail: the dossier key/value column, owns the rail height ---- */
+
+.rail {
+  min-width: 0;
+  height: 100%;
+  padding-left: var(--s5);
+  border-left: 2px solid var(--paper-2);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+@media (max-width: 880px) {
+  .rail {
+    height: auto;
+    padding-left: 0;
+    border-left: none;
+    padding-top: var(--s4);
+    border-top: 2px solid var(--paper-2);
+  }
+}
+
+/* ---- Hero band: glyph + value + unrealised ---- */
+
+.heroBand {
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+  flex-wrap: wrap;
+}
+
+.glyph {
+  flex: 0 0 auto;
+  position: relative;
+  width: 92px;
+  height: 68px;
+  border-radius: 5px;
+  background: var(--paper-2);
+  border: 2px solid var(--ink);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glyphSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.glyphShape {
+  fill: var(--ink);
+}
+
+.glyphInitials {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.heroStat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.heroLabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+}
+
+.heroValue {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.heroTri {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.heroPct {
+  font-size: 0.5em;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* ---- Avg-cost gauge (honest two-point: avg cost vs current price) ---- */
+
+.gauge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.gaugeHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.gaugeLabel {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+}
+
+.gaugeMeta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.gaugeMetaTri {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+}
+
+.gaugeTrack {
+  position: relative;
+  height: 10px;
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+}
+
+/* Avg-cost centre tick */
+.gaugeMid {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+  opacity: 0.45;
+}
+
+.gaugeMarker {
+  position: absolute;
+  top: 50%;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--paper);
+  transform: translate(-50%, -50%);
+}
+
+.markerGain {
+  background: var(--gain-ink);
+}
+
+.markerLoss {
+  background: var(--loss);
+}
+
+.markerFlat {
+  background: var(--ink-body);
+}
+
+.gaugeScale {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  /* Align the −20%/+20% labels with the marker's REAL clamp endpoints (the
+     marker pins at 4%/96%, clamp ±46) — otherwise read-off positions are
+     compressed ~8% relative to the drawn scale (honest-data). */
+  padding: 0 4%;
+  box-sizing: border-box;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.gaugeAvgCost {
+  font-family: var(--font-display);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+/* Key beneath the scale: the two actual prices, stamped together so neither
+   reads as a track endpoint (fix: scale ends are now axis anchors, not
+   prices — see gaugeScale above). */
+.gaugePrices {
+  display: flex;
+  gap: var(--s4);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-body);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Rail dossier rows: bold-label / mono-value pairs, single column.
+   Generous padding + bumped sizes vs the old two-column layout — the rail
+   owns the full column height now, so its rows get to breathe (fix 4). ---- */
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s3) 0;
+  border-bottom: 1.5px solid var(--paper-2);
+}
+
+.rowLabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  white-space: nowrap;
+}
+
+.rowValue {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowValueMono {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* ---- P/L Anatomy: three stamped stats in a row ---- */
+
+.sectionLabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-bottom: var(--s3);
+}
+
+.anatomy {
+  display: flex;
+  flex-direction: column;
+}
+
+.anatomyRow {
+  display: flex;
+  gap: var(--s6);
+  flex-wrap: wrap;
+}
+
+.anatomyStat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.anatomyLabel {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  white-space: nowrap;
+}
+
+.anatomyValue {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.anatomyTri {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+}
+
+.anatomyNote {
+  margin-top: var(--s3);
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-body);
+}
+
+/* ---- Cost vs Value: two static horizontal bars on a shared scale ---- */
+
+.compare {
+  display: flex;
+  flex-direction: column;
+}
+
+.compareRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.compareRow {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.compareLabel {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  white-space: nowrap;
+}
+
+.compareTrack {
+  position: relative;
+  height: 16px;
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Static width — set once from real data, never animated/transitioned. */
+.compareFill {
+  height: 100%;
+}
+
+.compareFill_cost {
+  background: var(--ink);
+  opacity: 0.32;
+}
+
+.compareFill_gain {
+  background: var(--gain-ink);
+  opacity: 0.55;
+}
+
+.compareFill_loss {
+  background: var(--loss);
+  opacity: 0.55;
+}
+
+.compareValue {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ============================== FOOT ============================== */
+
+.foot {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s5);
+  padding: var(--s3) var(--s5);
+  border-top: 2px solid var(--ink);
+  flex-wrap: wrap;
+}
+
+.footNote {
+  flex: 1 1 42ch;
+  max-width: 66ch;
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-body);
+}
+
+.chartBtn {
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-void);
+  background: var(--amber);
+  border: 1px solid var(--amber-deep);
+  border-radius: 4px;
+  padding: var(--s3) var(--s5);
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.chartBtn:hover {
+  background: var(--amber-deep);
+}
+
+.chartBtn:active {
+  transform: scale(0.97);
+}
+
+.chartBtn:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* ---- Shared gain/loss text colour ---- */
+
+.gain {
+  color: var(--gain-ink);
+}
+
+.loss {
+  color: var(--loss);
+}

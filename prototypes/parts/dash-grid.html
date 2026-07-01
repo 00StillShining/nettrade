@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NET TRADE — Dashboard (GRID)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;900&family=Anton&family=Oswald:wght@400;500;600;700&family=Bungee&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#EDE6D2; --cream2:#F2ECE0; --ink:#14110D; --orange:#FF5A1F;
+    --teal:#19E5E5; --teal2:#2FB5A8; --tealdk:#0E6E68;
+    --gain:#2FB5A8; --loss:#C8402F; --purple:#5D5A86;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;border-radius:0;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0a0908;}
+  body{font-family:'Oswald',sans-serif;color:var(--ink);}
+
+  /* ---- cover-scaler: scale the 1512x982 stage to FILL viewport ---- */
+  #scaler{position:fixed;top:50%;left:50%;width:1512px;height:982px;
+    transform:translate(-50%,-50%) scale(var(--s,1));transform-origin:center center;}
+  #stage{position:absolute;inset:0;width:1512px;height:982px;overflow:hidden;
+    background:var(--cream);}
+
+  /* ===================== CRT WRAP ===================== */
+  /* faint scanlines */
+  .crt-scan{position:absolute;inset:0;z-index:90;pointer-events:none;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px);
+    mix-blend-mode:multiply;opacity:.45;}
+  /* vignette + barrel feel */
+  .crt-vig{position:absolute;inset:0;z-index:91;pointer-events:none;
+    background:radial-gradient(125% 120% at 50% 50%, transparent 56%, rgba(10,8,6,.30) 82%, rgba(8,6,4,.62) 100%);}
+  /* slightly rounded monitor corners — outer frame is the ONLY rounded thing */
+  .crt-corners{position:absolute;inset:0;z-index:93;pointer-events:none;
+    border-radius:22px;box-shadow:inset 0 0 0 6px #0a0908, inset 0 0 44px 10px rgba(8,6,4,.5);}
+  .crt-glow{position:absolute;inset:0;z-index:8;pointer-events:none;
+    background:radial-gradient(120% 100% at 50% 40%, rgba(255,255,255,.05), transparent 60%);}
+
+  /* ---- base cream halftone over whole stage ---- */
+  .halftone{position:absolute;inset:0;z-index:1;pointer-events:none;
+    background-image:radial-gradient(var(--ink) 1.3px, transparent 1.4px);
+    background-size:15px 15px;opacity:.055;mix-blend-mode:multiply;}
+  /* a teal-tinted diagonal field behind tiles for distinction from menu */
+  .field{position:absolute;inset:0;z-index:0;
+    background:
+      linear-gradient(118deg, rgba(47,181,168,.10) 0%, transparent 42%),
+      linear-gradient(300deg, rgba(25,229,229,.07) 0%, transparent 38%),
+      var(--cream);}
+  /* big faint teal slash shard, top-right (signature angle, not orange) */
+  .bgshard{position:absolute;right:-60px;top:-120px;width:760px;height:520px;z-index:0;
+    clip-path:polygon(28% 0,100% 0,100% 64%,0 100%);
+    background:repeating-linear-gradient(122deg, rgba(14,110,104,.10) 0 3px, transparent 3px 26px);
+    opacity:.8;}
+
+  /* ===================== TOP STATUS BAR ===================== */
+  .topbar{position:absolute;left:24px;right:24px;top:18px;height:74px;z-index:40;
+    background:var(--ink);border:4px solid var(--ink);
+    box-shadow:9px 9px 0 rgba(20,17,13,.0), 0 0 0 4px var(--cream2), 11px 11px 0 var(--ink);
+    transform:skewX(-7deg);display:flex;align-items:stretch;overflow:hidden;}
+  .topbar > *{transform:skewX(7deg);}
+  .tb-seg{display:flex;flex-direction:column;justify-content:center;padding:8px 22px;
+    border-right:3px solid rgba(237,230,210,.18);}
+  .tb-k{font-family:'Oswald';font-weight:600;font-size:11px;letter-spacing:.24em;
+    text-transform:uppercase;color:#9ad8d4;}
+  .tb-v{font-family:'Space Mono';font-weight:700;font-size:22px;color:var(--cream2);line-height:1.05;}
+  .tb-v.teal{color:var(--teal);}
+  .tb-v.gain{color:var(--teal);}
+  .tb-logo{display:flex;align-items:center;padding:0 26px 0 28px;background:var(--teal);
+    border-right:4px solid var(--ink);}
+  .tb-logo .lg{font-family:'Unbounded';font-weight:900;font-size:30px;color:var(--ink);
+    letter-spacing:-.04em;-webkit-text-stroke:1px var(--ink);}
+  .tb-live{margin-left:auto;display:flex;align-items:center;gap:10px;padding:0 24px;
+    background:var(--teal);border-left:4px solid var(--ink);}
+  .tb-live .dot{width:13px;height:13px;background:var(--ink);
+    clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);animation:blink 1.4s steps(2) infinite;}
+  .tb-live .lv{font-family:'Bungee';font-size:18px;color:var(--ink);letter-spacing:.04em;}
+  .tb-sync{font-family:'Space Mono';font-size:12px;color:var(--ink);font-weight:700;opacity:.8;}
+  @keyframes blink{50%{opacity:.25;}}
+
+  /* ===================== TILE BASE ===================== */
+  .tile{position:absolute;z-index:20;background:var(--cream2);
+    border:4px solid var(--ink);box-shadow:9px 9px 0 var(--ink);
+    cursor:pointer;overflow:hidden;transition:transform .12s cubic-bezier(.2,1.4,.3,1),box-shadow .12s;}
+  .tile:hover{transform:translate(-2px,-2px);box-shadow:13px 13px 0 var(--ink);}
+  .tile .thead{height:42px;background:var(--teal2);border-bottom:4px solid var(--ink);
+    display:flex;align-items:center;justify-content:space-between;padding:0 14px;}
+  .tile .thead .tt{font-family:'Anton';font-size:21px;letter-spacing:.02em;
+    text-transform:uppercase;color:var(--ink);line-height:1;}
+  .tile .thead .tx{font-family:'Bungee';font-size:13px;color:var(--cream2);
+    background:var(--ink);padding:3px 8px 2px;letter-spacing:.02em;}
+  .tile .tbody{position:absolute;left:0;right:0;top:42px;bottom:0;overflow:hidden;}
+  /* tile-internal halftone wash */
+  .tile .tbody::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+    background-image:radial-gradient(var(--ink) 1.1px, transparent 1.2px);
+    background-size:13px 13px;opacity:.05;}
+  .tile-tilt{transform:rotate(-1.4deg);}
+  .tile-tilt:hover{transform:rotate(-1.4deg) translate(-2px,-2px);}
+  .tile-tilt2{transform:rotate(1.6deg);}
+  .tile-tilt2:hover{transform:rotate(1.6deg) translate(-2px,-2px);}
+
+  /* hero gauge tile gets a teal header underline accent */
+  .tile.hero .thead{background:var(--teal);}
+
+  /* the big readout inside hero */
+  .gauge-read{position:absolute;left:0;right:0;bottom:10px;text-align:center;z-index:3;}
+  .gauge-read .big{font-family:'Unbounded';font-weight:900;font-size:54px;color:var(--ink);
+    letter-spacing:-.03em;line-height:.9;}
+  .gauge-read .big .pm{color:var(--gain);}
+  .gauge-read .sub{font-family:'Space Mono';font-weight:700;font-size:16px;color:var(--tealdk);
+    margin-top:2px;}
+  .gauge-read .lbl{font-family:'Oswald';font-weight:600;font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--ink);opacity:.65;margin-top:4px;}
+
+  /* tiny stat chips for split tile */
+  .splitwrap{position:absolute;inset:0;display:flex;flex-direction:column;
+    justify-content:center;gap:12px;padding:14px 18px;z-index:3;}
+  .splitrow{display:flex;align-items:flex-end;gap:10px;}
+  .splitrow .pill{font-family:'Oswald';font-weight:700;font-size:12px;letter-spacing:.16em;
+    text-transform:uppercase;padding:4px 10px;border:3px solid var(--ink);background:var(--cream);}
+  .splitrow .num{font-family:'Space Mono';font-weight:700;font-size:30px;color:var(--ink);line-height:.9;}
+  .splitbar{height:26px;border:3px solid var(--ink);display:flex;overflow:hidden;
+    box-shadow:4px 4px 0 var(--ink);}
+  .splitbar .a{background:var(--teal2);}
+  .splitbar .b{background:repeating-linear-gradient(125deg,var(--teal) 0 4px,#bfeaea 4px 9px);}
+  .splitlab{display:flex;justify-content:space-between;font-family:'Space Mono';
+    font-weight:700;font-size:13px;color:var(--ink);margin-top:2px;}
+
+  /* ===================== HOLDINGS ROSTER ===================== */
+  .roster{position:absolute;left:24px;right:24px;bottom:74px;height:118px;z-index:30;
+    display:flex;gap:12px;}
+  .card{flex:1;background:var(--cream2);border:4px solid var(--ink);
+    box-shadow:7px 7px 0 var(--ink);position:relative;overflow:hidden;
+    transform:rotate(-1deg);transition:transform .12s cubic-bezier(.2,1.4,.3,1);cursor:pointer;}
+  .card:nth-child(even){transform:rotate(1.2deg);}
+  .card:hover{transform:rotate(0deg) translateY(-4px);box-shadow:9px 9px 0 var(--ink);}
+  .card .ctop{height:30px;background:var(--ink);display:flex;align-items:center;
+    justify-content:space-between;padding:0 9px;}
+  .card .tk{font-family:'Bungee';font-size:14px;color:var(--cream2);letter-spacing:.01em;}
+  .card .badge{font-family:'Oswald';font-weight:700;font-size:11px;padding:2px 6px;
+    display:flex;align-items:center;gap:3px;letter-spacing:.04em;}
+  .badge.up{background:var(--teal);color:var(--ink);}
+  .badge.dn{background:var(--loss);color:var(--cream2);}
+  .card .cbody{position:absolute;top:30px;left:0;right:0;bottom:0;padding:7px 9px;}
+  .card .alloc{font-family:'Space Mono';font-size:11px;color:var(--ink);opacity:.6;font-weight:700;}
+  .card .pl{font-family:'Space Mono';font-weight:700;font-size:21px;line-height:1.1;}
+  .pl.up{color:var(--gain);} .pl.dn{color:var(--loss);}
+  /* mini sparkbar in card */
+  .card .spark{position:absolute;bottom:7px;left:9px;right:9px;height:18px;display:flex;
+    align-items:flex-end;gap:2px;}
+  .card .spark i{flex:1;background:var(--teal2);opacity:.7;}
+  .card.dncard .spark i{background:var(--loss);opacity:.55;}
+
+  /* ===================== BOTTOM STATUS BAR ===================== */
+  .botbar{position:absolute;left:24px;right:24px;bottom:18px;height:44px;z-index:40;
+    background:var(--ink);transform:skewX(-7deg);display:flex;align-items:stretch;
+    box-shadow:0 0 0 4px var(--cream2), 8px 8px 0 var(--ink);overflow:hidden;}
+  .botbar > *{transform:skewX(7deg);display:flex;align-items:center;padding:0 18px;
+    border-right:3px solid rgba(237,230,210,.16);
+    font-family:'Oswald';font-weight:600;font-size:12px;letter-spacing:.18em;
+    text-transform:uppercase;color:#cfe9e7;}
+  .botbar .bteal{color:var(--teal);}
+  .botbar .bgrow{margin-left:auto;background:var(--teal2);color:var(--ink);font-weight:700;
+    border-right:none;font-family:'Bungee';font-size:13px;letter-spacing:.04em;}
+  .botbar .delayed{color:var(--orange);} /* minimal orange permitted */
+
+  /* ===================== EXPANDED OVERLAY ===================== */
+  .ovl{position:absolute;inset:0;z-index:80;display:none;
+    background:rgba(12,9,7,.72);}
+  .ovl.open{display:block;}
+  .ovlpanel{position:absolute;left:64px;right:64px;top:60px;bottom:60px;
+    background:var(--cream2);border:6px solid var(--teal2);
+    box-shadow:0 0 0 5px var(--ink), 18px 18px 0 rgba(14,110,104,.55);
+    display:flex;overflow:hidden;}
+  /* teal decorative frame ribbon (all decoration pushed to border) */
+  .ovlpanel::before{content:"";position:absolute;inset:6px;z-index:5;pointer-events:none;
+    border:3px solid var(--ink);}
+  .ovlpanel::after{content:"";position:absolute;left:0;top:0;width:100%;height:14px;z-index:6;
+    pointer-events:none;background:repeating-linear-gradient(90deg,var(--teal) 0 14px,var(--ink) 14px 28px);}
+  .ovl-head{position:absolute;left:0;right:0;top:14px;height:62px;z-index:7;
+    background:var(--teal2);border-bottom:5px solid var(--ink);
+    display:flex;align-items:center;justify-content:space-between;padding:0 26px;}
+  .ovl-head .ot{font-family:'Anton';font-size:34px;text-transform:uppercase;color:var(--ink);
+    letter-spacing:.01em;}
+  .ovl-head .otag{font-family:'Bungee';font-size:14px;color:var(--teal);background:var(--ink);
+    padding:6px 12px 4px;}
+  .ovl-close{font-family:'Bungee';font-size:16px;color:var(--cream2);background:var(--ink);
+    border:4px solid var(--ink);box-shadow:5px 5px 0 var(--teal);padding:8px 16px;cursor:pointer;
+    display:flex;align-items:center;gap:8px;}
+  .ovl-close:hover{box-shadow:7px 7px 0 var(--teal);}
+  .ovl-close .x{font-family:'Unbounded';font-weight:900;}
+
+  /* LEFT = viz (clean), RIGHT = numbers (clean) */
+  .ovl-left{position:absolute;left:14px;top:84px;bottom:24px;width:54%;z-index:4;
+    background:var(--cream);border:4px solid var(--ink);box-shadow:7px 7px 0 var(--ink);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  .ovl-left::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:radial-gradient(var(--ink) 1.1px,transparent 1.2px);
+    background-size:16px 16px;opacity:.045;}
+  .ovl-right{position:absolute;right:14px;top:84px;bottom:24px;width:42%;z-index:7;
+    padding:18px 22px;overflow:auto;}
+  .ovl-right h4{font-family:'Anton';font-size:16px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--tealdk);margin-bottom:8px;border-bottom:3px solid var(--ink);padding-bottom:5px;}
+  .numrow{display:flex;justify-content:space-between;align-items:baseline;
+    padding:9px 2px;border-bottom:1.5px dashed rgba(20,17,13,.28);}
+  .numrow .nk{font-family:'Oswald';font-weight:600;font-size:15px;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--ink);}
+  .numrow .nv{font-family:'Space Mono';font-weight:700;font-size:21px;color:var(--ink);}
+  .numrow .nv.up{color:var(--gain);} .numrow .nv.dn{color:var(--loss);}
+  .numrow.hd{border-bottom:3px solid var(--ink);}
+  .numrow.hd .nv{font-size:30px;}
+  .ovl-note{margin-top:14px;font-family:'Space Mono';font-size:12px;color:var(--ink);
+    opacity:.7;line-height:1.5;border-left:4px solid var(--teal2);padding-left:10px;}
+
+  /* svg helpers */
+  text{font-family:'Space Mono';}
+  @media (prefers-reduced-motion: reduce){.tb-live .dot{animation:none;}}
+</style>
+</head>
+<body>
+<div id="scaler"><div id="stage">
+
+  <div class="field"></div>
+  <div class="bgshard"></div>
+  <div class="halftone"></div>
+  <div class="crt-glow"></div>
+
+  <!-- ============ TOP STATUS BAR ============ -->
+  <div class="topbar">
+    <div class="tb-logo"><span class="lg">NT</span></div>
+    <div class="tb-seg"><span class="tb-k">True Bal</span><span class="tb-v teal">£14,240</span></div>
+    <div class="tb-seg"><span class="tb-k">Day</span><span class="tb-v gain">+£84 ▲</span></div>
+    <div class="tb-seg"><span class="tb-k">XIRR</span><span class="tb-v teal">13.4%</span></div>
+    <div class="tb-seg"><span class="tb-k">True Growth</span><span class="tb-v gain">+9.5% ▲</span></div>
+    <div class="tb-live">
+      <span class="dot"></span><span class="lv">LIVE</span>
+      <span class="tb-sync">SYNC 14:32</span>
+    </div>
+  </div>
+
+  <!-- ============ TILE 1 — HERO TRUE-GROWTH GAUGE ============ -->
+  <div class="tile hero tile-tilt" style="left:24px;top:112px;width:430px;height:340px;"
+       data-viz="truth">
+    <div class="thead"><span class="tt">True Growth</span><span class="tx">GAUGE</span></div>
+    <div class="tbody">
+      <svg viewBox="0 0 430 230" width="100%" style="position:absolute;top:6px;z-index:2;">
+        <!-- gauge arc track -->
+        <path d="M55,205 A150,150 0 0 1 375,205" fill="none" stroke="#14110D" stroke-width="30" stroke-linecap="butt"/>
+        <path d="M58,205 A147,147 0 0 1 372,205" fill="none" stroke="#dfd8c4" stroke-width="22"/>
+        <!-- value arc (≈ +9.5% of a -20..+20 scale → ~74% of half-circle) -->
+        <path id="heroArc" d="M58,205 A147,147 0 0 1 372,205" fill="none" stroke="#19E5E5"
+          stroke-width="22" stroke-dasharray="462" stroke-dashoffset="120"/>
+        <!-- ticks -->
+        <g stroke="#14110D" stroke-width="3">
+          <line x1="58" y1="205" x2="74" y2="205"/>
+          <line x1="215" y1="58" x2="215" y2="74"/>
+          <line x1="372" y1="205" x2="356" y2="205"/>
+        </g>
+        <text x="40" y="222" font-size="13" fill="#14110D" font-weight="700">-20%</text>
+        <text x="200" y="48" font-size="13" fill="#14110D" font-weight="700">0</text>
+        <text x="346" y="222" font-size="13" fill="#14110D" font-weight="700">+20%</text>
+        <!-- needle (+9.5% on -20..+20 → ~43° right of vertical) -->
+        <g transform="rotate(43,215,205)">
+          <line x1="215" y1="205" x2="215" y2="78" stroke="#14110D" stroke-width="7"/>
+          <polygon points="215,70 208,92 222,92" fill="#14110D"/>
+        </g>
+        <circle cx="215" cy="205" r="13" fill="#14110D"/>
+        <circle cx="215" cy="205" r="6" fill="#19E5E5"/>
+      </svg>
+      <div class="gauge-read">
+        <div class="big"><span class="pm">+9.5%</span></div>
+        <div class="sub">+£1,240 vs net deposits</div>
+        <div class="lbl">True growth · not just paper</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TILE 2 — VALUE OVER TIME ============ -->
+  <div class="tile tile-tilt2" style="left:474px;top:112px;width:560px;height:340px;"
+       data-viz="value">
+    <div class="thead"><span class="tt">Value Over Time</span><span class="tx">CHART</span></div>
+    <div class="tbody">
+      <svg viewBox="0 0 560 290" width="100%" height="100%" preserveAspectRatio="none"
+           style="position:absolute;inset:0;z-index:2;">
+        <!-- grid -->
+        <g stroke="#14110D" stroke-width="1" opacity=".18">
+          <line x1="34" y1="40" x2="540" y2="40"/>
+          <line x1="34" y1="100" x2="540" y2="100"/>
+          <line x1="34" y1="160" x2="540" y2="160"/>
+          <line x1="34" y1="220" x2="540" y2="220"/>
+        </g>
+        <!-- y labels -->
+        <g font-size="11" fill="#14110D" font-weight="700" opacity=".7">
+          <text x="2" y="44">14k</text><text x="2" y="104">12k</text>
+          <text x="2" y="164">10k</text><text x="6" y="224">8k</text>
+        </g>
+        <!-- net deposits overlay (dashed) -->
+        <polyline fill="none" stroke="#0E6E68" stroke-width="3.5" stroke-dasharray="8 6"
+          points="34,232 106,222 178,212 250,205 322,196 394,184 466,172 538,160"/>
+        <!-- value area fill -->
+        <polygon fill="#19E5E5" opacity=".18"
+          points="34,196 106,160 178,130 250,154 322,64 394,40 466,28 538,4 538,256 34,256"/>
+        <!-- value line -->
+        <polyline fill="none" stroke="#19E5E5" stroke-width="5"
+          points="34,196 106,160 178,130 250,154 322,64 394,40 466,28 538,4"/>
+        <!-- value points -->
+        <g fill="#14110D">
+          <circle cx="34" cy="196" r="4.5"/><circle cx="106" cy="160" r="4.5"/>
+          <circle cx="178" cy="130" r="4.5"/><circle cx="250" cy="154" r="4.5"/>
+          <circle cx="322" cy="64" r="4.5"/><circle cx="394" cy="40" r="4.5"/>
+          <circle cx="466" cy="28" r="4.5"/><circle cx="538" cy="4" r="5.5"/>
+        </g>
+      </svg>
+      <div style="position:absolute;right:12px;top:48px;z-index:3;display:flex;gap:10px;font-family:'Oswald';font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;">
+        <span style="background:#19E5E5;border:2.5px solid var(--ink);padding:2px 7px;">VALUE</span>
+        <span style="background:var(--cream);border:2.5px solid var(--tealdk);color:var(--tealdk);padding:2px 7px;">DEPOSITS</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TILE 3 — ALLOCATION DONUT ============ -->
+  <div class="tile tile-tilt2" style="left:1054px;top:112px;width:434px;height:340px;"
+       data-viz="alloc">
+    <div class="thead"><span class="tt">Allocation</span><span class="tx">DONUT</span></div>
+    <div class="tbody">
+      <svg id="donutMini" viewBox="0 0 230 230" width="230" height="230"
+           style="position:absolute;left:12px;top:30px;z-index:2;"></svg>
+      <div id="allocLegend" style="position:absolute;right:12px;top:34px;z-index:3;width:160px;font-family:'Oswald';font-weight:600;font-size:13px;"></div>
+    </div>
+  </div>
+
+  <!-- ============ TILE 4 — PER-STOCK P/L BARS ============ -->
+  <div class="tile tile-tilt" style="left:24px;top:474px;width:620px;height:218px;"
+       data-viz="pl">
+    <div class="thead"><span class="tt">Per-Stock P/L</span><span class="tx">BARS</span></div>
+    <div class="tbody">
+      <svg id="plBars" viewBox="0 0 620 150" width="100%" height="100%" preserveAspectRatio="none"
+           style="position:absolute;top:8px;z-index:2;"></svg>
+    </div>
+  </div>
+
+  <!-- ============ TILE 5 — DRAWDOWN ============ -->
+  <div class="tile tile-tilt2" style="left:664px;top:474px;width:404px;height:218px;"
+       data-viz="dd">
+    <div class="thead"><span class="tt">Drawdown</span><span class="tx">LINE</span></div>
+    <div class="tbody">
+      <svg viewBox="0 0 404 160" width="100%" height="100%" preserveAspectRatio="none"
+           style="position:absolute;inset:0;z-index:2;">
+        <line x1="20" y1="34" x2="392" y2="34" stroke="#14110D" stroke-width="1.4" opacity=".3"/>
+        <text x="22" y="30" font-size="11" fill="#14110D" font-weight="700" opacity=".6">0%</text>
+        <!-- drawdown area (below zero) -->
+        <polygon fill="#C8402F" opacity=".16"
+          points="20,36 70,46 110,60 150,118 196,96 240,72 286,90 330,58 392,40 392,36"/>
+        <polyline fill="none" stroke="#C8402F" stroke-width="4"
+          points="20,36 70,46 110,60 150,118 196,96 240,72 286,90 330,58 392,40"/>
+        <!-- max drawdown marker -->
+        <circle cx="150" cy="118" r="6" fill="#14110D"/>
+        <circle cx="150" cy="118" r="3" fill="#C8402F"/>
+        <line x1="150" y1="118" x2="150" y2="138" stroke="#14110D" stroke-width="2" stroke-dasharray="3 3"/>
+      </svg>
+      <div style="position:absolute;right:14px;bottom:12px;z-index:3;text-align:right;">
+        <div style="font-family:'Unbounded';font-weight:900;font-size:34px;color:var(--loss);line-height:.9;">-8.2%</div>
+        <div style="font-family:'Oswald';font-weight:600;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);opacity:.65;">MAX DRAWDOWN</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TILE 6 — REALISED vs PAPER ============ -->
+  <div class="tile tile-tilt" style="left:1084px;top:474px;width:404px;height:218px;"
+       data-viz="split">
+    <div class="thead"><span class="tt">Realised / Paper</span><span class="tx">SPLIT</span></div>
+    <div class="tbody">
+      <div class="splitwrap">
+        <div class="splitrow">
+          <span class="pill" style="background:var(--teal2);">REALISED</span>
+          <span class="num" style="color:var(--tealdk);">+£820</span>
+        </div>
+        <div class="splitrow">
+          <span class="pill">PAPER</span>
+          <span class="num">+£420</span>
+        </div>
+        <div class="splitbar"><div class="a" style="width:66%;"></div><div class="b" style="width:34%;"></div></div>
+        <div class="splitlab"><span>66% locked in</span><span>34% on paper</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ HOLDINGS ROSTER ============ -->
+  <div class="roster" id="roster"></div>
+
+  <!-- ============ BOTTOM STATUS BAR ============ -->
+  <div class="botbar">
+    <span class="bteal">7/7 HOLDINGS</span>
+    <span>TRADING&nbsp;212</span>
+    <span class="delayed">DELAYED FEED</span>
+    <span class="bgrow">COMBINED</span>
+  </div>
+
+  <!-- ============ EXPANDED OVERLAY ============ -->
+  <div class="ovl" id="ovl">
+    <div class="ovlpanel">
+      <div class="ovl-head">
+        <span class="ot" id="ovlTitle">PERFORMANCE TRUTH</span>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span class="otag" id="ovlTag">GAUGE</span>
+          <button class="ovl-close" id="ovlClose"><span class="x">✕</span> CLOSE</button>
+        </div>
+      </div>
+      <div class="ovl-left" id="ovlLeft"></div>
+      <div class="ovl-right" id="ovlRight"></div>
+    </div>
+  </div>
+
+  <!-- ============ CRT LAYERS (top) ============ -->
+  <div class="crt-scan"></div>
+  <div class="crt-vig"></div>
+  <div class="crt-corners"></div>
+
+</div></div>
+
+<script>
+/* ---------- cover-scaler: fill viewport with max(vw/1512, vh/982) ---------- */
+function fit(){
+  var s=Math.max(window.innerWidth/1512, window.innerHeight/982);
+  document.documentElement.style.setProperty('--s', s);
+}
+window.addEventListener('resize',fit); fit();
+
+/* ---------- data ---------- */
+var ALLOC=[
+  {t:'NVDA',v:24,c:'#19E5E5'},{t:'AAPL',v:19,c:'#2FB5A8'},
+  {t:'VUSA',v:17,c:'#0E6E68'},{t:'TSLA',v:14,c:'#5D5A86'},
+  {t:'MSFT',v:12,c:'#7370A0'},{t:'VOD.L',v:8,c:'#C8402F'},
+  {t:'AMD',v:6,c:'#FF5A1F'}
+];
+var PL=[
+  {t:'NVDA',v:540},{t:'AAPL',v:210},{t:'VUSA',v:180},{t:'TSLA',v:-160},
+  {t:'MSFT',v:260},{t:'VOD.L',v:-70},{t:'AMD',v:280}
+];
+var VALUE=[9.0,9.6,10.1,9.7,11.2,12.4,13.1,14.2];
+var DEPO=[8.0,8.7,9.4,10.1,10.8,11.5,12.2,13.0];
+var HOLD=[
+  {t:'NVDA',a:24,pl:540},{t:'AAPL',a:19,pl:210},{t:'VUSA',a:17,pl:180},
+  {t:'TSLA',a:14,pl:-160},{t:'MSFT',a:12,pl:260},{t:'VOD.L',a:8,pl:-70},
+  {t:'AMD',a:6,pl:280}
+];
+
+/* ---------- mini donut (dashboard tile) ---------- */
+function buildDonut(svgEl, R, r, cx, cy){
+  var ns='http://www.w3.org/2000/svg', total=100, ang=-Math.PI/2;
+  ALLOC.forEach(function(s){
+    var frac=s.v/total, a2=ang+frac*Math.PI*2;
+    var x1=cx+R*Math.cos(ang), y1=cy+R*Math.sin(ang);
+    var x2=cx+R*Math.cos(a2), y2=cy+R*Math.sin(a2);
+    var xi2=cx+r*Math.cos(a2), yi2=cy+r*Math.sin(a2);
+    var xi1=cx+r*Math.cos(ang), yi1=cy+r*Math.sin(ang);
+    var large=frac>0.5?1:0;
+    var p=document.createElementNS(ns,'path');
+    p.setAttribute('d','M'+x1+','+y1+' A'+R+','+R+' 0 '+large+' 1 '+x2+','+y2+
+      ' L'+xi2+','+yi2+' A'+r+','+r+' 0 '+large+' 0 '+xi1+','+yi1+' Z');
+    p.setAttribute('fill',s.c); p.setAttribute('stroke','#14110D'); p.setAttribute('stroke-width','3');
+    svgEl.appendChild(p); ang=a2;
+  });
+  var c=document.createElementNS(ns,'circle');
+  c.setAttribute('cx',cx);c.setAttribute('cy',cy);c.setAttribute('r',r-3);
+  c.setAttribute('fill','#F2ECE0');c.setAttribute('stroke','#14110D');c.setAttribute('stroke-width','3');
+  svgEl.appendChild(c);
+  var t1=document.createElementNS(ns,'text');
+  t1.setAttribute('x',cx);t1.setAttribute('y',cy-2);t1.setAttribute('text-anchor','middle');
+  t1.setAttribute('font-size','15');t1.setAttribute('font-weight','700');t1.setAttribute('fill','#0E6E68');
+  t1.textContent='7 HELD';svgEl.appendChild(t1);
+  var t2=document.createElementNS(ns,'text');
+  t2.setAttribute('x',cx);t2.setAttribute('y',cy+18);t2.setAttribute('text-anchor','middle');
+  t2.setAttribute('font-size','11');t2.setAttribute('font-weight','700');t2.setAttribute('fill','#14110D');
+  t2.textContent='100%';svgEl.appendChild(t2);
+}
+buildDonut(document.getElementById('donutMini'),100,56,115,115);
+(function(){
+  var lg=document.getElementById('allocLegend');
+  ALLOC.forEach(function(s){
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:7px;margin-bottom:6px;';
+    row.innerHTML='<span style="width:13px;height:13px;background:'+s.c+';border:2px solid #14110D;display:inline-block;"></span>'+
+      '<span style="flex:1;">'+s.t+'</span>'+
+      '<span style="font-family:\'Space Mono\';font-weight:700;">'+s.v+'%</span>';
+    lg.appendChild(row);
+  });
+})();
+
+/* ---------- per-stock P/L bars (dashboard tile) ---------- */
+function buildBars(svgEl){
+  var ns='http://www.w3.org/2000/svg', n=PL.length, W=620, H=150;
+  var zx=44, zw=W-zx-14, max=560, mid=H/2, bw=zw/n*0.6, gap=zw/n;
+  // zero line
+  var zl=document.createElementNS(ns,'line');
+  zl.setAttribute('x1',zx);zl.setAttribute('y1',mid);zl.setAttribute('x2',W-8);zl.setAttribute('y2',mid);
+  zl.setAttribute('stroke','#14110D');zl.setAttribute('stroke-width','2');svgEl.appendChild(zl);
+  PL.forEach(function(s,i){
+    var x=zx+i*gap+gap*0.2, h=Math.abs(s.v)/max*(mid-14);
+    var up=s.v>=0, y=up?mid-h:mid;
+    var r=document.createElementNS(ns,'rect');
+    r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',bw);r.setAttribute('height',h);
+    r.setAttribute('fill',up?'#2FB5A8':'#C8402F');
+    r.setAttribute('stroke','#14110D');r.setAttribute('stroke-width','3');svgEl.appendChild(r);
+    // ticker label
+    var t=document.createElementNS(ns,'text');
+    t.setAttribute('x',x+bw/2);t.setAttribute('y',up?mid+15:mid-6);t.setAttribute('text-anchor','middle');
+    t.setAttribute('font-size','11');t.setAttribute('font-weight','700');t.setAttribute('fill','#14110D');
+    t.textContent=s.t;svgEl.appendChild(t);
+    // value
+    var v=document.createElementNS(ns,'text');
+    v.setAttribute('x',x+bw/2);v.setAttribute('y',up?y-5:y+h+15);v.setAttribute('text-anchor','middle');
+    v.setAttribute('font-size','12');v.setAttribute('font-weight','700');
+    v.setAttribute('fill',up?'#0E6E68':'#C8402F');
+    v.textContent=(up?'+':'')+s.v;svgEl.appendChild(v);
+  });
+}
+buildBars(document.getElementById('plBars'));
+
+/* ---------- holdings roster ---------- */
+(function(){
+  var ro=document.getElementById('roster');
+  HOLD.forEach(function(h){
+    var up=h.pl>=0;
+    var c=document.createElement('div');
+    c.className='card'+(up?'':' dncard');
+    var bars='';
+    var seed=h.t.length;
+    for(var i=0;i<11;i++){
+      var hh=20+((i*7+seed*5)%70)+(up?(i*3):(20-i*2));
+      hh=Math.max(14,Math.min(94,hh));
+      bars+='<i style="height:'+hh+'%"></i>';
+    }
+    c.innerHTML=
+      '<div class="ctop"><span class="tk">'+h.t+'</span>'+
+        '<span class="badge '+(up?'up':'dn')+'">'+(up?'▲ UP':'▼ DN')+'</span></div>'+
+      '<div class="cbody">'+
+        '<div class="alloc">'+h.a+'% PORT</div>'+
+        '<div class="pl '+(up?'up':'dn')+'">'+(up?'+':'')+'£'+Math.abs(h.pl)+(up?'':'').replace('','')+'</div>'+
+      '</div>'+
+      '<div class="spark">'+bars+'</div>';
+    if(!up){ c.querySelector('.pl').textContent='-£'+Math.abs(h.pl); }
+    ro.appendChild(c);
+  });
+})();
+
+/* ================= EXPAND SYSTEM ================= */
+var ovl=document.getElementById('ovl');
+var ovlLeft=document.getElementById('ovlLeft');
+var ovlRight=document.getElementById('ovlRight');
+var ovlTitle=document.getElementById('ovlTitle');
+var ovlTag=document.getElementById('ovlTag');
+
+function numRow(k,v,cls,head){
+  return '<div class="numrow'+(head?' hd':'')+'"><span class="nk">'+k+
+    '</span><span class="nv '+(cls||'')+'">'+v+'</span></div>';
+}
+
+var VIZ={
+  truth:{title:'TRUE GROWTH',tag:'GAUGE',
+    left:function(){return '<svg viewBox="0 0 460 320" width="92%">'+
+      '<path d="M60,250 A170,170 0 0 1 400,250" fill="none" stroke="#14110D" stroke-width="34"/>'+
+      '<path d="M63,250 A167,167 0 0 1 397,250" fill="none" stroke="#dfd8c4" stroke-width="26"/>'+
+      '<path d="M63,250 A167,167 0 0 1 397,250" fill="none" stroke="#19E5E5" stroke-width="26" stroke-dasharray="525" stroke-dashoffset="137"/>'+
+      '<g transform="rotate(43,230,250)"><line x1="230" y1="250" x2="230" y2="100" stroke="#14110D" stroke-width="9"/><polygon points="230,90 221,116 239,116" fill="#14110D"/></g>'+
+      '<circle cx="230" cy="250" r="16" fill="#14110D"/><circle cx="230" cy="250" r="8" fill="#19E5E5"/>'+
+      '<text x="48" y="272" font-size="15" font-weight="700" fill="#14110D">-20%</text>'+
+      '<text x="216" y="62" font-size="15" font-weight="700" fill="#14110D">0</text>'+
+      '<text x="368" y="272" font-size="15" font-weight="700" fill="#14110D">+20%</text>'+
+      '<text x="230" y="300" font-size="44" font-weight="700" text-anchor="middle" fill="#0E6E68" font-family="Unbounded,sans-serif">+9.5%</text>'+
+      '</svg>';},
+    right:function(){return '<h4>The Numbers</h4>'+
+      numRow('True Growth','+9.5%','up',true)+
+      numRow('Money In (gain)','+£1,240','up')+
+      numRow('Net Deposits','£13,000')+
+      numRow('True Balance','£14,240','up')+
+      numRow('XIRR (annualised)','13.4%','up')+
+      numRow('Day Change','+£84','up')+
+      '<div class="ovl-note">True growth strips out your deposits — it is what the portfolio actually earned on the money you put in, not just the headline balance.</div>';}
+  },
+  value:{title:'VALUE OVER TIME',tag:'CHART',
+    left:function(){
+      var pts=VALUE.map(function(v,i){return (40+i*56)+','+(250-(v-8)*36);}).join(' ');
+      var dep=DEPO.map(function(v,i){return (40+i*56)+','+(250-(v-8)*36);}).join(' ');
+      return '<svg viewBox="0 0 460 300" width="94%">'+
+        '<g stroke="#14110D" stroke-width="1" opacity=".2">'+
+        '<line x1="40" y1="34" x2="436" y2="34"/><line x1="40" y1="106" x2="436" y2="106"/>'+
+        '<line x1="40" y1="178" x2="436" y2="178"/><line x1="40" y1="250" x2="436" y2="250"/></g>'+
+        '<text x="6" y="38" font-size="11" font-weight="700" fill="#14110D">14k</text>'+
+        '<text x="6" y="110" font-size="11" font-weight="700" fill="#14110D">12k</text>'+
+        '<text x="6" y="182" font-size="11" font-weight="700" fill="#14110D">10k</text>'+
+        '<text x="10" y="254" font-size="11" font-weight="700" fill="#14110D">8k</text>'+
+        '<polyline fill="none" stroke="#0E6E68" stroke-width="4" stroke-dasharray="8 6" points="'+dep+'"/>'+
+        '<polyline fill="none" stroke="#19E5E5" stroke-width="6" points="'+pts+'"/>'+
+        VALUE.map(function(v,i){return '<circle cx="'+(40+i*56)+'" cy="'+(250-(v-8)*36)+'" r="5" fill="#14110D"/>';}).join('')+
+        '</svg>';},
+    right:function(){
+      var rows='<h4>Value (£000s)</h4>';
+      var lbl=['W1','W2','W3','W4','W5','W6','W7','NOW'];
+      VALUE.forEach(function(v,i){
+        rows+=numRow(lbl[i]+' · value','£'+(v*1000).toLocaleString(),i===7?'up':'',i===7);
+      });
+      rows+='<div class="ovl-note">Solid teal = portfolio value. Dashed line = cumulative net deposits (£8.0k → £13.0k). The gap between them is your true gain.</div>';
+      return rows;}
+  },
+  alloc:{title:'ALLOCATION',tag:'DONUT',
+    left:function(){return '<svg id="donutBig" viewBox="0 0 320 320" width="86%"></svg>';},
+    rightAfter:function(){buildDonut(document.getElementById('donutBig'),130,74,160,160);},
+    right:function(){
+      var rows='<h4>By Position</h4>';
+      ALLOC.forEach(function(s){
+        rows+='<div class="numrow"><span class="nk"><span style="display:inline-block;width:12px;height:12px;background:'+s.c+';border:2px solid #14110D;margin-right:8px;vertical-align:middle;"></span>'+s.t+'</span><span class="nv">'+s.v+'%</span></div>';
+      });
+      rows+='<div class="ovl-note">7 holdings, fully invested. NVDA is the heaviest weight at 24%; VOD.L and AMD are the smallest tail positions.</div>';
+      return rows;}
+  },
+  pl:{title:'PER-STOCK P/L',tag:'BARS',
+    left:function(){return '<svg id="plBig" viewBox="0 0 460 300" width="92%"></svg>';},
+    rightAfter:function(){
+      var svgEl=document.getElementById('plBig'),ns='http://www.w3.org/2000/svg';
+      var n=PL.length,W=460,zx=10,zw=W-zx-10,max=560,mid=150,gap=zw/n,bw=gap*0.62;
+      var zl=document.createElementNS(ns,'line');
+      zl.setAttribute('x1',zx);zl.setAttribute('y1',mid);zl.setAttribute('x2',W-10);zl.setAttribute('y2',mid);
+      zl.setAttribute('stroke','#14110D');zl.setAttribute('stroke-width','3');svgEl.appendChild(zl);
+      PL.forEach(function(s,i){
+        var x=zx+i*gap+gap*0.19,h=Math.abs(s.v)/max*120,up=s.v>=0,y=up?mid-h:mid;
+        var r=document.createElementNS(ns,'rect');
+        r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',bw);r.setAttribute('height',h);
+        r.setAttribute('fill',up?'#2FB5A8':'#C8402F');r.setAttribute('stroke','#14110D');r.setAttribute('stroke-width','3');
+        svgEl.appendChild(r);
+        var t=document.createElementNS(ns,'text');
+        t.setAttribute('x',x+bw/2);t.setAttribute('y',up?mid+16:mid-8);t.setAttribute('text-anchor','middle');
+        t.setAttribute('font-size','12');t.setAttribute('font-weight','700');t.setAttribute('fill','#14110D');
+        t.textContent=s.t;svgEl.appendChild(t);
+        var v=document.createElementNS(ns,'text');
+        v.setAttribute('x',x+bw/2);v.setAttribute('y',up?y-6:y+h+16);v.setAttribute('text-anchor','middle');
+        v.setAttribute('font-size','13');v.setAttribute('font-weight','700');v.setAttribute('fill',up?'#0E6E68':'#C8402F');
+        v.textContent=(up?'+':'')+s.v;svgEl.appendChild(v);
+      });
+    },
+    right:function(){
+      var rows='<h4>Profit / Loss (£)</h4>';
+      var net=0;
+      PL.forEach(function(s){net+=s.v;rows+=numRow(s.t,(s.v>=0?'+£':'-£')+Math.abs(s.v),s.v>=0?'up':'dn');});
+      rows=rows.replace('</h4>','</h4>'+numRow('NET P/L',(net>=0?'+£':'-£')+Math.abs(net),net>=0?'up':'dn',true));
+      rows+='<div class="ovl-note">Five winners, two losers. AMD and MSFT are quietly strong; TSLA is the biggest drag at -£160.</div>';
+      return rows;}
+  },
+  dd:{title:'DRAWDOWN',tag:'LINE',
+    left:function(){return '<svg viewBox="0 0 460 300" width="92%">'+
+      '<line x1="30" y1="60" x2="430" y2="60" stroke="#14110D" stroke-width="2" opacity=".4"/>'+
+      '<text x="34" y="54" font-size="12" font-weight="700" fill="#14110D" opacity=".7">0%</text>'+
+      '<polygon fill="#C8402F" opacity=".15" points="30,62 90,82 140,108 190,224 250,180 300,128 350,168 400,108 430,72 430,62"/>'+
+      '<polyline fill="none" stroke="#C8402F" stroke-width="5" points="30,62 90,82 140,108 190,224 250,180 300,128 350,168 400,108 430,72"/>'+
+      '<circle cx="190" cy="224" r="9" fill="#14110D"/><circle cx="190" cy="224" r="4" fill="#C8402F"/>'+
+      '<text x="190" y="252" font-size="26" font-weight="700" text-anchor="middle" fill="#C8402F" font-family="Unbounded,sans-serif">-8.2%</text>'+
+      '</svg>';},
+    right:function(){return '<h4>Risk Profile</h4>'+
+      numRow('Max Drawdown','-8.2%','dn',true)+
+      numRow('Current Drawdown','-1.4%','dn')+
+      numRow('Recovery','86%','up')+
+      numRow('Worst Week','-3.1%','dn')+
+      numRow('Volatility (ann.)','14.7%')+
+      '<div class="ovl-note">The deepest peak-to-trough fall was -8.2%, mid-period. You have since recovered most of it — current drawdown sits at just -1.4%.</div>';}
+  },
+  split:{title:'REALISED / PAPER',tag:'SPLIT',
+    left:function(){return '<svg viewBox="0 0 320 320" width="78%">'+
+      '<g transform="rotate(-90 160 160)">'+
+      '<circle cx="160" cy="160" r="110" fill="none" stroke="#14110D" stroke-width="40"/>'+
+      '<circle cx="160" cy="160" r="110" fill="none" stroke="#2FB5A8" stroke-width="34" stroke-dasharray="691" stroke-dashoffset="235"/>'+
+      '<circle cx="160" cy="160" r="110" fill="none" stroke="#19E5E5" stroke-width="34" stroke-dasharray="235 691" stroke-dashoffset="-456"/>'+
+      '</g>'+
+      '<text x="160" y="150" font-size="20" font-weight="700" text-anchor="middle" fill="#0E6E68">TOTAL</text>'+
+      '<text x="160" y="184" font-size="34" font-weight="700" text-anchor="middle" fill="#14110D" font-family="Unbounded,sans-serif">+£1,240</text>'+
+      '</svg>';},
+    right:function(){return '<h4>Gain Breakdown</h4>'+
+      numRow('Total Gain','+£1,240','up',true)+
+      numRow('Realised','+£820','up')+
+      numRow('Paper (unrealised)','+£420','up')+
+      numRow('Realised share','66%')+
+      numRow('Paper share','34%')+
+      '<div class="ovl-note">£820 of your gain is locked in from closed trades; £420 is still on paper and moves with the market.</div>';}
+  }
+};
+
+function openViz(key){
+  var v=VIZ[key]; if(!v)return;
+  ovlTitle.textContent=v.title; ovlTag.textContent=v.tag;
+  ovlLeft.innerHTML=v.left(); ovlRight.innerHTML=v.right();
+  if(v.rightAfter) v.rightAfter();
+  ovl.classList.add('open');
+}
+function closeViz(){ ovl.classList.remove('open'); }
+
+document.querySelectorAll('.tile').forEach(function(t){
+  t.addEventListener('click',function(){ openViz(t.getAttribute('data-viz')); });
+});
+document.getElementById('ovlClose').addEventListener('click',closeViz);
+ovl.addEventListener('click',function(e){ if(e.target===ovl) closeViz(); });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeViz(); });
+
+/* auto-open for screenshot: ?expand=truth */
+if(location.search.indexOf('expand=truth')>=0){ openViz('truth'); }
+</script>
+</body>
+</html>

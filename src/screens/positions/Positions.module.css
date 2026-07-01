@@ -1,0 +1,585 @@
+/* Positions — the SDN roster-card strip on the dark CRT frame
+   (VISUAL_DIRECTION.md §5 "Positions", SCREEN_PATTERNS.md §7 the LOCKED
+   cream-paper recipe). Sits inside Chrome's content well exactly like the
+   Dashboard — the shell (Frame/Chrome/BakedCrt) STAYS dark; only the data
+   PANELS here go cream. Answers ONE question: "what do I hold and how is
+   each doing?" One hero (count/value/unrealised) + one dense card grid,
+   nothing else competing for weight.
+
+   Every panel/card: cream `--paper` fill + baked static paper-grain
+   (inert SVG data-URI, no live filter) + ~2.5-3px solid `--ink` outline +
+   solid-colour header ribbon. Panels never touch the bezel — the `.screen`
+   gutters keep dark deadspace framing them. Viewport-locked: the grid
+   scrolls internally inside its panel (SCREEN_PATTERNS.md §2). */
+
+.screen {
+  /* Same shared paper-grain + AA-safe P/L tokens as the Dashboard (locked
+     recipe §7) — kept local per-screen (CSS Modules scope) rather than
+     imported, matching how Dashboard.module.css defines its own copy. */
+  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/></svg>");
+  --gain-ink: #3f6f45;
+  --loss-ribbon: #b83129;
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s4);
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: var(--s3) var(--s4) var(--s4);
+  /* Viewport-locked: fill the chrome body, never grow past it. The roster
+     grid scrolls inside its own panel so any number of holdings is
+     reachable and nothing is clipped (future-proof, SCREEN_PATTERNS §2). */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* ============================== HERO ============================== */
+
+.hero {
+  flex: 0 0 auto;
+  width: 100%;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 7px;
+  padding: var(--s5) var(--s6);
+  padding-top: calc(var(--s4) + 30px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+.heroRibbon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: var(--amber);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s5);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.heroRow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: stretch;
+  gap: var(--s6);
+  flex-wrap: wrap;
+}
+
+.heroStat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: var(--s5);
+  border-left: 2px solid var(--paper-2);
+}
+
+.heroStat:first-child {
+  padding-left: 0;
+  border-left: none;
+}
+
+.heroLabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+}
+
+.heroValue {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: clamp(22px, 2.6vw, 30px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.heroTri {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.heroFoot {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+
+.heroNote {
+  max-width: 62ch;
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-body);
+}
+
+.syncBtn {
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-void);
+  background: var(--amber);
+  border: 1px solid var(--amber-deep);
+  border-radius: 4px;
+  padding: var(--s2) var(--s5);
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.syncBtn:hover:not(:disabled) {
+  background: var(--amber-deep);
+}
+
+.syncBtn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.syncBtn:disabled {
+  cursor: not-allowed;
+  background: #4a4f5c;
+  border-color: #3a3f4c;
+  color: #8b93a8;
+}
+
+/* ============================== ROSTER PANEL ============================== */
+
+.panel {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* The one panel on this screen absorbs the whole remaining column height —
+     the grid inside it is the sole viewport-lock scroller. */
+  flex: 1 1 auto;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+.panelHead {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s2) var(--s4);
+  background: var(--teal);
+  position: relative;
+  z-index: 1;
+}
+
+.panelTitle {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.panelMeta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink);
+}
+
+/* Roster grid — auto-fill responsive cards, scrolls internally inside the
+   panel (viewport-lock law: nothing is ever clipped, SCREEN_PATTERNS §2). */
+.gridScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  position: relative;
+  z-index: 1;
+  padding: var(--s4);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--s4);
+  align-content: start;
+}
+
+/* ============================== ROSTER CARD ============================== */
+/* Same cream recipe as every other panel (paper + grain + ink outline), one
+   per holding. Header ribbon is coloured by P/L direction (honest: the body
+   ALSO shows sign + ▲/▼, so colour is never the sole signal). */
+
+.card {
+  background: var(--paper);
+  border: 2.5px solid var(--ink);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+/* Obviously interactive — full amber border glow on hover/focus/selected
+   (actuality-ui skill §1: "make interactive things obviously interactive").
+   box-shadow/border/opacity only — no width/height/filter animation. */
+.card:hover,
+.card:focus-visible {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(232, 132, 42, 0.35), 0 0 18px rgba(232, 132, 42, 0.25);
+}
+
+.card:focus-visible {
+  border-color: var(--amber);
+}
+
+/* ---- Header ribbon: ticker symbol, coloured by P/L direction ---- */
+
+.ribbon {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  padding: 7px var(--s3);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ribbonGain {
+  background: var(--gain-ink);
+  color: var(--paper);
+}
+
+.ribbonLoss {
+  background: var(--loss-ribbon);
+  color: var(--paper);
+}
+
+/* Exactly-zero P/L: neutral, matches PositionDetailModal's .ribbonFlat so the
+   card and its dossier agree (honest-data — zero has no direction to claim). */
+.ribbonFlat {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s3) var(--s3) var(--s4);
+}
+
+/* ---- Portrait glyph + name ---- */
+
+.topRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.glyph {
+  flex: 0 0 auto;
+  position: relative;
+  width: 52px;
+  height: 40px;
+  border-radius: 4px;
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glyphSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.glyphShape {
+  fill: var(--ink);
+}
+
+.glyphInitials {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.nameCol {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.name {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qty {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-body);
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Value ---- */
+
+.valueRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.valueLabel {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  opacity: 0.85;
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---- Unrealised P/L ---- */
+
+.plRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  /* Base/neutral ink — the exactly-zero case (no .gain/.loss applied) reads
+     in plain --ink, same as the modal's .anatomyValue default (honest-data:
+     zero has no direction to colour). */
+  color: var(--ink);
+}
+
+.plRow.gain {
+  color: var(--gain-ink);
+}
+
+.plRow.loss {
+  color: var(--loss);
+}
+
+.plTri {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.plValue {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.plPct {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* ---- Foot stats: Alloc / Avg / Price ---- */
+
+.footRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1.5px solid var(--paper-2);
+}
+
+.footStat {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.footLabel {
+  font-family: var(--font-display);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  opacity: 0.8;
+}
+
+.footValue {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Shared gain/loss colour (hero) ---- */
+
+.gain {
+  color: var(--gain-ink);
+}
+
+.loss {
+  color: var(--loss);
+}
+
+/* ============================== STATES ============================== */
+
+.stateNote {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--loss);
+  background: rgba(192, 51, 43, 0.08);
+  border: 1px solid rgba(192, 51, 43, 0.25);
+  border-radius: 4px;
+  padding: var(--s3) var(--s4);
+  text-align: center;
+}
+
+.emptyState {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--s6) var(--s5);
+  text-align: center;
+  font-family: var(--font-body);
+  color: #9aa1b4;
+  border: 1px dashed var(--ink-line);
+  border-radius: 6px;
+}
+
+.emptyTitle {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--animus-field);
+  margin-bottom: var(--s2);
+}
+
+/* Skeleton — calm, no shimmer animation (honest-data rule). */
+.skeletonCard {
+  background: var(--paper);
+  border: 2.5px solid var(--ink);
+  border-radius: 6px;
+  padding: var(--s3);
+  display: flex;
+  flex-direction: column;
+}
+
+.skeletonBar {
+  height: 12px;
+  border-radius: 3px;
+  background: var(--paper-2);
+}
+
+@media (max-width: 720px) {
+  .heroRow {
+    gap: var(--s4);
+  }
+
+  .heroStat {
+    padding-left: var(--s4);
+  }
+}

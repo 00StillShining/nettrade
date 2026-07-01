@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NETTRADE // trading station</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800;900&family=Chakra+Petch:wght@500;600;700&family=Space+Mono:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --orange:#FF7A18; --orange-deep:#FF5500; --teal:#2FD0C5; --peri:#8A7FD0; --rust:#C9683C;
+  --ink:#161616;
+  --glow:0 0 4px #ff7a18,0 0 12px #ff5500,0 0 24px rgba(255,85,0,.55);
+  --glow-soft:0 0 3px #ff7a18,0 0 9px rgba(255,85,0,.5);
+  --dshadow:drop-shadow(0 0 6px rgba(255,90,0,.6));
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1512px;height:982px;overflow:hidden;background:#07060a}
+body{font-family:'Space Mono',monospace;position:relative}
+#stage{position:absolute;inset:0;width:1512px;height:982px;overflow:hidden}
+
+/* ===== SMOKE BACKGROUND ===== */
+#smoke{position:absolute;inset:0;width:1512px;height:982px;z-index:0}
+#smoke::after{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(120% 95% at 60% 40%,rgba(0,0,0,0) 36%,rgba(4,3,8,.6) 100%),
+             linear-gradient(180deg,rgba(6,4,10,.5),rgba(4,3,8,.18) 30%,rgba(4,3,8,.5));
+  z-index:2;pointer-events:none;
+}
+#grain{position:absolute;inset:0;z-index:1;mix-blend-mode:overlay;opacity:.5;pointer-events:none}
+
+/* ===== METAL PANEL BASE ===== */
+.metal{
+  position:relative;color:var(--ink);
+  background:
+    linear-gradient(106deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,0) 14%,rgba(0,0,0,.05) 52%,rgba(255,255,255,.06) 78%,rgba(0,0,0,.10) 100%),
+    repeating-linear-gradient(98deg,rgba(255,255,255,.05) 0 2px,rgba(0,0,0,.035) 2px 4px),
+    radial-gradient(130% 100% at 18% 0%,#e9eae9 0%,#cbccca 38%,#b3b4b2 72%,#9b9c9a 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.85),
+    inset 0 -2px 6px rgba(0,0,0,.32),
+    inset 2px 0 5px rgba(0,0,0,.16),
+    inset -2px 0 5px rgba(0,0,0,.16),
+    0 10px 30px rgba(0,0,0,.45);
+}
+.metal>.wear{position:absolute;inset:0;pointer-events:none;mix-blend-mode:overlay;opacity:.6;border-radius:inherit}
+.metal>.wear.b{mix-blend-mode:multiply;opacity:.30}
+.metal>canvas.scuff{position:absolute;inset:0;pointer-events:none;border-radius:inherit;mix-blend-mode:multiply;opacity:.85}
+
+/* dark recessed slab */
+.recess{
+  background:radial-gradient(120% 100% at 30% 0%,#26262b 0%,#161619 55%,#0c0c0f 100%);
+  box-shadow:inset 0 2px 8px rgba(0,0,0,.85),inset 0 0 0 1px rgba(255,255,255,.04),0 1px 0 rgba(255,255,255,.06),0 10px 26px rgba(0,0,0,.5);
+  color:#d8d8d8;
+}
+
+/* ===== TOP BAR ===== */
+#topbar{position:absolute;top:34px;left:54px;right:54px;z-index:8;display:flex;align-items:flex-start;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:16px}
+.mark{width:58px;height:58px;filter:var(--dshadow)}
+.brandtxt .kicker{font-size:11px;letter-spacing:.32em;color:#cfcfcf;text-transform:uppercase}
+.brandtxt .name{font-family:'Unbounded',sans-serif;font-weight:900;font-size:26px;letter-spacing:.02em;color:#f2f2f2;line-height:1}
+.brandtxt .name b{color:var(--orange);text-shadow:var(--glow)}
+.brandtxt .sub{font-size:10px;letter-spacing:.18em;color:#9a9a9a;margin-top:5px}
+
+.toggle{display:flex;gap:6px;padding:6px;border-radius:11px}
+.toggle .seg{
+  font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:12px;letter-spacing:.12em;
+  padding:9px 15px;border-radius:7px;color:#3a3a3a;text-transform:uppercase;position:relative;
+  background:linear-gradient(180deg,#dadbd9,#b6b7b5);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),inset 0 -2px 4px rgba(0,0,0,.25);
+}
+.toggle .seg.on{
+  color:#1a0f06;background:linear-gradient(180deg,#ffb066,#ff7a18 55%,#ff5500);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6),inset 0 -3px 8px rgba(120,30,0,.6),0 0 14px rgba(255,85,0,.7),0 0 30px rgba(255,85,0,.4);
+  text-shadow:0 1px 0 rgba(255,210,170,.5);
+}
+
+/* ===== HERO TITLE ===== */
+#titlewrap{position:absolute;left:36px;top:212px;transform:rotate(-7deg);transform-origin:left center;z-index:5;pointer-events:none}
+.bigtitle{
+  font-family:'Unbounded',sans-serif;font-weight:900;font-size:178px;line-height:.8;letter-spacing:-.01em;color:#eef0ef;
+  text-shadow:0 2px 0 #9a9b99,0 4px 0 #7e7f7d,0 7px 0 #5e5f5d,0 10px 18px rgba(0,0,0,.6);
+}
+.bigtitle .net{display:block}
+.bigtitle .trade{display:block;margin-left:92px;color:var(--orange);
+  text-shadow:0 0 6px #ff7a18,0 0 22px #ff5500,0 0 48px rgba(255,85,0,.65),0 3px 0 #7a2c00,0 6px 0 #561f00,0 11px 20px rgba(0,0,0,.55);}
+.tagchip{
+  font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.26em;color:#e8e8e8;text-transform:uppercase;
+  margin-left:96px;margin-top:20px;display:inline-block;padding:6px 14px;border-radius:5px;
+  background:rgba(10,8,14,.55);border:1px solid rgba(255,122,24,.35);box-shadow:0 0 16px rgba(255,85,0,.18);
+}
+.tagchip b{color:var(--orange);text-shadow:var(--glow-soft)}
+
+/* torn metal shard behind title */
+#shard{position:absolute;left:-30px;top:236px;width:880px;height:430px;z-index:3;
+  transform:rotate(-7deg);filter:drop-shadow(0 18px 40px rgba(0,0,0,.55))}
+
+/* ===== DATA SCULPTURE ===== */
+#sculpt{position:absolute;left:78px;bottom:228px;z-index:4;width:600px;height:210px;pointer-events:none;filter:drop-shadow(0 0 10px rgba(255,90,0,.7))}
+#sculptlabel{position:absolute;left:86px;bottom:200px;z-index:6;font-family:'Space Mono';font-size:10px;letter-spacing:.22em;color:#a6a6a6;text-transform:uppercase}
+#sculptlabel b{color:var(--orange);text-shadow:var(--glow-soft)}
+
+/* ===== STATION STACK ===== */
+#stations{position:absolute;right:46px;top:150px;width:566px;z-index:7;display:flex;flex-direction:column;gap:13px;transform:rotate(-2.5deg);transform-origin:right top}
+.station{height:79px;border-radius:12px;display:flex;align-items:center;gap:16px;padding:0 22px 0 20px;transform:skewX(-9deg);position:relative}
+.station>*{transform:skewX(9deg)}
+.station .idx{font-family:'Share Tech Mono',monospace;font-size:13px;color:#6a6b69;width:22px;text-align:center;letter-spacing:.05em}
+.station .ico{width:34px;height:34px;flex:0 0 34px;opacity:.85}
+.station .txt{flex:1;min-width:0}
+.station .nm{font-family:'Unbounded',sans-serif;font-weight:700;font-size:21px;color:#23241f;line-height:1;letter-spacing:.005em}
+.station .tg{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.06em;color:#4f504c;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.station .chev{font-family:'Chakra Petch';font-weight:700;font-size:22px;color:#7a7b78;width:18px;text-align:center}
+
+.station.active{
+  background:
+    linear-gradient(102deg,rgba(255,255,255,.14),rgba(0,0,0,.04) 50%,rgba(255,255,255,.06)),
+    radial-gradient(140% 120% at 12% 0%,#ffd9b3 0%,#ffae66 40%,#ff8a2e 70%,#ff6a12 100%);
+  box-shadow:inset 0 1px 0 rgba(255,240,220,.85),inset 0 -3px 9px rgba(150,40,0,.5),0 0 22px rgba(255,85,0,.7),0 0 50px rgba(255,85,0,.42),0 14px 30px rgba(0,0,0,.5);
+  transform:skewX(-9deg) scale(1.05);z-index:3;
+}
+.station.active .idx{color:#7a2c00}
+.station.active .nm{color:#221000;text-shadow:0 1px 0 rgba(255,225,190,.6)}
+.station.active .tg{color:#5a2600}
+.station.active .ico{opacity:1}
+.station.active .chev{color:#fff;text-shadow:0 0 8px rgba(255,255,255,.85),0 0 16px rgba(255,150,80,.9)}
+.station.active::before{content:"";position:absolute;left:-3px;top:8px;bottom:8px;width:5px;border-radius:3px;
+  background:#fff;box-shadow:0 0 10px #ffae66,0 0 22px var(--orange-deep),0 0 36px rgba(255,85,0,.7)}
+.station .ico svg{filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
+
+/* ===== LED BALANCE ===== */
+#led{position:absolute;right:56px;bottom:40px;z-index:8;width:436px;border-radius:14px;padding:15px 20px}
+#led .row1{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+#led .mode{font-family:'Chakra Petch';font-weight:700;font-size:12px;letter-spacing:.20em;color:#ff9a4d;text-shadow:var(--glow-soft)}
+#led .live{font-family:'Space Mono';font-size:10px;letter-spacing:.12em;color:#bdbdbd;display:flex;align-items:center;gap:7px}
+#led .dot{width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 6px var(--orange),0 0 14px var(--orange-deep)}
+#led .bal{font-family:'Share Tech Mono',monospace;font-size:56px;line-height:.9;color:#ffb777;
+  text-shadow:0 0 6px rgba(255,140,40,.8),0 0 18px rgba(255,85,0,.6),0 0 40px rgba(255,85,0,.35);letter-spacing:.01em}
+#led .bal .cur{color:#ff7a18;font-size:40px}
+#led .meta{display:flex;justify-content:space-between;margin-top:9px;font-family:'Space Mono';font-size:10px;letter-spacing:.08em;color:#8a8a8a}
+#led .meta b{color:#cfcfcf}
+#led .scan{position:absolute;inset:0;border-radius:14px;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,rgba(0,0,0,.04) 1px 3px);mix-blend-mode:overlay}
+
+/* corner frame */
+.frame{position:absolute;inset:22px;z-index:9;pointer-events:none}
+.frame i{position:absolute;width:26px;height:26px;border:2px solid rgba(255,122,24,.5);box-shadow:0 0 8px rgba(255,85,0,.4)}
+.frame .tl{top:0;left:0;border-right:0;border-bottom:0}
+.frame .tr{top:0;right:0;border-left:0;border-bottom:0}
+.frame .bl{bottom:0;left:0;border-right:0;border-top:0}
+.frame .br{bottom:0;right:0;border-left:0;border-top:0}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- ====== SMOKE ====== -->
+  <svg id="smoke" viewBox="0 0 1512 982" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="b1" cx="50%" cy="50%" r="60%">
+        <stop offset="0%" stop-color="#b85cff"/><stop offset="55%" stop-color="#7a2fd0" stop-opacity=".78"/><stop offset="100%" stop-color="#2a1240" stop-opacity="0"/></radialGradient>
+      <radialGradient id="b2" cx="50%" cy="50%" r="60%">
+        <stop offset="0%" stop-color="#ff8a2e"/><stop offset="50%" stop-color="#ff4d00" stop-opacity=".72"/><stop offset="100%" stop-color="#3a0e00" stop-opacity="0"/></radialGradient>
+      <radialGradient id="b3" cx="50%" cy="50%" r="60%">
+        <stop offset="0%" stop-color="#5a3fb0"/><stop offset="60%" stop-color="#2e1f6e" stop-opacity=".7"/><stop offset="100%" stop-color="#0a0820" stop-opacity="0"/></radialGradient>
+      <radialGradient id="b4" cx="50%" cy="50%" r="60%">
+        <stop offset="0%" stop-color="#ffb066"/><stop offset="55%" stop-color="#e0531a" stop-opacity=".55"/><stop offset="100%" stop-color="#2a0c00" stop-opacity="0"/></radialGradient>
+      <radialGradient id="b5" cx="50%" cy="50%" r="60%">
+        <stop offset="0%" stop-color="#2fd0c5" stop-opacity=".68"/><stop offset="60%" stop-color="#155e74" stop-opacity=".4"/><stop offset="100%" stop-color="#04121a" stop-opacity="0"/></radialGradient>
+
+      <filter id="marble" x="-25%" y="-25%" width="150%" height="150%">
+        <feTurbulence id="turb" type="fractalNoise" baseFrequency="0.009 0.013" numOctaves="5" seed="7" stitchTiles="stitch" result="noise"/>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="46" xChannelSelector="R" yChannelSelector="G" result="disp"/>
+        <feGaussianBlur in="disp" stdDeviation="1.1"/>
+      </filter>
+      <filter id="marble2" x="-25%" y="-25%" width="150%" height="150%">
+        <feTurbulence id="turb2" type="fractalNoise" baseFrequency="0.014 0.01" numOctaves="4" seed="22" stitchTiles="stitch" result="n2"/>
+        <feDisplacementMap in="SourceGraphic" in2="n2" scale="40" xChannelSelector="G" yChannelSelector="B"/>
+      </filter>
+    </defs>
+
+    <rect x="0" y="0" width="1512" height="982" fill="#0a0712"/>
+    <g filter="url(#marble)">
+      <ellipse cx="430" cy="430" rx="420" ry="360" fill="url(#b1)"/>
+      <ellipse cx="560" cy="540" rx="300" ry="320" fill="url(#b3)"/>
+      <ellipse cx="350" cy="560" rx="260" ry="240" fill="url(#b2)"/>
+      <ellipse cx="660" cy="360" rx="240" ry="260" fill="url(#b4)"/>
+      <ellipse cx="1080" cy="300" rx="360" ry="300" fill="url(#b2)"/>
+      <ellipse cx="1230" cy="430" rx="300" ry="320" fill="url(#b1)"/>
+      <ellipse cx="980" cy="560" rx="300" ry="260" fill="url(#b4)"/>
+      <ellipse cx="1180" cy="700" rx="280" ry="240" fill="url(#b3)"/>
+    </g>
+    <g filter="url(#marble2)" opacity=".82">
+      <ellipse cx="520" cy="300" rx="300" ry="260" fill="url(#b1)"/>
+      <ellipse cx="900" cy="700" rx="340" ry="280" fill="url(#b2)"/>
+      <ellipse cx="240" cy="780" rx="260" ry="220" fill="url(#b5)"/>
+      <ellipse cx="1320" cy="820" rx="300" ry="240" fill="url(#b3)"/>
+      <ellipse cx="760" cy="160" rx="280" ry="200" fill="url(#b4)"/>
+    </g>
+  </svg>
+
+  <svg id="grain" viewBox="0 0 1512 982" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+    <filter id="gf"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .9 0"/></filter>
+    <rect width="1512" height="982" filter="url(#gf)"/>
+  </svg>
+
+  <!-- ====== TORN METAL SHARD ====== -->
+  <svg id="shard" viewBox="0 0 880 430" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="shg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#eceded"/><stop offset="42%" stop-color="#c4c5c3"/><stop offset="100%" stop-color="#9697950"/></linearGradient>
+      <filter id="shwear"><feTurbulence type="fractalNoise" baseFrequency="0.16" numOctaves="3" seed="11"/>
+        <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .5 0"/>
+        <feComposite operator="in" in2="SourceGraphic"/></filter>
+    </defs>
+    <path d="M0 44 L220 8 L312 54 L492 16 L588 62 L772 28 L878 90
+             L860 252 L880 362 L734 396 L668 360 L492 414 L416 374
+             L262 416 L198 374 L42 414 L0 362 Z"
+          fill="url(#shg)" opacity=".9"/>
+    <path d="M0 44 L220 8 L312 54 L492 16 L588 62 L772 28 L878 90"
+          fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2"/>
+    <path d="M0 44 L220 8 L312 54 L492 16 L588 62 L772 28 L878 90
+             L860 252 L880 362 L734 396 L668 360 L492 414 L416 374
+             L262 416 L198 374 L42 414 L0 362 Z"
+          filter="url(#shwear)" opacity=".35"/>
+    <path d="M24 362 L160 374 L128 416 L42 414 Z" fill="rgba(255,85,0,.22)"/>
+  </svg>
+
+  <!-- ====== HERO TITLE ====== -->
+  <div id="titlewrap">
+    <div class="bigtitle"><span class="net">NET</span><span class="trade">TRADE</span></div>
+    <div class="tagchip">// trading station — <b>main menu</b></div>
+  </div>
+
+  <!-- ====== DATA SCULPTURE ====== -->
+  <svg id="sculpt" viewBox="0 0 600 210" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="cline" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#ffd9a8"/><stop offset="55%" stop-color="#ff7a18"/><stop offset="100%" stop-color="#ff5500"/></linearGradient>
+      <filter id="warp"><feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="3" result="w"/>
+        <feDisplacementMap in="SourceGraphic" in2="w" scale="12"/></filter>
+    </defs>
+    <g filter="url(#warp)" fill="none" stroke="url(#cline)">
+      <g opacity=".22" stroke-width="1.4">
+        <path d="M0 186 L84 174 L170 162 L256 170 L342 138 L428 110 L514 96 L600 74"/>
+        <path d="M0 204 L84 192 L170 180 L256 188 L342 156 L428 128 L514 114 L600 92"/>
+      </g>
+      <g opacity=".42" stroke-width="1.8">
+        <path d="M0 168 L84 156 L170 144 L256 152 L342 120 L428 92 L514 78 L600 56"/>
+        <path d="M0 150 L84 138 L170 126 L256 134 L342 102 L428 74 L514 60 L600 38"/>
+      </g>
+      <path d="M0 132 L84 118 L170 106 L256 116 L342 82 L428 52 L514 36 L600 14"
+            stroke-width="3" opacity=".95"/>
+    </g>
+    <g>
+      <circle cx="0" cy="132" r="3.4" fill="#ffd9a8"/><circle cx="84" cy="118" r="3.4" fill="#ffb066"/>
+      <circle cx="170" cy="106" r="3.4" fill="#ffb066"/><circle cx="256" cy="116" r="3.4" fill="#ffb066"/>
+      <circle cx="342" cy="82" r="3.8" fill="#ff9a4d"/><circle cx="428" cy="52" r="3.8" fill="#ff7a18"/>
+      <circle cx="514" cy="36" r="4" fill="#ff7a18"/>
+      <circle cx="600" cy="14" r="5.6" fill="#fff"/><circle cx="600" cy="14" r="10" fill="none" stroke="#ff7a18" stroke-width="1.6" opacity=".8"/>
+    </g>
+    <g stroke="#ff7a18" stroke-width="2.4" fill="none" opacity=".9">
+      <path d="M0 132 q-18 -34 6 -64"/>
+      <path d="M-6 76 a30 30 0 0 1 30 -18" opacity=".5"/>
+      <path d="M-12 56 a48 48 0 0 1 48 -28" opacity=".3"/>
+    </g>
+  </svg>
+  <div id="sculptlabel">value series // <b>£9.0k &rarr; £14.2k</b> · 8wk topographic</div>
+
+  <!-- ====== TOP BAR ====== -->
+  <div id="topbar">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+        <g fill="none" stroke="#ff7a18" stroke-width="3" stroke-linecap="round">
+          <path d="M30 54 L30 30"/><path d="M30 30 L16 12"/><path d="M30 30 L44 12"/>
+          <circle cx="30" cy="30" r="4.5" fill="#ff7a18" stroke="none"/>
+          <path d="M14 36 a22 22 0 0 1 0 -28" opacity=".75"/><path d="M46 36 a22 22 0 0 0 0 -28" opacity=".75"/>
+          <path d="M8 42 a32 32 0 0 1 0 -40" opacity=".4"/><path d="M52 42 a32 32 0 0 0 0 -40" opacity=".4"/>
+        </g>
+        <rect x="22" y="52" width="16" height="5" rx="2" fill="#ff7a18"/>
+      </svg>
+      <div class="brandtxt">
+        <div class="kicker">SIGNAL · STATION</div>
+        <div class="name">NET<b>TRADE</b></div>
+        <div class="sub">// trading station — main menu</div>
+      </div>
+    </div>
+    <div class="toggle metal" id="tg">
+      <div class="seg">YOU</div><div class="seg">PARTNER</div><div class="seg on">COMBINED</div>
+    </div>
+  </div>
+
+  <!-- ====== STATION STACK ====== -->
+  <div id="stations"></div>
+
+  <!-- ====== LED BALANCE ====== -->
+  <div id="led" class="recess">
+    <div class="scan"></div>
+    <div class="row1">
+      <div class="mode">ACCOUNT · COMBINED</div>
+      <div class="live"><span class="dot"></span>* LIVE · synced <b style="color:#e0e0e0">14:32</b></div>
+    </div>
+    <div class="bal"><span class="cur">£</span>14,240</div>
+    <div class="meta"><span>TRUE BALANCE · <b>GBP</b></span><span>&#9650; +<b>£1,140</b> 7d · gain</span></div>
+  </div>
+
+  <div class="frame"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></div>
+</div>
+
+<script>
+const STATIONS = [
+  {nm:"DASHBOARD",   tg:"the truth at a glance",        ico:"dash"},
+  {nm:"POSITIONS",   tg:"what you hold",                ico:"pos"},
+  {nm:"WATCHLIST",   tg:"on the radar · delayed",       ico:"watch"},
+  {nm:"PERFORMANCE", tg:"realised vs paper, over time", ico:"perf"},
+  {nm:"COMPARE",     tg:"you vs partner",               ico:"cmp"},
+  {nm:"JOURNAL",     tg:"did the move pay off",         ico:"jrn"},
+  {nm:"SETTINGS",    tg:"keys · sync · sound",          ico:"set"},
+];
+const ACTIVE = 0;
+const ICONS = {
+  dash:'<path d="M5 18v-7M12 18V6M19 18v-4" stroke-width="2.4" stroke-linecap="round"/><path d="M3 21h18" stroke-width="2" stroke-linecap="round"/>',
+  pos:'<rect x="4" y="4" width="16" height="16" rx="3" stroke-width="2.2"/><path d="M8 14l3-3 2 2 3-4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+  watch:'<circle cx="12" cy="12" r="8" stroke-width="2.2"/><circle cx="12" cy="12" r="2.6" stroke-width="2.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke-width="2" stroke-linecap="round"/>',
+  perf:'<path d="M4 17l4-5 3 3 5-7 4 4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 21h18" stroke-width="2" stroke-linecap="round"/>',
+  cmp:'<path d="M7 4v16M17 4v16" stroke-width="2.4" stroke-linecap="round"/><path d="M7 9l-3 3 3 3M17 9l3 3-3 3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+  jrn:'<rect x="5" y="3" width="14" height="18" rx="2.5" stroke-width="2.2"/><path d="M9 8h6M9 12h6M9 16h3" stroke-width="2" stroke-linecap="round"/>',
+  set:'<circle cx="12" cy="12" r="3.2" stroke-width="2.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" stroke-width="2" stroke-linecap="round"/>',
+};
+const wrap = document.getElementById('stations');
+STATIONS.forEach(function(s,i){
+  var active = i===ACTIVE;
+  var el = document.createElement('div');
+  el.className = 'station metal'+(active?' active':'');
+  var stroke = active ? '#2a0f00' : '#3a3b38';
+  el.innerHTML =
+    '<div class="wear"></div><div class="wear b"></div><canvas class="scuff"></canvas>'+
+    '<div class="idx">'+String(i+1).padStart(2,'0')+'</div>'+
+    '<div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="'+stroke+'">'+ICONS[s.ico]+'</svg></div>'+
+    '<div class="txt"><div class="nm">'+s.nm+'</div><div class="tg">'+s.tg+'</div></div>'+
+    '<div class="chev">'+(active?'▶':'›')+'</div>';
+  wrap.appendChild(el);
+});
+
+var WEAR_SVG = encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="566" height="90">'+
+  '<filter id="w"><feTurbulence type="fractalNoise" baseFrequency="0.85 0.12" numOctaves="3" seed="9" stitchTiles="stitch"/>'+
+  '<feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0"/></filter>'+
+  '<rect width="566" height="90" filter="url(#w)"/></svg>'
+);
+document.querySelectorAll('.wear').forEach(function(w){
+  w.style.background = "url('data:image/svg+xml,"+WEAR_SVG+"')";
+  w.style.backgroundSize='cover';
+});
+(function(){
+  var tg=document.getElementById('tg');
+  var w=document.createElement('div');w.className='wear';w.style.borderRadius='11px';
+  w.style.background="url('data:image/svg+xml,"+WEAR_SVG+"')";w.style.backgroundSize='cover';
+  tg.insertBefore(w,tg.firstChild);
+})();
+
+function scuff(cv){
+  var r = cv.getBoundingClientRect();
+  var W = Math.max(2,Math.round(r.width)), H = Math.max(2,Math.round(r.height));
+  cv.width=W; cv.height=H;
+  var c = cv.getContext('2d');
+  var n = Math.round(W*H/2600), i, x, y, ang, len, dark;
+  for(i=0;i<n;i++){
+    x=Math.random()*W; y=Math.random()*H;
+    ang = (Math.random()<.8? (Math.random()*0.5-0.25) : (Math.random()*Math.PI));
+    len = 8+Math.random()*46;
+    c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(ang)*len, y+Math.sin(ang)*len);
+    dark = Math.random()<.55;
+    c.strokeStyle = dark? 'rgba(20,20,20,'+(0.05+Math.random()*0.16)+')':'rgba(255,255,255,'+(0.05+Math.random()*0.22)+')';
+    c.lineWidth = Math.random()<.85? 0.6 : 1.3;c.stroke();
+  }
+  var chips = Math.round(W*H/14000), s, p, pts, a, b, rad, k;
+  for(i=0;i<chips;i++){
+    x=Math.random()*W;y=Math.random()*H;s=1+Math.random()*3.4;
+    c.beginPath();c.moveTo(x,y);
+    pts=3+Math.floor(Math.random()*3);
+    for(p=0;p<pts;p++){a=p/pts*6.28;c.lineTo(x+Math.cos(a)*s*(0.6+Math.random()*0.8),y+Math.sin(a)*s*(0.6+Math.random()*0.8));}
+    c.closePath();
+    c.fillStyle = Math.random()<.5?'rgba(30,30,30,'+(0.10+Math.random()*0.18)+')':'rgba(255,255,255,'+(0.08+Math.random()*0.14)+')';
+    c.fill();
+  }
+  var bolts = Math.max(1,Math.round(W/260));
+  for(b=0;b<bolts;b++){
+    x= 14+Math.random()*(W-28); y= 14+Math.random()*(H-28); rad=4.5+Math.random()*2;
+    c.save();c.translate(x,y);
+    c.beginPath();for(k=0;k<6;k++){a=k/6*6.283+0.4;c.lineTo(Math.cos(a)*rad,Math.sin(a)*rad);}c.closePath();
+    c.fillStyle='rgba(150,150,148,0.5)';c.fill();c.strokeStyle='rgba(40,40,40,0.5)';c.lineWidth=1;c.stroke();
+    c.beginPath();for(k=0;k<6;k++){a=k/6*6.283+0.4;c.lineTo(Math.cos(a)*rad*0.6,Math.sin(a)*rad*0.6);}c.closePath();
+    c.strokeStyle='rgba(20,20,20,0.45)';c.stroke();c.restore();
+  }
+}
+requestAnimationFrame(function(){document.querySelectorAll('canvas.scuff').forEach(scuff);});
+
+(function(){
+  var t1=document.getElementById('turb'), t2=document.getElementById('turb2');
+  var start=performance.now();
+  function tick(now){
+    var e=(now-start)/1000;
+    var f1 = 0.0090 + Math.sin(e*2*Math.PI/58)*0.0030;
+    var f1y= 0.0130 + Math.cos(e*2*Math.PI/58)*0.0028;
+    var f2 = 0.0140 + Math.sin(e*2*Math.PI/72 + 1.4)*0.0034;
+    var f2y= 0.0100 + Math.cos(e*2*Math.PI/72 + 1.4)*0.0030;
+    t1.setAttribute('baseFrequency', f1.toFixed(5)+' '+f1y.toFixed(5));
+    t2.setAttribute('baseFrequency', f2.toFixed(5)+' '+f2y.toFixed(5));
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

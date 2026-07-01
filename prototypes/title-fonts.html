@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NET TRADE — Title Font Picker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee+Inline&family=Monoton&family=Wallpoet&family=Nabla&family=Zen+Dots&family=Unbounded:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#EDE6D2; --cream2:#F2ECE0; --ink:#14110D; --orange:#FF5A1F; --purple:#5D5A86;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:1512px;height:982px;overflow:hidden;background:var(--cream);}
+  body{font-family:'Oswald',sans-serif;color:var(--ink);position:relative;}
+
+  /* faint halftone so the sheet isn't flat */
+  .halftone{position:absolute;inset:0;
+    background-image:radial-gradient(var(--ink) 1.3px, transparent 1.5px);
+    background-size:18px 18px;opacity:.05;mix-blend-mode:multiply;pointer-events:none;}
+
+  .sheet-head{position:absolute;left:48px;top:30px;
+    font-family:'Unbounded',sans-serif;font-weight:900;font-size:30px;
+    text-transform:uppercase;letter-spacing:-.01em;color:var(--ink);}
+  .sheet-sub{position:absolute;left:50px;top:74px;
+    font-family:'Oswald',sans-serif;font-weight:600;font-size:16px;
+    letter-spacing:.22em;text-transform:uppercase;color:var(--orange);}
+
+  .grid{position:absolute;left:40px;top:116px;width:1432px;
+    display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);
+    gap:18px;height:840px;}
+
+  .cell{position:relative;background:var(--cream2);
+    border:6px solid var(--ink);box-shadow:10px 10px 0 var(--ink);
+    padding:18px 26px 22px;overflow:hidden;display:flex;flex-direction:column;justify-content:center;}
+
+  .fontname{position:absolute;left:0;top:0;
+    background:var(--ink);color:var(--cream2);
+    font-family:'Oswald',sans-serif;font-weight:700;font-size:14px;
+    letter-spacing:.18em;text-transform:uppercase;padding:7px 18px 6px;z-index:3;}
+  .fontnum{position:absolute;right:14px;bottom:10px;
+    font-family:'Unbounded',sans-serif;font-weight:900;font-size:42px;
+    color:var(--ink);opacity:.10;z-index:1;line-height:1;}
+
+  .words{display:flex;flex-direction:column;line-height:.82;z-index:2;margin-top:14px;}
+  .w{display:block;text-transform:uppercase;}
+
+  /* 1 — Bungee Inline : has the internal inline stroke */
+  .f-bungee .w{font-family:'Bungee Inline',cursive;font-size:108px;color:var(--orange);line-height:.92;}
+
+  /* 2 — Monoton : parallel internal line letters */
+  .f-monoton .w{font-family:'Monoton',cursive;font-size:104px;color:var(--ink);line-height:.92;}
+  .f-monoton .w:first-child{color:var(--orange);}
+
+  /* 3 — Wallpoet : segmented techno */
+  .f-wallpoet .w{font-family:'Wallpoet',cursive;font-size:96px;color:var(--ink);}
+  .f-wallpoet .w:first-child{color:var(--orange);}
+
+  /* 4 — Nabla : vibrant layered colour font */
+  .f-nabla .w{font-family:'Nabla',system-ui;font-size:118px;line-height:.9;
+    font-palette:--orangepal;}
+  @font-palette-values --orangepal{font-family:'Nabla';base-palette:0;}
+
+  /* 5 — Zen Dots : rounded techno */
+  .f-zendots .w{font-family:'Zen Dots',cursive;font-size:86px;color:var(--ink);}
+  .f-zendots .w:first-child{color:var(--orange);}
+
+  /* 6 — Unbounded : the old slate funky face */
+  .f-unbounded .w{font-family:'Unbounded',sans-serif;font-weight:900;font-size:104px;
+    color:var(--orange);-webkit-text-stroke:5px var(--ink);paint-order:stroke fill;
+    text-shadow:7px 7px 0 var(--ink);letter-spacing:-.02em;line-height:.92;}
+  .f-unbounded .w:nth-child(2){color:var(--cream2);text-shadow:7px 7px 0 var(--orange);}
+</style>
+</head>
+<body>
+  <div class="halftone"></div>
+  <div class="sheet-head">NET TRADE — Title Font Picker</div>
+  <div class="sheet-sub">Pick the internal-line display face</div>
+
+  <div class="grid">
+    <div class="cell f-bungee">
+      <div class="fontname">1 · Bungee Inline</div>
+      <div class="fontnum">01</div>
+      <div class="words"><span class="w">Net</span><span class="w">Trade</span></div>
+    </div>
+
+    <div class="cell f-monoton">
+      <div class="fontname">2 · Monoton</div>
+      <div class="fontnum">02</div>
+      <div class="words"><span class="w">Net</span><span class="w">Trade</span></div>
+    </div>
+
+    <div class="cell f-wallpoet">
+      <div class="fontname">3 · Wallpoet</div>
+      <div class="fontnum">03</div>
+      <div class="words"><span class="w">Net</span><span class="w">Trade</span></div>
+    </div>
+
+    <div class="cell f-nabla">
+      <div class="fontname">4 · Nabla</div>
+      <div class="fontnum">04</div>
+      <div class="words"><span class="w">Net</span><span class="w">Trade</span></div>
+    </div>
+
+    <div class="cell f-zendots">
+      <div class="fontname">5 · Zen Dots</div>
+      <div class="fontnum">05</div>
+      <div class="words"><span class="w">Net</span><span class="w">Trade</span></div>
+    </div>
+
+    <div class="cell f-unbounded">
+      <div class="fontname">6 · Unbounded (slate)</div>
+      <div class="fontnum">06</div>
+      <div class="words"><span class="w">Net</span><span class="w">Trade</span></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NET TRADE — SLASH R2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800;900&family=Anton&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#EDE6D2;
+    --cream2:#F2ECE0;
+    --ink:#14110D;
+    --orange:#FF5A1F;
+    --teal:#2FB5A8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:1512px;height:982px;overflow:hidden;background:var(--cream);}
+  body{font-family:'Oswald',sans-serif;position:relative;}
+
+  .stage{position:absolute;inset:0;width:1512px;height:982px;overflow:hidden;background:var(--cream);}
+
+  /* ===== CREAM SIDE (lower-left) ===== */
+  .cream-field{
+    position:absolute;inset:0;
+    background:var(--cream);
+  }
+  /* ben-day halftone dots in the cream */
+  .halftone{
+    position:absolute;inset:0;
+    background-image:radial-gradient(var(--ink) 1.4px, transparent 1.6px);
+    background-size:13px 13px;
+    opacity:.06;
+    clip-path:polygon(0 0,58% 0,18% 100%,0 100%);
+  }
+  /* faint printed grain over the cream */
+  .grain{
+    position:absolute;inset:0;
+    opacity:.05;mix-blend-mode:multiply;pointer-events:none;z-index:3;
+    clip-path:polygon(0 0,58% 0,18% 100%,0 100%);
+  }
+
+  /* ===== THE COLOUR WEDGE (liquid marble) ===== */
+  /* steeper diagonal: top edge starts further right, bottom edge swings hard left */
+  .wedge{
+    position:absolute;inset:0;
+    clip-path:polygon(58% 0,100% 0,100% 100%,16% 100%);
+    overflow:hidden;
+  }
+  .wedge svg{position:absolute;top:-6%;left:-6%;width:112%;height:112%;}
+  .marble-drift{transform-origin:center;animation:drift 26s ease-in-out infinite alternate;}
+  @keyframes drift{
+    0%{transform:translate(0,0) scale(1.05) rotate(0deg);}
+    100%{transform:translate(-3%,-2%) scale(1.20) rotate(4deg);}
+  }
+  /* halftone over the dark edge of the wedge */
+  .wedge-halftone{
+    position:absolute;inset:0;
+    clip-path:polygon(58% 0,100% 0,100% 100%,16% 100%);
+    background-image:radial-gradient(rgba(20,17,13,.6) 1.6px, transparent 1.8px);
+    background-size:11px 11px;
+    opacity:.18;mix-blend-mode:multiply;pointer-events:none;
+  }
+
+  /* the hard ink slash edge — the dramatic boundary line (steepened) */
+  .slash-edge{
+    position:absolute;inset:0;
+    background:var(--ink);
+    clip-path:polygon(57.2% 0,58% 0,16% 100%,15.2% 100%);
+  }
+  /* thin orange accent rail just inside the slash on the cream side */
+  .slash-accent{
+    position:absolute;inset:0;
+    background:var(--orange);
+    clip-path:polygon(56.0% 0,56.6% 0,14.3% 100%,13.7% 100%);
+  }
+  /* SECOND MINOR DIAGONAL CUT — shears the wedge's bottom-left tip with a hard ink
+     facet so the boundary breaks instead of running as one clean line */
+  .wedge-cut{
+    position:absolute;inset:0;
+    background:var(--ink);
+    /* sits ON the wedge's lower edge near the bottom-left tip, angled steeper than the slash */
+    clip-path:polygon(16% 100%,33.5% 100%,17.6% 76%);
+  }
+  /* orange sliver tracing the new facet for collage zing */
+  .wedge-cut-accent{
+    position:absolute;inset:0;
+    background:var(--orange);
+    clip-path:polygon(15.6% 100%,17.0% 100%,17.6% 76%,16.9% 76%);
+  }
+
+  /* ===== TITLE — straddles the slash, knockout ===== */
+  .title-wrap{
+    position:absolute;
+    bottom:104px;left:548px;
+    transform:rotate(-9deg);
+    transform-origin:left bottom;
+    z-index:6;
+    pointer-events:none;
+  }
+  .title{
+    font-family:'Unbounded',sans-serif;
+    font-weight:900;
+    font-size:152px;
+    line-height:.78;
+    letter-spacing:-5px;
+    text-transform:uppercase;
+    white-space:nowrap;
+  }
+  .title .net{
+    color:var(--orange);
+    -webkit-text-stroke:5px var(--ink);
+    paint-order:stroke fill;
+    display:block;
+    /* NET bleeds left over the slash edge for collage tension */
+    margin-left:-26px;
+    text-shadow:9px 9px 0 var(--ink);
+  }
+  .title .trade{
+    display:block;
+    color:var(--cream2);
+    -webkit-text-stroke:5px var(--ink);
+    paint-order:stroke fill;
+    margin-top:-4px;
+    padding-left:70px;
+    /* thicker orange offset punch on TRADE */
+    text-shadow:6px 6px 0 var(--orange), 12px 12px 0 var(--ink);
+  }
+
+  /* ===== MENU — sheared parallelogram tags along the diagonal axis ===== */
+  .menu{
+    position:absolute;
+    left:64px;top:92px;
+    z-index:7;
+    display:flex;flex-direction:column;
+    gap:13px;
+  }
+  .tag{
+    position:relative;
+    display:flex;align-items:center;
+    height:60px;
+    padding:0 30px 0 26px;
+    background:var(--cream2);
+    clip-path:polygon(7% 0,100% 0,93% 100%,0 100%);
+    box-shadow:7px 7px 0 var(--ink);
+    transform:skewX(-12deg);
+    border:0;
+  }
+  .tag .inner{transform:skewX(12deg);display:flex;align-items:center;gap:16px;width:100%;}
+  .tag .idx{
+    font-family:'Oswald',sans-serif;font-weight:700;
+    font-size:15px;color:var(--ink);opacity:.26;
+    width:26px;
+  }
+  .tag .name{
+    font-family:'Unbounded',sans-serif;font-weight:800;
+    font-size:24px;letter-spacing:-.5px;
+    color:var(--ink);text-transform:uppercase;
+    white-space:nowrap;
+  }
+  /* widths vary DRAMATICALLY down the diagonal */
+  .menu .row:nth-child(1) .tag{width:344px;margin-left:0;}
+  .menu .row:nth-child(2) .tag{width:300px;margin-left:34px;}
+  .menu .row:nth-child(3) .tag{width:328px;margin-left:62px;}
+  .menu .row:nth-child(4) .tag{width:368px;margin-left:88px;}
+  .menu .row:nth-child(5) .tag{width:288px;margin-left:122px;}
+  .menu .row:nth-child(6) .tag{width:312px;margin-left:152px;}
+  .menu .row:nth-child(7) .tag{width:286px;margin-left:182px;}
+
+  /* non-active ghost tags: a hair more contrast vs cream so they don't disappear */
+  .tag:not(.active){background:#E7DFC9;}
+
+  /* ACTIVE — inverts to solid orange, kicks out, single clear focal point */
+  .tag.active{
+    background:var(--orange);
+    box-shadow:10px 10px 0 var(--ink);
+    transform:skewX(-12deg) translateX(10px) scale(1.05);
+  }
+  .tag.active .name{color:var(--cream2);}
+  .tag.active .idx{color:var(--ink);opacity:.75;}
+  .tag.active::after{
+    content:"";position:absolute;right:-26px;top:50%;
+    width:0;height:0;border-style:solid;
+    border-width:12px 0 12px 17px;
+    border-color:transparent transparent transparent var(--ink);
+    transform:translateY(-50%) skewX(12deg);
+  }
+
+  /* hover kick */
+  .tag{transition:transform .14s cubic-bezier(.2,.9,.3,1.4),box-shadow .14s;}
+  .tag:hover{transform:skewX(-12deg) translateX(10px);box-shadow:11px 11px 0 var(--ink);}
+  .tag.active:hover{transform:skewX(-12deg) translateX(14px) scale(1.05);}
+
+  /* ===== tiny status — the single allowed extra ===== */
+  .status{
+    position:absolute;
+    left:80px;bottom:52px;
+    z-index:7;
+    display:flex;align-items:center;gap:0;
+    transform:skewX(-12deg);
+  }
+  .status .seg{
+    font-family:'Oswald',sans-serif;font-weight:600;
+    font-size:13px;letter-spacing:3px;
+    padding:7px 16px;
+    color:var(--ink);
+    background:var(--cream2);
+    box-shadow:4px 4px 0 var(--ink);
+  }
+  .status .seg.on{
+    background:var(--ink);color:var(--orange);
+  }
+  .status .seg span{display:inline-block;transform:skewX(12deg);}
+
+  /* halftone dot cluster accent (bomb-rush flourish) bottom-mid cream — larger/darker */
+  .dotcluster{
+    position:absolute;left:108px;bottom:128px;z-index:4;opacity:.55;
+    transform:rotate(-9deg);
+  }
+  .dotcluster circle{fill:var(--ink);}
+
+  @media (prefers-reduced-motion:reduce){
+    .marble-drift{animation:none;}
+    .tag{transition:none;}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- CREAM BASE -->
+  <div class="cream-field"></div>
+  <div class="halftone"></div>
+
+  <!-- COLOUR WEDGE: liquid marble (PANEL recipe, richer ribbons) -->
+  <div class="wedge">
+    <svg viewBox="0 0 800 1000" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- liquid marble: large warped bands, higher displacement for genuine flow -->
+        <filter id="marble" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.0016 0.0030" numOctaves="5" seed="14" result="base"/>
+          <feTurbulence type="fractalNoise" baseFrequency="0.010" numOctaves="3" seed="3" result="warp"/>
+          <feDisplacementMap in="base" in2="warp" scale="160" xChannelSelector="R" yChannelSelector="G" result="liquid"/>
+          <!-- purple-dominant veins; orange + teal minority veins; near-black for depth -->
+          <!-- P=#5D5A86 lightP=#7370A0 O=#E8632A T=#2FB5A8 K=#1A1622 -->
+          <feComponentTransfer in="liquid" result="toned">
+            <feFuncR type="discrete" tableValues="0.36 0.45 0.36 0.91 0.36 0.18 0.45 0.36 0.10 0.36 0.42 0.36"/>
+            <feFuncG type="discrete" tableValues="0.35 0.44 0.35 0.39 0.35 0.71 0.44 0.35 0.09 0.35 0.41 0.35"/>
+            <feFuncB type="discrete" tableValues="0.53 0.63 0.53 0.16 0.53 0.66 0.63 0.53 0.13 0.53 0.60 0.53"/>
+          </feComponentTransfer>
+        </filter>
+        <linearGradient id="deepen" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#14110D" stop-opacity="0"/>
+          <stop offset="1" stop-color="#14110D" stop-opacity=".42"/>
+        </linearGradient>
+      </defs>
+      <g class="marble-drift">
+        <rect x="0" y="0" width="800" height="1000" fill="#5D5A86"/>
+        <rect x="0" y="0" width="800" height="1000" filter="url(#marble)"/>
+      </g>
+      <rect x="0" y="0" width="800" height="1000" fill="url(#deepen)"/>
+    </svg>
+  </div>
+  <div class="wedge-halftone"></div>
+
+  <!-- THE SLASH EDGE + second minor cut -->
+  <div class="slash-accent"></div>
+  <div class="slash-edge"></div>
+  <div class="wedge-cut"></div>
+  <div class="wedge-cut-accent"></div>
+
+  <!-- halftone dot cluster flourish (larger) -->
+  <svg class="dotcluster" width="264" height="146" viewBox="0 0 264 146">
+    <circle cx="12" cy="73" r="6"/><circle cx="41" cy="73" r="6"/><circle cx="70" cy="73" r="6"/>
+    <circle cx="99" cy="49" r="6"/><circle cx="99" cy="97" r="6"/>
+    <circle cx="128" cy="27" r="6"/><circle cx="128" cy="73" r="6"/><circle cx="128" cy="119" r="6"/>
+    <circle cx="157" cy="49" r="6"/><circle cx="157" cy="97" r="6"/>
+    <circle cx="186" cy="73" r="6"/><circle cx="215" cy="73" r="6"/><circle cx="244" cy="73" r="6"/>
+  </svg>
+
+  <!-- TITLE straddling the slash -->
+  <div class="title-wrap">
+    <div class="title">
+      <span class="net">NET</span>
+      <span class="trade">TRADE</span>
+    </div>
+  </div>
+
+  <!-- MENU TAGS down the diagonal -->
+  <nav class="menu">
+    <div class="row"><div class="tag active"><div class="inner"><span class="idx">01</span><span class="name">Dashboard</span></div></div></div>
+    <div class="row"><div class="tag"><div class="inner"><span class="idx">02</span><span class="name">Positions</span></div></div></div>
+    <div class="row"><div class="tag"><div class="inner"><span class="idx">03</span><span class="name">Watchlist</span></div></div></div>
+    <div class="row"><div class="tag"><div class="inner"><span class="idx">04</span><span class="name">Performance</span></div></div></div>
+    <div class="row"><div class="tag"><div class="inner"><span class="idx">05</span><span class="name">Compare</span></div></div></div>
+    <div class="row"><div class="tag"><div class="inner"><span class="idx">06</span><span class="name">Journal</span></div></div></div>
+    <div class="row"><div class="tag"><div class="inner"><span class="idx">07</span><span class="name">Settings</span></div></div></div>
+  </nav>
+
+  <!-- tiny status -->
+  <div class="status">
+    <div class="seg on"><span>YOU</span></div>
+    <div class="seg"><span>PARTNER</span></div>
+    <div class="seg"><span>COMBINED</span></div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,48 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  font-family: "Space Mono", monospace;
+  color: #c9a24a; /* amber */
+}
+
+.topLeft {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.78;
+  background: rgba(13, 17, 23, 0.35);
+  padding: 8px 10px;
+  border: 1px solid rgba(232, 230, 226, 0.08);
+}
+
+.row {
+  white-space: pre;
+}
+
+.statusBar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #d8d3c6; /* bone */
+  background: rgba(13, 17, 23, 0.45);
+  border-top: 1px solid rgba(232, 230, 226, 0.08);
+}
+
+.signal {
+  color: #c9a24a;
+}

@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1512, height=982">
+<title>NETTRADE // DASHBOARD</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
+
+:root{
+  --bg0:#05070a;
+  --bg1:#080c10;
+  --ink:#aeb9c2;
+  --ink-dim:#5d6a73;
+  --ink-faint:#3a454d;
+  --green:#00ff9c;
+  --green-deep:#0bbf78;
+  --amber:#f5b132;
+  --red:#ff5a52;
+  --line:rgba(120,150,150,.14);
+  --line-dot:rgba(0,255,156,.20);
+  --panel:rgba(10,16,18,.62);
+  --panel-edge:rgba(0,255,156,.16);
+  --display:'Oswald','Bebas Neue','Arial Narrow',sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,'Cascadia Mono',Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:#000;}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+.frame{
+  position:relative;width:1512px;height:982px;overflow:hidden;
+  background:
+    radial-gradient(1100px 720px at 34% 30%, rgba(0,255,156,.06), transparent 60%),
+    radial-gradient(900px 700px at 88% 86%, rgba(245,177,50,.05), transparent 62%),
+    radial-gradient(1400px 1100px at 50% 0%, #0a1014 0%, #070b0e 42%, #04060a 100%);
+  color:var(--ink);
+  font-family:var(--mono);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ---- atmospheric layers ---- */
+.bg-grid{position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(120,160,150,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(120,160,150,.045) 1px,transparent 1px);
+  background-size:46px 46px;
+  -webkit-mask-image:radial-gradient(1200px 900px at 42% 40%,#000 0%,rgba(0,0,0,.35) 65%,transparent 100%);
+          mask-image:radial-gradient(1200px 900px at 42% 40%,#000 0%,rgba(0,0,0,.35) 65%,transparent 100%);
+}
+.bg-hex{position:absolute;inset:0;opacity:.5;
+  background-image:radial-gradient(rgba(0,255,156,.18) 1px,transparent 1.4px);
+  background-size:22px 22px;background-position:0 0;
+  -webkit-mask-image:radial-gradient(900px 700px at 70% 78%,#000,transparent 75%);
+          mask-image:radial-gradient(900px 700px at 70% 78%,#000,transparent 75%);
+}
+.scanlines{position:absolute;inset:0;pointer-events:none;mix-blend-mode:overlay;opacity:.5;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.5) 2px 3px);
+}
+.grain{position:absolute;inset:0;pointer-events:none;opacity:.045;mix-blend-mode:soft-light;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+.vignette{position:absolute;inset:0;pointer-events:none;
+  box-shadow:inset 0 0 240px 60px rgba(0,0,0,.85),inset 0 0 60px rgba(0,0,0,.6);
+}
+.codecol{position:absolute;top:0;bottom:0;width:1px;background:linear-gradient(180deg,transparent,rgba(0,255,156,.10) 40%,rgba(0,255,156,.10) 60%,transparent);opacity:.6}
+
+/* ---- LEFT NAV RAIL ---- */
+.rail{position:absolute;left:0;top:0;bottom:0;width:84px;z-index:30;
+  background:linear-gradient(180deg,rgba(8,12,15,.92),rgba(6,9,12,.96));
+  border-right:1px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;
+  box-shadow:30px 0 60px -40px rgba(0,0,0,.9);
+}
+.rail::after{content:"";position:absolute;top:0;right:-1px;width:1px;height:100%;
+  background:repeating-linear-gradient(180deg,var(--line-dot) 0 5px,transparent 5px 11px);}
+.mark{margin-top:18px;width:46px;height:46px;position:relative;display:grid;place-items:center}
+.mark svg{filter:drop-shadow(0 0 8px rgba(0,255,156,.55))}
+.mark .tag{position:absolute;bottom:-12px;font-family:var(--mono);font-size:7px;letter-spacing:.28em;color:var(--green);opacity:.8}
+.navlist{margin-top:46px;display:flex;flex-direction:column;gap:5px;width:100%;align-items:center;flex:1}
+.nav{position:relative;width:62px;height:60px;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  color:var(--ink-dim);cursor:default;transition:.2s}
+.nav svg{width:21px;height:21px;stroke:currentColor;stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.nav .lbl{font-family:var(--mono);font-size:7.5px;letter-spacing:.12em;text-transform:uppercase}
+.nav.active{color:var(--green)}
+.nav.active::before{content:"";position:absolute;left:-11px;top:11px;bottom:11px;width:3px;border-radius:2px;background:var(--green);box-shadow:0 0 12px var(--green),0 0 22px rgba(0,255,156,.6)}
+.nav.active::after{content:"";position:absolute;inset:0;border-radius:9px;
+  background:linear-gradient(135deg,rgba(0,255,156,.16),rgba(0,255,156,.03));
+  border:1px solid rgba(0,255,156,.28);
+  box-shadow:0 0 22px -4px rgba(0,255,156,.5),inset 0 0 14px rgba(0,255,156,.08);
+  transform:skewX(-7deg)}
+.nav.active .lbl{color:var(--green)}
+.acct{margin-bottom:18px;width:54px;height:54px;border-radius:12px;display:grid;place-items:center;position:relative;
+  background:linear-gradient(150deg,rgba(245,177,50,.18),rgba(20,26,30,.7));
+  border:1px solid rgba(245,177,50,.34);box-shadow:0 0 20px -6px rgba(245,177,50,.4)}
+.acct .ini{font-family:var(--display);font-weight:600;font-size:18px;color:var(--amber);letter-spacing:.04em}
+.acct .pulse{position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+
+/* ---- main area ---- */
+.main{position:absolute;left:84px;top:0;right:0;bottom:0}
+
+/* TOP STATUS BAR */
+.topbar{position:absolute;left:0;right:0;top:0;height:78px;display:flex;align-items:center;gap:26px;padding:0 30px;
+  border-bottom:1px solid var(--line);z-index:20}
+.topbar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:repeating-linear-gradient(90deg,var(--line-dot) 0 7px,transparent 7px 15px)}
+.title-wrap{display:flex;align-items:baseline;gap:14px;position:relative}
+.sect-num{font-family:var(--mono);font-size:11px;color:var(--green);letter-spacing:.3em;opacity:.85}
+.sect-title{font-family:var(--display);font-weight:600;font-size:36px;letter-spacing:.14em;color:#eef4f2;
+  text-shadow:0 0 24px rgba(0,255,156,.22);line-height:.9;transform:skewX(-8deg)}
+.sect-title b{color:var(--green)}
+.accent-slash{position:absolute;left:-16px;top:-6px;width:5px;height:46px;background:var(--green);transform:skewX(-16deg);box-shadow:0 0 14px var(--green)}
+.sect-sub{font-family:var(--mono);font-size:9px;letter-spacing:.26em;color:var(--ink-dim);margin-top:3px}
+
+.live{display:flex;align-items:center;gap:8px;padding:7px 13px;border-radius:20px;
+  border:1px solid rgba(0,255,156,.35);background:rgba(0,255,156,.06);
+  font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--green)}
+.live .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 1.6s infinite}
+@keyframes blink{0%,55%{opacity:1}70%,100%{opacity:.25}}
+.synced{font-family:var(--mono);font-size:10px;color:var(--ink-dim);letter-spacing:.14em}
+.synced b{color:var(--ink)}
+
+.spacer{flex:1}
+
+.toggle{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:rgba(6,10,12,.6)}
+.toggle .seg{font-family:var(--mono);font-size:10px;letter-spacing:.16em;padding:9px 15px;color:var(--ink-dim);position:relative}
+.toggle .seg+ .seg{border-left:1px solid var(--line)}
+.toggle .seg.on{color:#04110b;background:linear-gradient(180deg,var(--green),var(--green-deep));font-weight:700;text-shadow:none;box-shadow:inset 0 0 18px rgba(255,255,255,.25)}
+
+.balchip{display:flex;flex-direction:column;align-items:flex-end;padding:8px 16px;border-radius:11px;
+  border:1px solid var(--panel-edge);background:linear-gradient(140deg,rgba(0,255,156,.08),rgba(8,14,16,.6));
+  box-shadow:0 0 26px -10px rgba(0,255,156,.5)}
+.balchip .k{font-family:var(--mono);font-size:8px;letter-spacing:.26em;color:var(--ink-dim)}
+.balchip .v{font-family:var(--mono);font-weight:700;font-size:21px;color:#eef4f2;letter-spacing:.02em;line-height:1.1}
+.balchip .v .gbp{color:var(--green);font-weight:500;margin-right:2px}
+
+/* ====== CONTENT CANVAS ====== */
+.canvas{position:absolute;left:0;right:0;top:78px;bottom:0}
+
+/* HERO data-sculpture */
+.hero{position:absolute;left:26px;top:18px;width:782px;height:560px}
+.hero .frame-ticks{position:absolute;inset:0;pointer-events:none}
+.hero-svg{position:absolute;inset:0;width:100%;height:100%}
+.hero-label{position:absolute;font-family:var(--mono);z-index:6}
+.hl-eyebrow{left:8px;top:6px;font-size:9px;letter-spacing:.34em;color:var(--green);text-shadow:0 0 10px rgba(0,255,156,.5)}
+.hl-eyebrow span{color:var(--ink-dim)}
+.hl-big{position:absolute;left:6px;top:24px;z-index:6}
+.hl-big .h{font-family:var(--display);font-weight:600;font-size:74px;line-height:.82;letter-spacing:.01em;color:#f1f7f4;text-shadow:0 0 40px rgba(0,255,156,.18)}
+.hl-big .h b{color:var(--green)}
+.hl-big .s{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--ink-dim);margin-top:9px}
+
+/* leader-lined callouts */
+.lead{position:absolute;z-index:7;font-family:var(--mono)}
+.lead .ld-line{position:absolute;height:1px;background:linear-gradient(90deg,transparent,var(--green));opacity:.7}
+.lead .ld-dot{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+.lead .ld-box{position:absolute;white-space:nowrap;padding:4px 9px;border:1px solid rgba(0,255,156,.3);background:rgba(5,9,11,.78);border-radius:4px;backdrop-filter:blur(2px)}
+.lead .ld-k{font-size:7.5px;letter-spacing:.2em;color:var(--ink-dim);display:block}
+.lead .ld-v{font-size:13px;font-weight:700;letter-spacing:.02em}
+.v-green{color:var(--green)} .v-amber{color:var(--amber)} .v-red{color:var(--red)} .v-ink{color:#eef4f2}
+
+/* corner ticks for hero */
+.ctick{position:absolute;width:18px;height:18px;border:1px solid rgba(0,255,156,.45)}
+.ctick.tl{left:0;top:0;border-right:0;border-bottom:0}
+.ctick.tr{right:0;top:0;border-left:0;border-bottom:0}
+.ctick.bl{left:0;bottom:0;border-right:0;border-top:0}
+.ctick.br{right:0;bottom:0;border-left:0;border-top:0}
+
+/* ====== RIGHT PANELS ====== */
+.panel{position:absolute;border-radius:14px;
+  background:linear-gradient(150deg,rgba(11,17,20,.78),rgba(7,11,13,.7));
+  border:1px solid var(--panel-edge);
+  box-shadow:0 26px 60px -28px rgba(0,0,0,.9),0 0 30px -16px rgba(0,255,156,.3),inset 0 1px 0 rgba(255,255,255,.03);
+  backdrop-filter:blur(3px)}
+.panel .ph{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 10px;border-bottom:1px solid var(--line)}
+.panel .ph::after{content:"";position:absolute}
+.ph .pt{font-family:var(--display);font-weight:600;font-size:15px;letter-spacing:.16em;color:#e7eeeb}
+.ph .pt .ac{color:var(--green)}
+.ph .pid{font-family:var(--mono);font-size:8px;letter-spacing:.22em;color:var(--ink-faint)}
+.dotborder{position:absolute;left:14px;right:14px;height:1px;background:repeating-linear-gradient(90deg,var(--line-dot) 0 5px,transparent 5px 10px)}
+
+/* TRUTH panel */
+.truth{left:830px;top:18px;width:646px;height:248px}
+.truth .body{padding:14px 18px;display:grid;grid-template-columns:1.15fr .85fr;gap:16px;height:calc(100% - 44px)}
+.truth .hero-fig{display:flex;flex-direction:column;justify-content:center;border-right:1px solid var(--line);padding-right:16px}
+.truth .hero-fig .cap{font-family:var(--mono);font-size:8.5px;letter-spacing:.26em;color:var(--ink-dim)}
+.truth .hero-fig .big{font-family:var(--mono);font-weight:800;font-size:50px;letter-spacing:0;color:var(--green);line-height:1;text-shadow:0 0 30px rgba(0,255,156,.4);margin:4px 0 2px}
+.truth .hero-fig .big .s{font-size:26px;vertical-align:6px;margin-right:4px;font-weight:600}
+.truth .hero-fig .row{display:flex;gap:18px;margin-top:10px}
+.truth .hero-fig .row .c .k{font-family:var(--mono);font-size:8px;letter-spacing:.2em;color:var(--ink-dim);display:block}
+.truth .hero-fig .row .c .vv{font-family:var(--mono);font-size:15px;font-weight:700}
+.truth .grid2{display:grid;grid-template-rows:repeat(4,1fr);gap:0}
+.truth .kv{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(120,150,150,.08)}
+.truth .kv:last-child{border-bottom:0}
+.truth .kv .k{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-dim)}
+.truth .kv .v{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.01em}
+
+/* gauges panel */
+.gauges{left:830px;top:282px;width:316px;height:296px}
+.gauges .body{padding:8px 6px 20px;height:calc(100% - 44px);display:flex;align-items:center;justify-content:space-around}
+.gauge{position:relative;width:118px;display:flex;flex-direction:column;align-items:center}
+.gauge .gcenter{position:absolute;left:0;right:0;top:30px;text-align:center;pointer-events:none}
+.gauge .gv{font-family:var(--mono);font-weight:800;font-size:21px;color:var(--green);text-shadow:0 0 16px rgba(0,255,156,.4);line-height:1}
+.gauge .gv .s{font-size:12px;margin-right:1px}
+.gauge .gk{font-family:var(--mono);font-size:7.5px;letter-spacing:.16em;color:var(--ink-dim);margin-top:5px}
+
+/* spark / area panel */
+.spark{left:1160px;top:282px;width:316px;height:296px}
+.spark .body{padding:6px 0 0;height:calc(100% - 44px);position:relative}
+.spark .meta{position:absolute;left:16px;top:8px;z-index:3}
+.spark .meta .k{font-family:var(--mono);font-size:8px;letter-spacing:.22em;color:var(--ink-dim)}
+.spark .meta .v{font-family:var(--mono);font-weight:800;font-size:24px;color:#eef4f2;line-height:1}
+.spark .meta .v .s{color:var(--green);font-size:14px;font-weight:600;margin-right:2px}
+.spark .meta .d{font-family:var(--mono);font-size:10px;color:var(--green);letter-spacing:.06em;margin-top:2px}
+.spark svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* ====== BOTTOM ROSTER ====== */
+.roster{position:absolute;left:26px;right:36px;bottom:18px;height:178px}
+.roster .rhead{display:flex;align-items:center;gap:12px;margin-bottom:9px}
+.roster .rhead .t{font-family:var(--display);font-weight:600;font-size:16px;letter-spacing:.18em;color:#e7eeeb}
+.roster .rhead .t .ac{color:var(--green)}
+.roster .rhead .ln{flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--line-dot) 0 5px,transparent 5px 11px)}
+.roster .rhead .cnt{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--ink-dim)}
+.cards{display:flex;gap:13px}
+.card{position:relative;flex:1;height:128px;border-radius:11px;padding:11px 12px 10px;overflow:hidden;
+  background:linear-gradient(155deg,rgba(13,19,22,.85),rgba(7,11,13,.8));
+  border:1px solid var(--line);
+  box-shadow:0 18px 40px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.03)}
+.card .tkr{font-family:var(--display);font-weight:600;font-size:21px;letter-spacing:.06em;color:#eef4f2;line-height:1}
+.card .nm{font-family:var(--mono);font-size:8px;letter-spacing:.14em;color:var(--ink-dim);margin-top:2px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .wt{position:absolute;right:11px;top:11px;font-family:var(--mono);font-size:9px;color:var(--ink);letter-spacing:.06em;
+  border:1px solid var(--line);border-radius:5px;padding:2px 6px;background:rgba(0,0,0,.3)}
+.card .spk{height:32px;margin:8px 0 7px}
+.card .spk svg{width:100%;height:100%;display:block}
+.card .foot{display:flex;align-items:flex-end;justify-content:space-between}
+.card .qty{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;color:var(--ink-dim)}
+.card .qty b{color:var(--ink);font-weight:600}
+.card .pl{font-family:var(--mono);font-weight:700;font-size:16px;letter-spacing:.02em;display:flex;align-items:center;gap:4px}
+.card .pl .tri{font-size:11px}
+.card.up{border-color:rgba(0,255,156,.18)}
+.card.up .pl{color:var(--green)}
+.card.down .pl{color:var(--red)}
+.card.down{border-color:rgba(255,90,82,.2)}
+.card .edge{position:absolute;left:0;top:0;bottom:0;width:3px}
+.card.up .edge{background:linear-gradient(180deg,var(--green),transparent);box-shadow:0 0 12px rgba(0,255,156,.5)}
+.card.down .edge{background:linear-gradient(180deg,var(--red),transparent);box-shadow:0 0 12px rgba(255,90,82,.5)}
+.card.pop{transform:translateY(-6px);border-color:rgba(0,255,156,.55);
+  box-shadow:0 26px 50px -22px rgba(0,0,0,.95),0 0 32px -8px rgba(0,255,156,.55);
+  background:linear-gradient(155deg,rgba(0,255,156,.1),rgba(9,14,16,.85))}
+.card.pop .tkr{text-shadow:0 0 18px rgba(0,255,156,.5)}
+.card .hexstamp{position:absolute;right:-10px;bottom:-12px;opacity:.5}
+
+/* command footer micro-strip on hero baseline already; small bottom cmd hints */
+.cmdhint{position:absolute;left:26px;bottom:202px;display:flex;gap:18px;font-family:var(--mono);font-size:8.5px;letter-spacing:.18em;color:var(--ink-faint);z-index:5}
+.cmdhint b{color:var(--green);font-weight:600}
+</style>
+</head>
+<body>
+<div class="frame" role="img" aria-label="NETTRADE trading station dashboard: combined true balance GBP14,240, overall profit plus GBP1,240, with a topographic ridgeline data sculpture of portfolio history and a roster of seven holdings.">
+  <h2 class="sr-only">NETTRADE Dashboard — Combined true balance GBP14,240, overall P/L +GBP1,240.</h2>
+
+  <!-- atmosphere -->
+  <div class="bg-grid"></div>
+  <div class="bg-hex"></div>
+  <div class="codecol" style="left:560px"></div>
+  <div class="codecol" style="left:1240px;opacity:.35"></div>
+  <div class="scanlines"></div>
+  <div class="grain"></div>
+
+  <!-- ============ LEFT RAIL ============ -->
+  <nav class="rail">
+    <div class="mark">
+      <svg width="40" height="40" viewBox="0 0 40 40">
+        <polygon points="20,3 35,11 35,29 20,37 5,29 5,11" fill="none" stroke="#00ff9c" stroke-width="1.6"/>
+        <path d="M13 27 L13 13 L27 27 L27 13" fill="none" stroke="#00ff9c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="tag">NT</div>
+    </div>
+
+    <div class="navlist">
+      <div class="nav active">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        <span class="lbl">Dash</span>
+      </div>
+      <div class="nav">
+        <svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 3 8-9"/><path d="M16 6h5v5"/></svg>
+        <span class="lbl">Posit</span>
+      </div>
+      <div class="nav">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/></svg>
+        <span class="lbl">Watch</span>
+      </div>
+      <div class="nav">
+        <svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 17l3-5 3 2 4-7"/></svg>
+        <span class="lbl">Perf</span>
+      </div>
+      <div class="nav">
+        <svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5M5 8v8l7 5 7-5V8"/></svg>
+        <span class="lbl">Compare</span>
+      </div>
+      <div class="nav">
+        <svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+        <span class="lbl">Journal</span>
+      </div>
+      <div class="nav">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+        <span class="lbl">Setup</span>
+      </div>
+    </div>
+
+    <div class="acct" title="Combined account">
+      <span class="ini">C</span>
+      <span class="pulse"></span>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+
+    <!-- TOP STATUS BAR -->
+    <div class="topbar">
+      <div class="title-wrap">
+        <span class="accent-slash"></span>
+        <div>
+          <span class="sect-num">03 //</span>
+          <span class="sect-title"><b>DASH</b>BOARD</span>
+          <div class="sect-sub">PORTFOLIO TRUTH ENGINE · T212 LINK</div>
+        </div>
+      </div>
+
+      <div class="live"><span class="dot"></span>LIVE</div>
+      <div class="synced">LAST SYNC <b>14:32</b> UTC</div>
+
+      <div class="spacer"></div>
+
+      <div class="toggle">
+        <div class="seg">YOU</div>
+        <div class="seg">PARTNER</div>
+        <div class="seg on">COMBINED</div>
+      </div>
+
+      <div class="balchip">
+        <span class="k">TRUE BALANCE</span>
+        <span class="v"><span class="gbp">£</span>14,240</span>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="canvas">
+
+      <!-- ============ HERO TOPOGRAPHY ============ -->
+      <section class="hero" aria-hidden="true">
+        <span class="ctick tl"></span><span class="ctick tr"></span><span class="ctick bl"></span><span class="ctick br"></span>
+
+        <div class="hero-label hl-eyebrow">TOPOGRAPHY <span>// VALUE TERRAIN · 8M</span></div>
+
+        <svg class="hero-svg" viewBox="0 0 782 560" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="ridgeFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#00ff9c" stop-opacity="0.10"/>
+              <stop offset="1" stop-color="#00ff9c" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="crest" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#0bbf78"/>
+              <stop offset="0.5" stop-color="#00ff9c"/>
+              <stop offset="1" stop-color="#aef7d8"/>
+            </linearGradient>
+            <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="3.2" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <radialGradient id="sun" cx="50%" cy="46%" r="42%">
+              <stop offset="0" stop-color="#00ff9c" stop-opacity="0.18"/>
+              <stop offset="1" stop-color="#00ff9c" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <rect x="60" y="40" width="660" height="430" fill="url(#sun)"/>
+          <!-- strata injected by JS -->
+          <g id="terrain"></g>
+        </svg>
+
+        <!-- giant ghost figure behind, integrated -->
+        <div class="hl-big">
+          <div class="h">+<b>£1,240</b></div>
+          <div class="s">OVERALL P/L · ALL TIME · COMBINED</div>
+        </div>
+
+        <!-- leader-lined callouts onto the terrain -->
+        <div class="lead" style="left:150px;top:300px">
+          <span class="ld-dot" style="left:0;top:0"></span>
+          <span class="ld-line" style="left:6px;top:2px;width:64px"></span>
+          <div class="ld-box" style="left:74px;top:-12px">
+            <span class="ld-k">REALISED</span><span class="ld-v v-green">+£820</span>
+          </div>
+        </div>
+
+        <div class="lead" style="left:420px;top:208px">
+          <span class="ld-dot" style="left:0;top:0"></span>
+          <span class="ld-line" style="left:6px;top:2px;width:52px"></span>
+          <div class="ld-box" style="left:62px;top:-12px">
+            <span class="ld-k">ON PAPER</span><span class="ld-v v-amber">+£420</span>
+          </div>
+        </div>
+
+        <div class="lead" style="left:600px;top:130px">
+          <span class="ld-dot" style="left:0;top:0"></span>
+          <span class="ld-line" style="left:6px;top:2px;width:46px"></span>
+          <div class="ld-box" style="left:56px;top:-12px">
+            <span class="ld-k">PEAK · NOW</span><span class="ld-v v-ink">£14.2k</span>
+          </div>
+        </div>
+
+        <div class="lead" style="left:78px;top:470px">
+          <span class="ld-dot" style="left:0;top:0"></span>
+          <span class="ld-line" style="left:6px;top:2px;width:40px"></span>
+          <div class="ld-box" style="left:50px;top:-12px">
+            <span class="ld-k">BASE · NOV</span><span class="ld-v v-ink">£9.0k</span>
+          </div>
+        </div>
+      </section>
+
+      <div class="cmdhint">
+        <span>[<b>↵</b>] INSPECT NODE</span>
+        <span>[<b>TAB</b>] CYCLE STRATA</span>
+        <span>[<b>X</b>] EXPORT FRAME</span>
+        <span>XIRR <b>13.4%</b></span>
+      </div>
+
+      <!-- ============ TRUTH PANEL ============ -->
+      <section class="panel truth">
+        <div class="ph">
+          <span class="pt">PERFORMANCE <span class="ac">TRUTH</span></span>
+          <span class="pid">SIG · 0xA7F</span>
+        </div>
+        <div class="body">
+          <div class="hero-fig">
+            <span class="cap">TRUE GROWTH · THIS MONTH</span>
+            <div class="big"><span class="s">+£</span>310</div>
+            <div class="row">
+              <div class="c"><span class="k">DAY TRUE</span><span class="vv v-green">+£84 ▲</span></div>
+              <div class="c"><span class="k">NET DEPOSITS</span><span class="vv v-ink">£13,000</span></div>
+            </div>
+          </div>
+          <div class="grid2">
+            <div class="kv"><span class="k">OVERALL P/L</span><span class="v v-green">+£1,240 ▲</span></div>
+            <div class="kv"><span class="k">REALISED</span><span class="v v-green">+£820 ▲</span></div>
+            <div class="kv"><span class="k">ON PAPER</span><span class="v v-amber">+£420 ▲</span></div>
+            <div class="kv"><span class="k">MAX DRAWDOWN</span><span class="v v-red">−8.2% ▼</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ GAUGES PANEL ============ -->
+      <section class="panel gauges">
+        <div class="ph">
+          <span class="pt">GROWTH <span class="ac">RADAR</span></span>
+          <span class="pid">Δ DAY/MO</span>
+        </div>
+        <div class="body">
+          <div class="gauge">
+            <svg width="118" height="118" viewBox="0 0 118 118">
+              <circle cx="59" cy="59" r="48" fill="none" stroke="rgba(120,150,150,.12)" stroke-width="9"/>
+              <circle cx="59" cy="59" r="48" fill="none" stroke="#00ff9c" stroke-width="9" stroke-linecap="round"
+                stroke-dasharray="301.6" stroke-dashoffset="226" transform="rotate(-90 59 59)" filter="url(#dgGlow)"/>
+              <defs><filter id="dgGlow"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+              <circle cx="59" cy="59" r="34" fill="none" stroke="rgba(0,255,156,.12)" stroke-width="1"/>
+            </svg>
+            <div class="gcenter">
+              <div class="gv"><span class="s">+£</span>84</div>
+              <div class="gk">DAY GROWTH</div>
+            </div>
+          </div>
+
+          <div class="gauge">
+            <svg width="118" height="118" viewBox="0 0 118 118">
+              <circle cx="59" cy="59" r="48" fill="none" stroke="rgba(120,150,150,.12)" stroke-width="9"/>
+              <circle cx="59" cy="59" r="48" fill="none" stroke="#f5b132" stroke-width="9" stroke-linecap="round"
+                stroke-dasharray="301.6" stroke-dashoffset="92" transform="rotate(-90 59 59)" filter="url(#agGlow)"/>
+              <defs><filter id="agGlow"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+              <circle cx="59" cy="59" r="34" fill="none" stroke="rgba(245,177,50,.12)" stroke-width="1"/>
+            </svg>
+            <div class="gcenter">
+              <div class="gv" style="color:var(--amber);text-shadow:0 0 16px rgba(245,177,50,.4)"><span class="s" style="color:var(--amber)">+£</span>310</div>
+              <div class="gk">MONTH GROWTH</div>
+            </div>
+          </div>
+        </div>
+        <div style="position:absolute;left:0;right:0;bottom:10px;text-align:center;font-family:var(--mono);font-size:8px;letter-spacing:.2em;color:var(--ink-faint)">XIRR 13.4% · ANNUALISED · NET-OF-FLOW</div>
+      </section>
+
+      <!-- ============ SPARK PANEL ============ -->
+      <section class="panel spark">
+        <div class="ph">
+          <span class="pt">VALUE <span class="ac">/ TIME</span></span>
+          <span class="pid">8M · GBP</span>
+        </div>
+        <div class="body">
+          <div class="meta">
+            <div class="k">CURRENT NAV</div>
+            <div class="v"><span class="s">£</span>14,240</div>
+            <div class="d">▲ +58% vs Nov · £9,000</div>
+          </div>
+          <svg viewBox="0 0 316 252" preserveAspectRatio="none" id="sparksvg">
+            <defs>
+              <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#00ff9c" stop-opacity="0.34"/>
+                <stop offset="1" stop-color="#00ff9c" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+      </section>
+
+      <!-- ============ ROSTER ============ -->
+      <section class="roster">
+        <div class="rhead">
+          <span class="t">POSITION <span class="ac">ROSTER</span></span>
+          <span class="ln"></span>
+          <span class="cnt">07 HOLDINGS · COMBINED</span>
+        </div>
+        <div class="cards" id="cards"></div>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="vignette"></div>
+</div>
+
+<script>
+/* ============== HERO TOPOGRAPHY GENERATOR ============== */
+(function(){
+  const series=[9.0,9.6,10.1,9.7,11.2,12.4,13.1,14.2];
+  const W=782,H=560,N=120,LAYERS=16;
+  const seg=series.length-1;
+  function smoothstep(f){return f*f*(3-2*f);}
+  function baseAt(t){const x=t*seg;let k=Math.min(Math.floor(x),seg-1);const f=smoothstep(x-k);return series[k]+(series[k+1]-series[k])*f;}
+  let bmin=Math.min.apply(null,series),bmax=Math.max.apply(null,series);
+  const detail=[];
+  for(let i=0;i<N;i++){const t=i/(N-1);detail.push(Math.sin(t*9.1+0.5)*0.5+Math.sin(t*21.7+1.3)*0.28+Math.sin(t*40.3+2.1)*0.14);}
+  function lerp(a,b,t){return a+(b-a)*t;}
+
+  const g=document.getElementById('terrain');
+  let html='';
+  for(let L=0;L<LAYERS;L++){
+    const lt=L/(LAYERS-1);
+    const baseY=lerp(120,484,lt);
+    const amp=lerp(64,168,lt);
+    const skew=lerp(74,-12,lt);
+    const dscale=lerp(0.22,0.98,lt);
+    let top='';
+    for(let i=0;i<N;i++){
+      const t=i/(N-1);
+      const x=t*W*0.92+W*0.04+skew*(1-t);
+      const bn=(baseAt(t)-bmin)/(bmax-bmin);
+      const ridge=bn*0.72+0.28*(0.5+0.5*detail[i]*dscale);
+      const wob=Math.sin(t*7.0+L*0.9)*0.06*dscale;
+      const y=baseY-(ridge+wob)*amp;
+      top+=(i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1)+' ';
+    }
+    const fillD=top+'L'+(W*0.96).toFixed(1)+' '+(baseY).toFixed(1)+' L'+(W*0.04+skew).toFixed(1)+' '+baseY.toFixed(1)+' Z';
+    const opLine=lerp(0.14,0.95,lt);
+    const wLine=lerp(0.7,1.7,lt);
+    const fillOp=lerp(0.10,0.55,lt);
+    const isFront=L>=LAYERS-3;
+    html+='<path d="'+fillD+'" fill="url(#ridgeFill)" opacity="'+fillOp.toFixed(2)+'"/>';
+    html+='<path d="'+top+'" fill="none" stroke="'+(isFront?'url(#crest)':'#00ff9c')+'" stroke-width="'+wLine.toFixed(2)+'" opacity="'+opLine.toFixed(2)+'" '+(isFront?'filter="url(#glow)"':'')+'/>';
+  }
+  g.innerHTML=html;
+})();
+
+/* ============== SPARK AREA ============== */
+(function(){
+  const data=[9.0,9.6,10.1,9.7,11.2,12.4,13.1,14.2];
+  const w=316,h=252,padL=14,padR=14,padT=78,padB=22;
+  const mn=8.6,mx=14.6;
+  const iw=w-padL-padR, ih=h-padT-padB;
+  const pts=data.map(function(v,i){
+    const x=padL+(i/(data.length-1))*iw;
+    const y=padT+(1-(v-mn)/(mx-mn))*ih;
+    return [x,y];
+  });
+  let line='';pts.forEach(function(p,i){line+=(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)+' ';});
+  const area=line+'L'+pts[pts.length-1][0].toFixed(1)+' '+(padT+ih)+' L'+pts[0][0].toFixed(1)+' '+(padT+ih)+' Z';
+  const svg=document.getElementById('sparksvg');
+  let extra='';
+  for(let k=0;k<4;k++){const y=padT+ (k/3)*ih;extra+='<line x1="'+padL+'" y1="'+y.toFixed(1)+'" x2="'+(w-padR)+'" y2="'+y.toFixed(1)+'" stroke="rgba(120,150,150,.08)" stroke-width="1"/>';}
+  extra+='<path d="'+area+'" fill="url(#sparkFill)"/>';
+  extra+='<path d="'+line+'" fill="none" stroke="#00ff9c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#dgGlow2)"/>';
+  pts.forEach(function(p,i){const last=i===pts.length-1;extra+='<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(last?3.4:1.8)+'" fill="'+(last?'#aef7d8':'#00ff9c')+'"'+(last?' stroke="#00ff9c" stroke-width="1.5"':'')+'/>';});
+  svg.insertAdjacentHTML('beforeend','<defs><filter id="dgGlow2" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>'+extra);
+})();
+
+/* ============== ROSTER ============== */
+(function(){
+  const holds=[
+    {t:'NVDA',n:'Nvidia',w:24,pl:540,qty:'6 SH',seed:0.9},
+    {t:'AAPL',n:'Apple',w:19,pl:210,qty:'14 SH',seed:0.5},
+    {t:'VUSA',n:'Vanguard S&P500',w:17,pl:180,qty:'9 SH',seed:0.4},
+    {t:'TSLA',n:'Tesla',w:14,pl:-160,qty:'7 SH',seed:-0.6},
+    {t:'MSFT',n:'Microsoft',w:12,pl:260,qty:'5 SH',seed:0.6},
+    {t:'VOD.L',n:'Vodafone',w:8,pl:-70,qty:'420 SH',seed:-0.4},
+    {t:'AMD',n:'AMD',w:6,pl:280,qty:'11 SH',seed:0.8}
+  ];
+  function spark(up,seed){
+    const n=18,w=120,h=32;let pts=[];
+    let rnd=Math.abs(seed*1000)%97/97;
+    for(let i=0;i<n;i++){
+      const t=i/(n-1);
+      rnd=(rnd*9301+49297)%233280/233280;
+      const trend=up? t*0.55 : -t*0.5;
+      const wob=(rnd-0.5)*0.5+Math.sin(t*7+seed*4)*0.12;
+      const y=0.55-(trend)+wob;
+      pts.push([t*w, Math.max(2,Math.min(h-2,h*0.5 - y*h*0.6 + h*0.25))]);
+    }
+    let d='';pts.forEach(function(p,i){d+=(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)+' ';});
+    const col=up?'#00ff9c':'#ff5a52';
+    const fillCol=up?'rgba(0,255,156,.16)':'rgba(255,90,82,.14)';
+    const areaD=d+'L'+w+' '+h+' L0 '+h+' Z';
+    return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><path d="'+areaD+'" fill="'+fillCol+'"/><path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  }
+  const wrap=document.getElementById('cards');
+  let html='';
+  holds.forEach(function(hd){
+    const up=hd.pl>=0;
+    const pop=hd.t==='NVDA';
+    const sign=up?'+':'−';
+    const tri=up?'▲':'▼';
+    html+='<div class="card '+(up?'up':'down')+(pop?' pop':'')+'">'
+      +'<span class="edge"></span>'
+      +'<span class="wt">'+hd.w+'%</span>'
+      +'<div class="tkr">'+hd.t+'</div>'
+      +'<div class="nm">'+hd.n+'</div>'
+      +'<div class="spk">'+spark(up,hd.seed)+'</div>'
+      +'<div class="foot"><span class="qty">QTY <b>'+hd.qty+'</b></span>'
+      +'<span class="pl">'+sign+'£'+Math.abs(hd.pl)+'<span class="tri">'+tri+'</span></span></div>'
+      +'</div>';
+  });
+  wrap.innerHTML=html;
+})();
+</script>
+</body>
+</html>

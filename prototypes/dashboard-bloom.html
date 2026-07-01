@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1512, height=982">
+<title>NETTRADE — Trading Station</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800;900&family=Chakra+Petch:wght@500;600;700&family=Space+Mono:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --orange:#FF7A18; --orange-deep:#FF5500;
+  --teal:#2FD0C5; --peri:#8A7FD0; --rust:#C9683C;
+  --ink:#161616; --metal-hi:#f3f1ee; --metal:#d8d6d2; --metal-lo:#b4b2ad;
+  --glass:#0c1416;
+  --glow: 0 0 4px #ff7a18, 0 0 12px #ff5500, 0 0 24px rgba(255,85,0,.55);
+  --dropglow: drop-shadow(0 0 6px rgba(255,90,0,.6));
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1512px;height:982px;overflow:hidden;background:#05090a}
+body{
+  font-family:'Space Mono',monospace; color:#e8e6e2;
+  position:relative;
+  -webkit-font-smoothing:antialiased;
+}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ===== smoke background ===== */
+#smokebg{position:absolute;inset:0;width:1512px;height:982px;z-index:0}
+#smokebg svg{width:100%;height:100%;display:block}
+.vignette{position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 38%, rgba(5,9,10,0) 38%, rgba(4,8,9,.55) 78%, rgba(2,5,6,.92) 100%);
+}
+.scanlines{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:.16;
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0 1px, transparent 1px 3px);
+  mix-blend-mode:overlay;
+}
+
+/* ===== layout frame ===== */
+#frame{position:absolute;inset:0;width:1512px;height:982px;z-index:5;
+  display:grid; grid-template-columns:232px 1fr 470px; grid-template-rows:1fr;
+  padding:26px; gap:24px;
+}
+
+/* shared metal surface */
+.metal{position:relative;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,0) 14%),
+    linear-gradient(96deg, var(--metal-hi) 0%, var(--metal) 30%, var(--metal-lo) 58%, var(--metal) 80%, var(--metal-hi) 100%),
+    repeating-linear-gradient(94deg, rgba(255,255,255,.16) 0 1px, rgba(0,0,0,.05) 1px 2px, rgba(255,255,255,0) 2px 5px);
+  background-blend-mode:screen, normal, overlay;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.85),
+    inset 0 -2px 6px rgba(0,0,0,.35),
+    inset 2px 0 4px rgba(0,0,0,.12),
+    inset -2px 0 4px rgba(0,0,0,.12),
+    0 8px 24px rgba(0,0,0,.5);
+  border-radius:14px;
+  overflow:hidden;
+}
+.metal::before{ /* turbulence wear */
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:url(#noURL);
+  filter:none;
+}
+.wear{position:absolute;inset:0;z-index:1;pointer-events:none;mix-blend-mode:overlay;opacity:.55}
+.wear.mul{mix-blend-mode:multiply;opacity:.28}
+.scratchcanvas{position:absolute;inset:0;z-index:2;pointer-events:none}
+
+/* dark recessed slab */
+.recess{
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.6), rgba(0,0,0,.2) 40%, rgba(0,0,0,.5)),
+    linear-gradient(100deg,#0d1416,#0a1112 50%,#0e1517);
+  box-shadow:inset 0 2px 8px rgba(0,0,0,.85), inset 0 -1px 0 rgba(255,255,255,.06), 0 1px 0 rgba(255,255,255,.06);
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.05);
+}
+
+/* corner ticks */
+.tick{position:absolute;width:14px;height:14px;z-index:6;pointer-events:none}
+.tick::before,.tick::after{content:"";position:absolute;background:rgba(255,122,24,.85);box-shadow:0 0 6px rgba(255,90,0,.6)}
+.tick::before{width:14px;height:2px}.tick::after{width:2px;height:14px}
+.tick.tl{top:7px;left:7px}.tick.tr{top:7px;right:7px}.tick.tr::after{right:0}.tick.tr::before{right:0}
+.tick.bl{bottom:7px;left:7px}.tick.bl::before{bottom:0}.tick.bl::after{bottom:0}
+.tick.br{bottom:7px;right:7px}.tick.br::before{bottom:0;right:0}.tick.br::after{bottom:0;right:0}
+
+.bolt{position:absolute;width:13px;height:13px;border-radius:50%;z-index:3;
+  background:radial-gradient(circle at 35% 30%, #f6f4f1, #9a9893 60%, #5e5d59);
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.8), inset 0 -2px 2px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.6);
+}
+.bolt::after{content:"";position:absolute;inset:4px;border-radius:50%;
+  background:linear-gradient(45deg,#6d6c68,#bdbbb6);box-shadow:inset 0 1px 1px rgba(0,0,0,.4)}
+
+/* ===== LEFT RAIL ===== */
+#rail{position:relative;display:flex;flex-direction:column;padding:20px 16px 18px;z-index:5}
+.brand{display:flex;flex-direction:column;gap:12px;position:relative;z-index:4}
+.markrow{display:flex;align-items:center;gap:11px}
+.antenna-mini{width:40px;height:40px;filter:var(--dropglow)}
+.wordmark{font-family:'Unbounded',sans-serif;font-weight:900;font-size:25px;line-height:.92;letter-spacing:-1px;color:var(--ink)}
+.wordmark .net{color:var(--ink)}
+.wordmark .trade{color:var(--orange);text-shadow:var(--glow)}
+.sub{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.5px;color:#3a3a37;margin-top:2px}
+
+.seam{height:2px;margin:18px 2px;position:relative;z-index:4;
+  background:linear-gradient(90deg, rgba(0,0,0,.4), rgba(0,0,0,.05));
+  box-shadow:0 1px 0 rgba(255,255,255,.6)}
+
+.toggle{position:relative;z-index:4;margin-top:2px}
+.toggle .lbl{font-size:9px;letter-spacing:2px;color:#46453f;margin-bottom:7px;font-weight:700}
+.tg-row{display:flex;flex-direction:column;gap:7px}
+.tg{position:relative;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;
+  font-family:'Chakra Petch',sans-serif;font-weight:600;font-size:12.5px;letter-spacing:.5px;
+  color:#2a2a27;cursor:default;
+  background:linear-gradient(180deg,rgba(255,255,255,.35),rgba(0,0,0,.08));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6), inset 0 -1px 3px rgba(0,0,0,.25);
+  border:1px solid rgba(0,0,0,.08);}
+.tg .dot{width:7px;height:7px;border-radius:50%;background:#7d7b76;box-shadow:inset 0 0 2px rgba(0,0,0,.5)}
+.tg.on{color:var(--orange);text-shadow:var(--glow);
+  background:linear-gradient(180deg,rgba(40,18,4,.9),rgba(20,9,2,.95));
+  border:1px solid rgba(255,90,0,.55);
+  box-shadow:inset 0 0 14px rgba(255,90,0,.4), 0 0 16px rgba(255,85,0,.35);}
+.tg.on .dot{background:var(--orange);box-shadow:0 0 8px var(--orange-deep),0 0 3px #fff inset}
+
+.railfoot{margin-top:auto;position:relative;z-index:4;display:flex;flex-direction:column;gap:6px}
+.chip{font-family:'Share Tech Mono',monospace;font-size:10px;color:#403f3a;letter-spacing:1px;display:flex;justify-content:space-between}
+.chip b{color:var(--rust)}
+.vline{font-size:8.5px;color:#56554f;letter-spacing:1.5px}
+
+/* ===== CENTER ===== */
+#center{position:relative;display:flex;flex-direction:column;z-index:5}
+.cn-top{display:flex;justify-content:space-between;align-items:flex-start;z-index:4}
+.cn-title{font-family:'Unbounded',sans-serif;font-weight:800;font-size:15px;letter-spacing:5px;color:#cfeae7;
+  text-shadow:0 0 10px rgba(47,208,197,.35)}
+.cn-title small{display:block;font-family:'Space Mono';font-size:10px;letter-spacing:2px;color:#5e7d7a;margin-top:4px;font-weight:400}
+.mode-pill{font-family:'Share Tech Mono';font-size:11px;letter-spacing:2px;color:var(--teal);
+  border:1px solid rgba(47,208,197,.4);padding:5px 11px;border-radius:20px;
+  box-shadow:0 0 12px rgba(47,208,197,.18) inset;text-shadow:0 0 8px rgba(47,208,197,.5)}
+
+.sculpt{flex:1;position:relative;display:flex;align-items:center;justify-content:center;z-index:3}
+.sculpt svg{width:100%;height:100%}
+
+/* LED slab bottom-center */
+.led{position:relative;z-index:4;margin-top:6px;padding:16px 20px;display:flex;align-items:center;gap:24px}
+.led .blk{display:flex;flex-direction:column;gap:3px}
+.led .k{font-family:'Space Mono';font-size:9px;letter-spacing:2px;color:#4d6b68}
+.led .mode{font-family:'Share Tech Mono';font-size:20px;letter-spacing:3px;color:var(--orange);text-shadow:var(--glow)}
+.led .bal{font-family:'Share Tech Mono';font-size:38px;letter-spacing:2px;color:#d8fffb;line-height:1;
+  text-shadow:0 0 10px rgba(47,208,197,.55),0 0 24px rgba(47,208,197,.3)}
+.led .sep{width:1px;align-self:stretch;background:linear-gradient(180deg,transparent,rgba(47,208,197,.35),transparent)}
+.led .live{display:flex;flex-direction:column;gap:5px;margin-left:auto;align-items:flex-end}
+.led .livetag{font-family:'Share Tech Mono';font-size:13px;letter-spacing:2px;color:var(--orange);text-shadow:var(--glow);display:flex;align-items:center;gap:6px}
+.led .livetag .star{width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 8px var(--orange-deep),0 0 14px var(--orange-deep)}
+.led .synced{font-family:'Share Tech Mono';font-size:11px;letter-spacing:1px;color:#4d6b68}
+
+/* ===== RIGHT STATION COLUMN ===== */
+#stations{position:relative;display:flex;flex-direction:column;gap:11px;padding:4px;z-index:5}
+.st-head{display:flex;justify-content:space-between;align-items:baseline;padding:2px 8px 4px}
+.st-head .t{font-family:'Unbounded';font-weight:800;font-size:13px;letter-spacing:3px;color:#cfcdc8;text-shadow:0 1px 0 rgba(0,0,0,.6)}
+.st-head .n{font-family:'Share Tech Mono';font-size:11px;color:var(--orange);text-shadow:var(--glow)}
+
+.slab{position:relative;display:flex;align-items:center;gap:14px;padding:13px 15px;min-height:62px;z-index:1}
+.slab .ix{font-family:'Share Tech Mono';font-size:11px;color:#7a7872;width:22px;text-align:center;flex:none}
+.slab .ico{width:30px;height:30px;flex:none;filter:drop-shadow(0 1px 1px rgba(255,255,255,.5))}
+.slab .txt{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.slab .nm{font-family:'Unbounded';font-weight:700;font-size:16px;letter-spacing:-.2px;color:var(--ink);line-height:1}
+.slab .tag{font-family:'Space Mono';font-size:10.5px;letter-spacing:.2px;color:#4f4e49}
+.slab .chev{font-family:'Share Tech Mono';font-size:16px;color:#8a8883;flex:none}
+
+.slab.active{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0) 16%),
+    linear-gradient(96deg,#2a1305 0%, #3a1c08 36%, #24130a 70%, #341805 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,170,90,.7),
+    inset 0 -2px 8px rgba(0,0,0,.6),
+    inset 0 0 26px rgba(255,90,0,.35),
+    0 0 26px rgba(255,85,0,.42),
+    0 8px 22px rgba(0,0,0,.6);
+  border:1px solid rgba(255,100,20,.6);
+}
+.slab.active .nm{color:#ffb877;text-shadow:var(--glow)}
+.slab.active .tag{color:#c98a55}
+.slab.active .ix{color:var(--orange);text-shadow:var(--glow)}
+.slab.active .chev{color:var(--orange);text-shadow:var(--glow)}
+.slab.active .ico{filter:var(--dropglow)}
+.slab.active::after{content:"";position:absolute;left:0;top:8px;bottom:8px;width:4px;border-radius:3px;
+  background:var(--orange);box-shadow:0 0 10px var(--orange-deep),0 0 18px var(--orange-deep)}
+
+.foot{position:absolute;left:26px;right:26px;bottom:8px;z-index:6;display:flex;justify-content:space-between;
+  font-family:'Share Tech Mono';font-size:9.5px;letter-spacing:1.5px;color:#3f4e4d}
+.foot .o{color:var(--orange);text-shadow:0 0 6px rgba(255,90,0,.5)}
+</style>
+</head>
+<body>
+<h2 class="sr-only">NETTRADE trading station main menu: COMBINED account, balance fourteen thousand two hundred forty pounds, with seven station functions; Dashboard is active.</h2>
+
+<!-- ============ SMOKE BACKGROUND ============ -->
+<div id="smokebg">
+<svg viewBox="0 0 1512 982" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="g1" cx="30%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#1d6f6a"/><stop offset="55%" stop-color="#0c2f30"/><stop offset="100%" stop-color="#04090a"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="70%" cy="62%" r="55%">
+      <stop offset="0%" stop-color="#2FD0C5"/><stop offset="45%" stop-color="#11464a"/><stop offset="100%" stop-color="#040b0c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g3" cx="58%" cy="30%" r="50%">
+      <stop offset="0%" stop-color="#8A7FD0"/><stop offset="50%" stop-color="#2a2f55" stop-opacity=".7"/><stop offset="100%" stop-color="#070b14" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g4" cx="80%" cy="20%" r="45%">
+      <stop offset="0%" stop-color="#C9683C" stop-opacity=".85"/><stop offset="60%" stop-color="#3a1d12" stop-opacity=".4"/><stop offset="100%" stop-color="#060606" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g5" cx="40%" cy="85%" r="55%">
+      <stop offset="0%" stop-color="#34b8c9"/><stop offset="55%" stop-color="#0c3134" stop-opacity=".6"/><stop offset="100%" stop-color="#04090a" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="marble" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.009 0.014" numOctaves="5" seed="7" result="noise">
+        <animate attributeName="baseFrequency" dur="62s" repeatCount="indefinite"
+          values="0.009 0.014; 0.012 0.010; 0.008 0.016; 0.011 0.013; 0.009 0.014" calcMode="spline"
+          keyTimes="0;0.25;0.5;0.75;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="46" xChannelSelector="R" yChannelSelector="G"/>
+      <feGaussianBlur stdDeviation="1.1"/>
+    </filter>
+
+    <filter id="marble2" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.016 0.02" numOctaves="4" seed="22" result="n2">
+        <animate attributeName="baseFrequency" dur="48s" repeatCount="indefinite"
+          values="0.016 0.02; 0.020 0.014; 0.013 0.024; 0.016 0.02" calcMode="spline"
+          keyTimes="0;0.33;0.66;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="n2" scale="38"/>
+    </filter>
+  </defs>
+
+  <rect width="1512" height="982" fill="#04090a"/>
+  <g filter="url(#marble)">
+    <rect width="1512" height="982" fill="url(#g1)"/>
+    <ellipse cx="430" cy="430" rx="620" ry="520" fill="url(#g1)"/>
+    <ellipse cx="1040" cy="640" rx="640" ry="540" fill="url(#g2)"/>
+    <ellipse cx="880" cy="280" rx="520" ry="460" fill="url(#g3)"/>
+    <ellipse cx="1230" cy="200" rx="430" ry="380" fill="url(#g4)"/>
+    <ellipse cx="560" cy="860" rx="640" ry="430" fill="url(#g5)"/>
+    <ellipse cx="760" cy="500" rx="380" ry="340" fill="url(#g2)" opacity=".6"/>
+  </g>
+  <g filter="url(#marble2)" opacity=".55" style="mix-blend-mode:screen">
+    <ellipse cx="700" cy="520" rx="520" ry="300" fill="url(#g2)"/>
+    <ellipse cx="950" cy="360" rx="360" ry="300" fill="url(#g3)"/>
+    <ellipse cx="380" cy="640" rx="380" ry="260" fill="url(#g5)"/>
+  </g>
+</svg>
+</div>
+<div class="vignette"></div>
+<div class="scanlines"></div>
+
+<!-- shared turbulence wear filter for metal panels -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="metalwear">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9 0.16" numOctaves="3" seed="11" stitchTiles="stitch" result="t"/>
+    <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.7 0.7 0.7 0 0"/>
+  </filter>
+  <filter id="metalwear2">
+    <feTurbulence type="fractalNoise" baseFrequency="0.012 0.5" numOctaves="2" seed="4" result="t2"/>
+    <feColorMatrix in="t2" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.55 0.55 0.55 0 0"/>
+  </filter>
+</svg>
+
+<!-- ============ FRAME ============ -->
+<div id="frame">
+
+  <!-- LEFT RAIL -->
+  <section id="rail" class="metal">
+    <span class="tick tl"></span><span class="tick tr"></span><span class="tick bl"></span><span class="tick br"></span>
+    <svg class="wear" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#metalwear)"/></svg>
+    <svg class="wear mul" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#metalwear2)"/></svg>
+    <canvas class="scratchcanvas" data-w="200" data-h="478"></canvas>
+    <div class="bolt" style="top:18px;right:18px"></div>
+    <div class="bolt" style="bottom:18px;left:18px"></div>
+
+    <div class="brand">
+      <div class="markrow">
+        <svg class="antenna-mini" viewBox="0 0 48 48" fill="none">
+          <path d="M24 44V20" stroke="#FF7A18" stroke-width="2.4" stroke-linecap="round"/>
+          <circle cx="24" cy="16" r="4.4" fill="#FF5500"/>
+          <path d="M14 12c-3 3-3 9 0 12M34 12c3 3 3 9 0 12M9 8c-5 5-5 15 0 20M39 8c5 5 5 15 0 20"
+            stroke="#FF7A18" stroke-width="2" stroke-linecap="round" opacity=".92"/>
+          <path d="M16 44h16" stroke="#FF7A18" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
+        <div class="wordmark"><span class="net">NET</span><span class="trade">TRADE</span></div>
+      </div>
+      <div class="sub">// trading station — main menu</div>
+    </div>
+
+    <div class="seam"></div>
+
+    <div class="toggle">
+      <div class="lbl">ACCOUNT</div>
+      <div class="tg-row">
+        <div class="tg"><span class="dot"></span>YOU</div>
+        <div class="tg"><span class="dot"></span>PARTNER</div>
+        <div class="tg on"><span class="dot"></span>COMBINED</div>
+      </div>
+    </div>
+
+    <div class="railfoot">
+      <div class="vline">SIGNAL ▰▰▰▰▱</div>
+      <div class="chip"><span>BUILD</span><b>2.7.0</b></div>
+      <div class="chip"><span>SRC</span><span>T212·RO</span></div>
+    </div>
+  </section>
+
+  <!-- CENTER -->
+  <section id="center">
+    <div class="cn-top">
+      <div class="cn-title">SIGNAL ARRAY
+        <small>net asset value · 8-period drift</small>
+      </div>
+      <div class="mode-pill">⟁ ARRAY ONLINE</div>
+    </div>
+
+    <!-- DATA SCULPTURE -->
+    <div class="sculpt">
+      <svg viewBox="0 0 760 520" fill="none" aria-hidden="true">
+        <defs>
+          <filter id="warp" x="-30%" y="-30%" width="160%" height="160%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.012 0.022" numOctaves="3" seed="9" result="w">
+              <animate attributeName="baseFrequency" dur="54s" repeatCount="indefinite"
+                values="0.012 0.022;0.016 0.016;0.010 0.026;0.012 0.022" calcMode="spline"
+                keyTimes="0;0.4;0.7;1" keySplines="0.4 0 0.6 1;0.4 0 0.6 1;0.4 0 0.6 1"/>
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="w" scale="20"/>
+          </filter>
+          <linearGradient id="ograd" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#FF7A18" stop-opacity=".35"/>
+            <stop offset="50%" stop-color="#FF5500"/>
+            <stop offset="100%" stop-color="#FF7A18" stop-opacity=".35"/>
+          </linearGradient>
+          <radialGradient id="bloom" cx="50%" cy="38%" r="55%">
+            <stop offset="0%" stop-color="#FF7A18" stop-opacity=".55"/>
+            <stop offset="40%" stop-color="#FF5500" stop-opacity=".22"/>
+            <stop offset="100%" stop-color="#FF5500" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="og" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- orange bloom behind -->
+        <ellipse cx="380" cy="205" rx="300" ry="220" fill="url(#bloom)"/>
+
+        <!-- antenna emitter -->
+        <g stroke="#FF7A18" stroke-width="2.4" filter="url(#og)" opacity=".95">
+          <path d="M380 470 V300" stroke-linecap="round" stroke-width="3.2"/>
+          <circle cx="380" cy="288" r="9" fill="#FF5500" stroke="none"/>
+          <circle cx="380" cy="288" r="16" fill="none" stroke="#FF7A18" stroke-width="1.4" opacity=".6"/>
+          <path d="M348 250c-9 9-9 26 0 35M412 250c9 9 9 26 0 35" stroke-width="2" opacity=".85"/>
+          <path d="M330 235c-14 14-14 42 0 56M430 235c14 14 14 42 0 56" stroke-width="1.7" opacity=".6"/>
+          <path d="M356 470 H404" stroke-width="3.2" stroke-linecap="round"/>
+        </g>
+
+        <!-- warped topographic contour stack of value series -->
+        <g filter="url(#warp)">
+          <g stroke="url(#ograd)" fill="none" filter="url(#og)">
+            <!-- contour bands at increasing radius = the 8 readings -->
+            <path d="M120 250 C 200 150, 560 150, 640 250 C 700 330, 480 400, 380 392 C 280 400, 60 330, 120 250 Z" stroke-width="1.6" opacity=".30"/>
+            <path d="M150 250 C 220 168, 540 168, 612 250 C 666 322, 470 384, 380 376 C 290 384, 96 322, 150 250 Z" stroke-width="1.7" opacity=".40"/>
+            <path d="M182 250 C 244 188, 516 188, 580 250 C 628 312, 458 366, 380 360 C 302 366, 134 312, 182 250 Z" stroke-width="1.9" opacity=".52"/>
+            <path d="M214 251 C 268 200, 492 200, 548 251 C 590 300, 448 348, 380 344 C 312 348, 172 300, 214 251 Z" stroke-width="2.0" opacity=".62"/>
+            <path d="M244 252 C 292 210, 468 210, 516 252 C 552 292, 438 332, 380 330 C 322 332, 208 292, 244 252 Z" stroke-width="2.2" opacity=".74"/>
+            <path d="M274 254 C 316 220, 444 220, 486 254 C 516 286, 428 318, 380 316 C 332 318, 244 286, 274 254 Z" stroke-width="2.5" opacity=".85"/>
+            <path d="M302 256 C 338 230, 422 230, 458 256 C 482 280, 420 304, 380 303 C 340 304, 278 280, 302 256 Z" stroke-width="2.8" opacity=".94"/>
+            <path d="M330 259 C 356 240, 404 240, 430 259 C 446 276, 410 294, 380 293 C 350 294, 314 276, 330 259 Z" stroke-width="3.2" opacity="1"/>
+          </g>
+        </g>
+
+        <!-- value labels (thousands) along ridge -->
+        <g font-family="'Share Tech Mono',monospace" font-size="11" fill="#FFB877" opacity=".9" filter="url(#og)">
+          <text x="118" y="246" text-anchor="end">9.0</text>
+          <text x="642" y="246">9.6</text>
+          <text x="200" y="150">10.1</text>
+          <text x="560" y="150">9.7</text>
+          <text x="380" y="120" text-anchor="middle">11.2</text>
+          <text x="664" y="320">12.4</text>
+          <text x="96" y="320" text-anchor="end">13.1</text>
+          <text x="380" y="416" text-anchor="middle" font-size="13" fill="#FF7A18">14.2K</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- LED slab -->
+    <div class="led recess">
+      <div class="blk">
+        <span class="k">ACCOUNT MODE</span>
+        <span class="mode">COMBINED</span>
+      </div>
+      <div class="sep"></div>
+      <div class="blk">
+        <span class="k">TRUE BALANCE</span>
+        <span class="bal">£14,240</span>
+      </div>
+      <div class="live">
+        <span class="livetag"><span class="star"></span>LIVE</span>
+        <span class="synced">last synced 14:32</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT STATIONS -->
+  <section id="stations">
+    <div class="st-head"><span class="t">STATIONS</span><span class="n">07 // SELECT</span></div>
+
+    <div class="slab metal active" data-i="01" data-n="DASHBOARD" data-t="the truth at a glance" data-ico="dash"></div>
+    <div class="slab metal" data-i="02" data-n="POSITIONS" data-t="what you hold" data-ico="pos"></div>
+    <div class="slab metal" data-i="03" data-n="WATCHLIST" data-t="on the radar · delayed" data-ico="watch"></div>
+    <div class="slab metal" data-i="04" data-n="PERFORMANCE" data-t="realised vs paper, over time" data-ico="perf"></div>
+    <div class="slab metal" data-i="05" data-n="COMPARE" data-t="you vs partner" data-ico="cmp"></div>
+    <div class="slab metal" data-i="06" data-n="JOURNAL" data-t="did the move pay off" data-ico="jrn"></div>
+    <div class="slab metal" data-i="07" data-n="SETTINGS" data-t="keys · sync · sound" data-ico="set"></div>
+  </section>
+
+</div>
+
+<div class="foot">
+  <span>NETTRADE // PRIVATE NODE · 2 OPERATORS</span>
+  <span class="o">▰ READ-ONLY · NO EXECUTION</span>
+  <span>T212 SYNC · DELAYED QUOTES</span>
+</div>
+
+<script>
+(function(){
+  // ---- icon set ----
+  var ICON = {
+    dash:'<rect x="3" y="3" width="10" height="10" rx="1.5"/><rect x="17" y="3" width="10" height="6" rx="1.5"/><rect x="17" y="13" width="10" height="14" rx="1.5"/><rect x="3" y="17" width="10" height="10" rx="1.5"/>',
+    pos:'<rect x="3" y="14" width="5" height="12" rx="1"/><rect x="12" y="8" width="5" height="18" rx="1"/><rect x="21" y="3" width="5" height="23" rx="1"/>',
+    watch:'<circle cx="15" cy="15" r="11" fill="none" stroke-width="2.4"/><circle cx="15" cy="15" r="4.5"/><path d="M15 1v5M15 24v5M1 15h5M24 15h5" stroke-width="2"/>',
+    perf:'<path d="M3 22 L11 13 L17 18 L27 5" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M27 5 h-6 M27 5 v6" stroke-width="2.4" stroke-linecap="round"/>',
+    cmp:'<circle cx="9" cy="9" r="6" fill="none" stroke-width="2.4"/><circle cx="21" cy="21" r="6" fill="none" stroke-width="2.4"/><path d="M9 15v6h6" fill="none" stroke-width="2.2"/>',
+    jrn:'<rect x="5" y="3" width="20" height="24" rx="2" fill="none" stroke-width="2.2"/><path d="M10 9h10M10 14h10M10 19h6" stroke-width="2" stroke-linecap="round"/>',
+    set:'<circle cx="15" cy="15" r="4.5" fill="none" stroke-width="2.4"/><path d="M15 2v4M15 24v4M2 15h4M24 15h4M5.5 5.5l2.8 2.8M21.7 21.7l2.8 2.8M24.5 5.5l-2.8 2.8M8.3 21.7l-2.8 2.8" stroke-width="2" stroke-linecap="round"/>'
+  };
+  document.querySelectorAll('.slab[data-n]').forEach(function(s){
+    var active = s.classList.contains('active');
+    var col = active ? '#FFB877' : '#2a2a27';
+    s.innerHTML =
+      '<span class="ix">'+s.dataset.i+'</span>'+
+      '<svg class="ico" viewBox="0 0 30 30" fill="'+col+'" stroke="'+col+'">'+ICON[s.dataset.ico]+'</svg>'+
+      '<div class="txt"><span class="nm">'+s.dataset.n+'</span><span class="tag">'+s.dataset.t+'</span></div>'+
+      '<span class="chev">'+(active?'▶':'›')+'</span>';
+  });
+
+  // ---- procedural scratches / chips on metal canvases ----
+  function dustCanvas(cv){
+    var w = +cv.dataset.w, h = +cv.dataset.h;
+    cv.width=w; cv.height=h; cv.style.width='100%'; cv.style.height='100%';
+    var ctx = cv.getContext('2d');
+    // thin scratches
+    for(var i=0;i<46;i++){
+      var x=Math.random()*w, y=Math.random()*h, len=8+Math.random()*60, a=(Math.random()-0.5)*0.7;
+      ctx.beginPath();
+      ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(a)*len, y+Math.sin(a)*len);
+      ctx.strokeStyle = Math.random()<0.5? 'rgba(255,255,255,'+(0.10+Math.random()*0.18)+')':'rgba(0,0,0,'+(0.07+Math.random()*0.13)+')';
+      ctx.lineWidth = Math.random()<0.85?0.6:1.2;
+      ctx.stroke();
+    }
+    // paint chips / grime specks
+    for(var j=0;j<70;j++){
+      var px=Math.random()*w, py=Math.random()*h, r=Math.random()*1.6+0.3;
+      ctx.beginPath(); ctx.arc(px,py,r,0,6.3);
+      ctx.fillStyle = Math.random()<0.4?'rgba(0,0,0,'+(0.10+Math.random()*0.18)+')':'rgba(255,255,255,'+(0.07+Math.random()*0.12)+')';
+      ctx.fill();
+    }
+    // a few rust micro-flecks
+    for(var k=0;k<10;k++){
+      ctx.beginPath(); ctx.arc(Math.random()*w,Math.random()*h,Math.random()*1.4+0.4,0,6.3);
+      ctx.fillStyle='rgba(201,104,60,'+(0.12+Math.random()*0.16)+')'; ctx.fill();
+    }
+  }
+  // rail canvas
+  var rc = document.querySelector('#rail .scratchcanvas'); if(rc) dustCanvas(rc);
+  // give each slab a wear layer + canvas
+  document.querySelectorAll('.slab.metal').forEach(function(s){
+    var sv=document.createElement('div'); // wear svg layers
+    s.insertAdjacentHTML('afterbegin',
+      '<svg class="wear" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#metalwear)"/></svg>'+
+      '<svg class="wear mul" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#metalwear2)"/></svg>'+
+      '<canvas class="scratchcanvas" data-w="430" data-h="62"></canvas>');
+    var cv=s.querySelector('canvas'); dustCanvas(cv);
+    // ensure content sits above wear
+    s.querySelectorAll('.ix,.ico,.txt,.chev').forEach(function(e){e.style.position='relative';e.style.zIndex='3';});
+  });
+  // bolts/ticks on right column header sense — add a couple bolts to active slab
+  var act=document.querySelector('.slab.active');
+  if(act){
+    ['top:8px;right:8px','bottom:8px;right:8px'].forEach(function(p){
+      var b=document.createElement('div'); b.className='bolt'; b.style.cssText=p+';width:9px;height:9px;z-index:4'; act.appendChild(b);
+    });
+  }
+})();
+</script>
+</body>
+</html>

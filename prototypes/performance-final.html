@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NET TRADE — Performance (FINAL · Performance-Truth Timeline)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;600;700&family=Space+Mono:wght@400;700&family=Bungee&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================================
+     NETTRADE — PERFORMANCE SCREEN  ·  the PERFORMANCE-TRUTH timeline.
+     Carries the shipped chrome VERBATIM (CRT z90, #ntMarble liquid-marble symbol,
+     fitCanvas/line helpers, the EXP click-to-expand machinery + z100 overlay,
+     top/bottom status bars, halftone, clip-path parallelogram chrome, tight tokens).
+     The ONLY re-skin is the per-screen pigment: MAGENTA -> LIME, applied by
+     overriding --accent / --accent-dk / --area-accent-* and the six --mrb-* marble
+     vars on .screen. The locked semantic pair (--gain teal / --loss red), --purple
+     (net-deposits/benchmark), the creams, --ink and --orange (warning only) are
+     NEVER recoloured.  Layout is DISTINCT from Positions: a truth-engine timeline —
+     a big scrubbable VALUE-OVER-TIME hero + a boxed NUMBERS column + a DRAWDOWN
+     underwater strip + two XIRR/TWR gauges.
+     ============================================================================ */
+  :root{
+    --cream:#EDE6D2; --cream2:#F2ECE0; --ink:#14110D; --orange:#FF5A1F;
+    /* fixed semantic pair — NEVER recoloured per screen */
+    --gain:#2FB5A8; --loss:#C8402F;
+    --purple:#5D5A86;
+    --inkw:14px;
+    /* shared parallelogram system (shipped tokens — clip-path, never skewX) */
+    --slant:16px; --slant-sm:9px; --vslant:14px;
+    --skew:0deg; --unskew:0deg;                /* neutralised no-ops */
+    --pad:clamp(5px,0.7vw,11px);
+    --gap:clamp(4px,0.45vw,7px);
+    /* viz-layer named tokens (so no inline literal leaks into states/hover) */
+    --grid:rgba(20,17,13,.12);
+    --rule:rgba(20,17,13,.18);
+    --waterline:rgba(20,17,13,.22);
+    --tick-text:rgba(20,17,13,.66);
+    --axis-faint:rgba(20,17,13,.5);
+    --ink-shadow-line:rgba(20,17,13,.25);
+    --ink-tint-085:rgba(20,17,13,.085);
+    --area-deposits:rgba(93,90,134,.16);
+    --area-loss:rgba(200,64,47,.16);
+    --area-loss-recover:rgba(200,64,47,.08);
+  }
+  /* ===== .screen — per-screen pigment binding. PERFORMANCE = LIME. =====
+     CONTRAST-PROVEN:
+       --accent  #B4E600  — vivid lime, RIDES the ink-stamp (12.78:1 vs ink). As a
+                            text colour on cream it is only 1.18:1, so it is used ONLY
+                            as a stamped mark (over/under an ink copy), the tile-head
+                            fill behind ink type, and the marble — never as text on cream.
+       --accent-dk #52640A — text-safe darker lime: 5.29:1 on cream, 5.60:1 on cream2
+                            (clears the 4.5:1 text floor). Carries every legend value,
+                            caret, .bb-seg b, and label set in the accent.
+     DISTINCT from the fixed hues: gain teal #2FB5A8, loss red #C8402F, purple slate
+     #5D5A86, orange warning #FF5A1F — lime/chartreuse sits clear of all four. Where it
+     would collide (lime-vs-gain-teal both being "good" greens) it is resolved the
+     magenta-vs-loss way: the ACCENT is the focal OUTLINE / overline stroke + tags;
+     gain/loss keep their semantic FILLS. */
+  .screen{
+    --accent:#B4E600; --accent-dk:#52640A;
+    --area-accent-top:rgba(180,230,0,.40);
+    --area-accent-bot:rgba(180,230,0,.03);
+    /* LIME-family marble (same lightness ladder as the teal/magenta originals:
+       deep olive base -> vivid lime core -> bright chartreuse highlight) */
+    --mrb-base:#3c4a06;    /* deepest field — deep olive */
+    --mrb-deep:#222b03;    /* darkest olive-ink shadow blobs */
+    --mrb-veil:#4f6209;    /* deep lime mass */
+    --mrb-mid:#8fb50e;     /* mid lime */
+    --mrb-core:#52640A;    /* lime core */
+    --mrb-bright:#c6f04a;  /* bright chartreuse highlight */
+  }
+  *{margin:0;padding:0;box-sizing:border-box;border-radius:0;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0a0908;}
+  body{font-family:'Oswald',sans-serif;color:var(--ink);}
+
+  /* ============ FLUID FULL-VIEWPORT ROOT (shipped) ============ */
+  #screen{position:fixed;inset:0;overflow:hidden;background:var(--mrb-deep);
+    --bezel:clamp(14px,1.9vw,30px);}
+  #screen > .screenmarble{position:absolute;inset:0;z-index:0;}
+  #screen > .screenmarble > svg{position:absolute;top:-6%;left:-6%;width:112%;height:112%;}
+  #stage{position:absolute;inset:var(--bezel);z-index:1;overflow:hidden;
+    background:var(--cream);
+    border:6px solid var(--ink);box-shadow:0 0 0 3px var(--mrb-deep), 16px 16px 0 var(--ink);
+    display:flex;flex-direction:column;
+    gap:var(--gap);
+    padding:var(--pad);
+    padding-top:calc(var(--pad) + 2px);}
+
+  .stage-bg{position:absolute;inset:0;background:var(--cream);z-index:0;}
+  .halftone{position:absolute;inset:0;z-index:0;
+    background-image:radial-gradient(var(--ink) 1.35px, transparent 1.55px);
+    background-size:15px 15px;opacity:.07;mix-blend-mode:multiply;pointer-events:none;}
+  .dotcluster{position:absolute;left:-70px;bottom:-60px;width:560px;height:420px;z-index:0;
+    opacity:.16;pointer-events:none;}
+  .dotcluster2{position:absolute;right:-40px;top:80px;width:340px;height:300px;z-index:0;
+    opacity:.10;pointer-events:none;}
+  .bgslash{position:absolute;left:-60px;bottom:-40px;width:520px;height:360px;z-index:0;
+    clip-path:polygon(0 38%,100% 100%,0 100%);background:var(--ink);opacity:.05;pointer-events:none;}
+
+  /* ================= TOP STATUS BAR — CLEAN, NO SKEW (shipped) ================= */
+  .topbar{position:relative;z-index:20;flex:0 0 auto;
+    height:clamp(56px,6.4vh,74px);
+    background:var(--ink);box-shadow:9px 9px 0 var(--ink);
+    display:flex;align-items:stretch;}
+  .tb-inner{display:flex;align-items:center;width:100%;height:100%;padding:0 clamp(12px,1.5vw,22px);gap:0;}
+  .tb-logo{font-family:'Bungee',sans-serif;font-size:clamp(24px,2.4vw,34px);color:var(--accent);
+    letter-spacing:.02em;line-height:1;text-shadow:3px 3px 0 #000;padding-right:clamp(10px,1.2vw,18px);}
+  .tb-seg{display:flex;flex-direction:column;justify-content:center;
+    padding:0 clamp(12px,1.5vw,22px);height:46px;border-left:3px solid rgba(242,236,224,.16);}
+  .tb-seg .k{font-family:'Oswald';font-weight:700;font-size:11px;letter-spacing:.22em;
+    color:rgba(242,236,224,.55);text-transform:uppercase;}
+  .tb-seg .v{font-family:'Space Mono',monospace;font-weight:700;font-size:clamp(15px,1.45vw,21px);
+    color:var(--cream2);line-height:1.05;margin-top:2px;font-variant-numeric:tabular-nums;}
+  .tb-seg .v.accent{color:var(--accent);}
+  .tb-seg .v.gain{color:var(--gain);}
+  .tb-seg .v.loss{color:var(--loss);}
+  .tb-spacer{flex:1;}
+  .tb-live{display:flex;align-items:center;gap:10px;padding:0 clamp(8px,1vw,16px);}
+  .tb-live .dot{width:13px;height:13px;background:var(--accent);
+    animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%{opacity:1;}50%{opacity:.35;}100%{opacity:1;}}
+  .tb-live .lv{font-family:'Anton';font-size:clamp(16px,1.4vw,20px);letter-spacing:.06em;color:var(--ink);
+    background:var(--accent);padding:3px 18px;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);}
+  .tb-live .lv span.txt{display:inline-block;transform:skewX(var(--unskew));}
+  .tb-live .sy{font-family:'Space Mono';font-size:12px;color:rgba(242,236,224,.6);letter-spacing:.04em;
+    font-variant-numeric:tabular-nums;}
+
+  /* ================= MAIN REGION — TRUTH-ENGINE GRID ================= *
+     A distinct 2-column / multi-row layout (NOT the Positions deck+rail):
+       LEFT  = hero value-over-time chart (top, large) + drawdown strip (bottom)
+       RIGHT = boxed NUMBERS column (top) + two gauges (bottom).                  */
+  .main{position:relative;z-index:10;flex:1 1 auto;min-height:0;
+    display:grid;
+    grid-template-columns:minmax(0,1.92fr) minmax(330px,1fr);
+    grid-template-rows:minmax(0,1.62fr) minmax(0,1fr);
+    grid-template-areas:"hero nums" "draw gaug";
+    gap:var(--gap);}
+
+  /* ===== shared tile shell (clip-path parallelogram, ink frame, hard offset) ===== */
+  .panel{position:relative;background:var(--cream2);border:6px solid var(--ink);
+    box-shadow:10px 10px 0 var(--ink);overflow:hidden;min-width:0;min-height:0;
+    display:flex;flex-direction:column;
+    clip-path:polygon(var(--slant) 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);}
+  .panel.click{cursor:pointer;transition:transform .14s cubic-bezier(.2,1.3,.3,1),box-shadow .14s;}
+  .panel.click:hover{transform:translate(-3px,-3px);box-shadow:15px 15px 0 var(--accent-dk);}
+  .panel.click:focus-visible{outline:3px solid var(--ink);outline-offset:3px;}
+  .panel.click:hover .p-head{background:var(--accent);}
+  .panel.click:hover .p-head .nm{color:var(--ink);}
+  .panel.click:hover .p-head .ex{color:var(--ink);border-color:var(--ink);}
+
+  /* head bar — ink, Anton name + EXPAND chip (lime), shipped idiom */
+  .p-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:var(--ink);padding:8px clamp(12px,1.4vw,20px);transition:background .14s;}
+  .p-head .nm{font-family:'Anton';font-size:clamp(13px,1.25vw,18px);letter-spacing:.04em;
+    color:var(--cream2);text-transform:uppercase;line-height:1;white-space:nowrap;
+    transform:skewX(var(--unskew));transform-origin:left center;}
+  .p-head .sub{font-family:'Space Mono';font-weight:700;font-size:clamp(10px,.92vw,12.5px);
+    color:rgba(242,236,224,.6);letter-spacing:.02em;font-variant-numeric:tabular-nums;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .p-head .ex{font-family:'Oswald';font-weight:700;font-size:10px;letter-spacing:.16em;flex:0 0 auto;
+    color:var(--accent);text-transform:uppercase;border:2px solid var(--accent);padding:2px 11px;
+    white-space:nowrap;display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+    background:transparent;line-height:1;
+    transform:skewX(var(--unskew));transform-origin:right center;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);}
+  .p-head .ex svg{width:11px;height:11px;display:block;}
+  .p-head .ex:hover{background:var(--accent);color:var(--ink);}
+  .p-head .ex:focus-visible{outline:3px solid var(--accent);outline-offset:2px;}
+
+  /* ===== HERO — VALUE-OVER-TIME (the star) ===== */
+  .hero{grid-area:hero;}
+  .hero .p-body{position:relative;flex:1 1 auto;min-height:0;}
+  .hero .p-body > canvas{position:absolute;inset:0;width:100%;height:100%;}
+  /* DOM hero overlay — sits over the reserved blank top strip; real selectable text */
+  .heroFig{position:absolute;left:clamp(14px,1.6vw,26px);top:clamp(8px,1.4vh,16px);z-index:4;
+    pointer-events:none;display:flex;flex-direction:column;gap:2px;}
+  .heroFig .ft-tag{font-family:'Oswald';font-weight:700;font-size:clamp(9px,.78vw,11px);letter-spacing:.18em;
+    text-transform:uppercase;color:var(--accent-dk);}
+  .heroFig .ft-num{font-family:'Anton';font-size:clamp(26px,3.2vw,46px);line-height:.92;color:var(--ink);
+    letter-spacing:.01em;font-variant-numeric:tabular-nums;}
+  .heroFig .ft-num.up{color:var(--gain);} .heroFig .ft-num.dn{color:var(--loss);}
+  .heroFig .ft-sub{font-family:'Space Mono';font-weight:700;font-size:clamp(10px,.95vw,13px);
+    color:rgba(20,17,13,.62);letter-spacing:-.01em;font-variant-numeric:tabular-nums;}
+  /* legend chip row (top-right of plot) — direct-labelled series, no SaaS legend */
+  .heroLeg{position:absolute;right:clamp(12px,1.4vw,22px);top:clamp(8px,1.4vh,14px);z-index:4;
+    display:flex;flex-direction:column;gap:5px;align-items:flex-end;pointer-events:none;}
+  .leg{display:inline-flex;align-items:center;gap:7px;font-family:'Oswald';font-weight:700;
+    font-size:clamp(9px,.78vw,11px);letter-spacing:.08em;text-transform:uppercase;color:rgba(20,17,13,.7);}
+  .leg .sw{width:18px;height:11px;border:2px solid var(--ink);box-shadow:2px 2px 0 var(--ink);}
+  .leg .sw.val{background:var(--accent);}
+  .leg .sw.dep{background:transparent;border-style:dashed;border-color:var(--purple);box-shadow:none;}
+  /* period toggle pills (bottom-left of plot) */
+  .heroPer{position:absolute;left:clamp(12px,1.4vw,22px);bottom:clamp(8px,1.2vh,14px);z-index:5;
+    display:flex;gap:6px;}
+  .perBtn{font-family:'Oswald';font-weight:700;font-size:clamp(9px,.8vw,11px);letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink);background:var(--cream);border:2.5px solid var(--ink);
+    box-shadow:3px 3px 0 var(--ink);padding:3px 12px;cursor:pointer;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);
+    transition:transform .1s,box-shadow .1s;}
+  .perBtn span{display:inline-block;transform:skewX(var(--unskew));}
+  .perBtn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--ink);}
+  .perBtn:focus-visible{outline:3px solid var(--ink);outline-offset:2px;}
+  .perBtn[aria-pressed="true"]{background:var(--accent);box-shadow:3px 3px 0 var(--accent-dk);}
+  /* static window marker — looks like the pressed pill but is inert (no control affordance) */
+  .perBtn--static{cursor:default;}
+  .perBtn--static:hover{transform:none;box-shadow:3px 3px 0 var(--accent-dk);}
+  /* transparent scrub layer over the plot — crosshair + tooltip; carries the draggable scrubber */
+  .scrub{position:absolute;inset:0;z-index:6;outline:0;cursor:ew-resize;}
+  .scrub:focus-visible{outline:3px solid var(--ink);outline-offset:-3px;}
+  .scrubtip{position:absolute;z-index:7;pointer-events:none;display:none;
+    background:var(--cream);color:var(--ink);border:2.5px solid var(--ink);
+    box-shadow:3px 3px 0 var(--ink);padding:4px 10px;white-space:nowrap;
+    font-family:'Space Mono',monospace;font-weight:700;font-size:12px;font-variant-numeric:tabular-nums;
+    letter-spacing:-.01em;transform:translate(-50%,-130%);line-height:1.35;}
+  .scrubtip.on{display:block;}
+  .scrubtip .st-k{color:rgba(20,17,13,.55);}
+  .scrubtip .st-up{color:var(--gain);} .scrubtip .st-dn{color:var(--loss);}
+
+  /* ===== NUMBERS COLUMN — boxed tabular readouts, exactly ONE full-ink hero ===== */
+  .nums{grid-area:nums;}
+  .nums .p-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;
+    padding:clamp(6px,.8vh,10px) clamp(8px,1vw,13px) clamp(7px,1vh,11px);position:relative;}
+  .nums .p-body::before{content:'';position:absolute;inset:0;z-index:0;
+    background-image:radial-gradient(var(--ink) 1.35px,transparent 1.55px);
+    background-size:15px 15px;opacity:.05;mix-blend-mode:multiply;pointer-events:none;}
+  .numgrid{position:relative;z-index:1;flex:1 1 auto;min-height:0;display:grid;
+    grid-template-columns:1fr 1fr;grid-auto-flow:row;gap:var(--gap);align-content:stretch;}
+  .numgrid .span2{grid-column:1 / -1;}
+  /* guarantee the single full-ink hero sits at the very top, full width */
+  .numgrid .nbox.hero{grid-row:1;grid-column:1 / -1;}
+  /* a boxed readout tile */
+  .nbox{position:relative;background:var(--cream);border:3px solid var(--ink);box-shadow:5px 5px 0 var(--ink);
+    padding:clamp(5px,1vh,9px) clamp(8px,.9vw,12px);display:flex;flex-direction:column;justify-content:center;
+    cursor:pointer;min-width:0;overflow:hidden;
+    transition:transform .1s cubic-bezier(.2,1.3,.3,1),box-shadow .1s;}
+  .nbox:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--accent-dk);}
+  .nbox:focus-visible{outline:3px solid var(--ink);outline-offset:2px;}
+  .nbox .nb-k{font-family:'Oswald';font-weight:700;font-size:clamp(8.5px,.74vw,10.5px);letter-spacing:.13em;
+    text-transform:uppercase;color:rgba(20,17,13,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .nbox .nb-v{font-family:'Space Mono';font-weight:700;font-size:clamp(14px,1.45vw,21px);color:var(--ink);
+    line-height:1.05;margin-top:2px;font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;gap:5px;}
+  .nbox .nb-v .tri{font-size:11px;line-height:1;}
+  .nbox .nb-v.gain{color:var(--gain);} .nbox .nb-v.loss{color:var(--loss);}
+  .nbox .nb-v.accent{color:var(--accent-dk);}
+  .nbox .nb-v.dep{color:var(--purple);}  /* net-deposits benchmark keeps its semantic purple, not the focal accent */
+  /* the ONE full-ink hero readout — TRUE GROWTH (Anton, width-locked box, accent fill) */
+  .nbox.hero{background:var(--ink);box-shadow:5px 5px 0 var(--accent-dk);}
+  .nbox.hero .nb-k{color:rgba(242,236,224,.7);}
+  .nbox.hero .nb-v{font-family:'Anton';font-size:clamp(26px,2.9vw,40px);letter-spacing:.01em;margin-top:3px;}
+  .nbox.hero .nb-v.up{color:var(--gain);} .nbox.hero .nb-v.dn{color:var(--loss);}
+  .nbox.hero .nb-sub{font-family:'Space Mono';font-weight:700;font-size:clamp(9px,.85vw,11.5px);
+    color:rgba(242,236,224,.62);margin-top:1px;font-variant-numeric:tabular-nums;}
+
+  /* ===== DRAWDOWN underwater strip ===== */
+  .draw{grid-area:draw;}
+  .draw .p-body{position:relative;flex:1 1 auto;min-height:0;}
+  .draw .p-body > canvas{position:absolute;inset:0;width:100%;height:100%;}
+  .draw .dd-rt{position:absolute;right:clamp(10px,1.2vw,18px);top:clamp(7px,1.2vh,13px);z-index:4;
+    pointer-events:none;font-family:'Anton';font-size:clamp(15px,1.7vw,24px);color:var(--loss);
+    text-shadow:1.5px 1.5px 0 var(--ink);font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;gap:5px;}
+  .draw .dd-rt .lbl{font-family:'Oswald';font-weight:700;font-size:clamp(8px,.7vw,10px);letter-spacing:.14em;
+    color:rgba(20,17,13,.55);text-shadow:none;align-self:flex-end;margin-bottom:3px;}
+
+  /* ===== GAUGES — XIRR + TWR small dials side by side ===== */
+  .gaug{grid-area:gaug;background:var(--cream2);border:6px solid var(--ink);box-shadow:10px 10px 0 var(--ink);
+    overflow:hidden;min-width:0;min-height:0;display:flex;flex-direction:column;
+    clip-path:polygon(var(--slant) 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);}
+  .gaug .g-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    background:var(--ink);padding:7px clamp(12px,1.4vw,18px);}
+  .gaug .g-head .nm{font-family:'Anton';font-size:clamp(12px,1.1vw,16px);letter-spacing:.04em;
+    color:var(--cream2);text-transform:uppercase;line-height:1;white-space:nowrap;}
+  .gaug .g-head .sub{font-family:'Space Mono';font-weight:700;font-size:clamp(9px,.82vw,11px);
+    color:rgba(242,236,224,.55);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .gaug .g-row{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:1fr 1fr;}
+  .gcell{position:relative;min-width:0;min-height:0;cursor:pointer;overflow:hidden;
+    transition:background .12s;}
+  .gcell:first-child{border-right:4px solid var(--ink);}
+  .gcell:hover{background:var(--ink-tint-085);}
+  .gcell:focus-visible{outline:3px solid var(--ink);outline-offset:-3px;}
+  .gcell > canvas{position:absolute;inset:0;width:100%;height:100%;}
+  /* collapsed gauge DOM readout — real selectable number, no on-canvas big text */
+  .gread{position:absolute;left:50%;top:12%;z-index:3;transform:translateX(-50%);
+    display:flex;flex-direction:column;align-items:center;gap:0;pointer-events:none;text-align:center;}
+  .gread .gr-num{font-family:'Anton';font-size:clamp(18px,2vw,28px);line-height:1;color:var(--ink);
+    font-variant-numeric:tabular-nums;}
+  .gread .gr-num.up{color:var(--gain);} .gread .gr-num.dn{color:var(--loss);}
+  .gread .gr-lbl{font-family:'Oswald';font-weight:700;font-size:clamp(7.5px,.66vw,9.5px);letter-spacing:.14em;
+    text-transform:uppercase;color:rgba(20,17,13,.55);margin-top:1px;}
+
+  /* ================= BOTTOM STATUS BAR — CLEAN, NO SKEW (shipped) ================= */
+  .botbar{position:relative;z-index:20;flex:0 0 auto;
+    height:clamp(44px,5.4vh,54px);
+    background:var(--cream2);border:5px solid var(--ink);box-shadow:8px 8px 0 var(--ink);
+    display:flex;align-items:center;}
+  .bb-inner{display:flex;align-items:center;width:100%;height:100%;padding:0 clamp(12px,1.5vw,22px);}
+  .bb-seg{font-family:'Oswald';font-weight:700;font-size:clamp(11px,1vw,13px);letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink);padding:0 clamp(12px,1.4vw,20px);display:flex;align-items:center;gap:8px;
+    border-right:3px solid rgba(20,17,13,.18);white-space:nowrap;}
+  .bb-seg:last-child{border-right:0;}
+  .bb-seg b{color:var(--accent-dk);font-variant-numeric:tabular-nums;}
+  .bb-seg.warn b{color:var(--orange);}
+  .bb-seg.g b{color:var(--gain);} .bb-seg.l b{color:var(--loss);}
+  .bb-spacer{flex:1;}
+  .bb-pill{font-family:'Anton';font-size:clamp(13px,1.2vw,15px);letter-spacing:.1em;color:var(--cream2);
+    background:var(--ink);padding:6px 22px;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);}
+  .bb-pill span.txt{display:inline-block;transform:skewX(var(--unskew));}
+  .bb-pill.t{background:var(--accent-dk);}
+
+  /* ================= EXPANDED OVERLAY — VIEWPORT-LEVEL, NEVER CLIPPED (shipped) ================= */
+  #expand{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+    padding:clamp(58px,8vh,84px) clamp(16px,3vw,40px) clamp(34px,5vh,52px);}
+  #expand.on{display:flex;}
+  #expand .scrim{position:absolute;inset:0;background:rgba(10,9,7,.66);}
+  .exp-frame{position:relative;z-index:2;
+    width:min(1300px,92vw);max-height:min(80vh,720px);height:auto;
+    display:flex;flex-direction:column;
+    background:var(--accent-dk);padding:16px;box-shadow:0 0 0 6px var(--ink),26px 26px 0 rgba(20,17,13,.5);
+    overflow:visible;}
+
+  /* ===== ANIMATED LIME LIQUID-MARBLE — REUSABLE .nt-marble (shipped technique) ===== */
+  .nt-marble{position:absolute;inset:0;overflow:hidden;pointer-events:none;
+    background:var(--mrb-base);}
+  .nt-marble > svg{position:absolute;top:-8%;left:-8%;width:116%;height:116%;}
+  .nt-marble .marble-drift{transform-origin:52% 46%;
+    animation:frdrift 34s ease-in-out infinite alternate;}
+  @keyframes frdrift{
+    0%{transform:translate(0,0) scale(1.08) rotate(0deg);}
+    100%{transform:translate(-22px,-34px) scale(1.18) rotate(3deg);}}
+
+  .exp-frame .frmarble{z-index:1;}
+  .exp-frame .frhalf{position:absolute;inset:0;z-index:2;
+    background-image:radial-gradient(var(--ink) 2px, transparent 2.2px);
+    background-size:14px 14px;opacity:.20;pointer-events:none;}
+  .exp-frame .frhatch{position:absolute;left:0;right:0;height:16px;z-index:2;pointer-events:none;opacity:.5;
+    background-image:repeating-linear-gradient(90deg,var(--ink) 0 4px,transparent 4px 13px);}
+  .exp-frame .frhatch.t{top:0;} .exp-frame .frhatch.b{bottom:0;}
+  .exp-frame .frtag{position:absolute;left:30px;top:-22px;z-index:5;overflow:hidden;
+    background:var(--mrb-deep);color:var(--accent);font-family:'Bungee';font-size:clamp(14px,1.5vw,19px);
+    letter-spacing:.05em;padding:8px 20px;border:3px solid var(--ink);
+    box-shadow:6px 6px 0 rgba(20,17,13,.4);white-space:nowrap;}
+  .exp-frame .frtag .nt-marble{z-index:0;}
+  .exp-frame .frtag::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+    background:rgba(20,17,13,.5);}
+  .exp-frame .frtag .txt{position:relative;z-index:2;
+    text-shadow:2px 2px 0 var(--ink),0 0 6px rgba(20,17,13,.85);}
+  .exp-close{position:absolute;right:26px;top:-22px;z-index:6;cursor:pointer;
+    background:var(--ink);color:var(--cream2);font-family:'Anton';font-size:clamp(14px,1.4vw,18px);letter-spacing:.1em;
+    padding:9px 18px;border:0;box-shadow:6px 6px 0 rgba(20,17,13,.4);white-space:nowrap;
+    transition:background .12s,color .12s;}
+  .exp-close:hover{background:var(--loss);color:var(--cream2);}
+  .exp-close:focus-visible{outline:3px solid var(--cream2);outline-offset:2px;}
+
+  .exp-inner{position:relative;z-index:3;width:100%;flex:1 1 auto;min-height:0;background:var(--cream2);
+    border:5px solid var(--ink);display:grid;grid-template-columns:1fr minmax(360px,470px);}
+  .exp-viz{position:relative;padding:clamp(18px,3vh,30px) clamp(18px,2vw,26px);border-right:5px solid var(--ink);
+    display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+  .exp-viz::before{content:'';position:absolute;inset:0;z-index:0;
+    background-image:radial-gradient(var(--ink) 1.35px,transparent 1.55px);
+    background-size:15px 15px;opacity:.05;mix-blend-mode:multiply;pointer-events:none;}
+  .exp-viz > *{position:relative;z-index:1;}
+  .exp-viz .evh{font-family:'Anton';font-size:clamp(22px,2.4vw,30px);letter-spacing:.03em;text-transform:uppercase;color:var(--ink);}
+  .exp-viz .evs{font-family:'Oswald';font-weight:600;font-size:clamp(11px,1vw,13px);letter-spacing:.12em;
+    text-transform:uppercase;color:rgba(20,17,13,.55);margin-top:2px;}
+  .exp-viz .evbody{flex:1 1 auto;position:relative;margin-top:14px;min-height:0;}
+  .exp-viz .evbody > canvas{position:absolute;inset:0;width:100%;height:100%;}
+
+  /* DATA PANEL — boxed value tags, alternating bands, one ink hero row */
+  .exp-data{padding:clamp(18px,3vh,28px) clamp(18px,2vw,26px);display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+  .exp-data .edh{font-family:'Anton';font-size:clamp(14px,1.4vw,18px);letter-spacing:.1em;color:var(--ink);
+    background:var(--accent);display:inline-block;padding:6px 12px;align-self:flex-start;
+    border:3px solid var(--ink);box-shadow:5px 5px 0 var(--ink);text-transform:uppercase;}
+  .edlist{margin-top:16px;display:flex;flex-direction:column;gap:0;border:3px solid var(--ink);
+    box-shadow:6px 6px 0 var(--ink);overflow:auto;min-height:0;}
+  .edrow{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:clamp(6px,1vh,9px) 12px;border-bottom:2px solid var(--ink);position:relative;}
+  .edrow:last-child{border-bottom:0;}
+  .edrow:nth-child(odd){background:var(--cream2);}
+  .edrow:nth-child(even){background:var(--ink-tint-085);}
+  .edrow .lbl{font-family:'Oswald';font-weight:700;font-size:clamp(12px,1.1vw,14px);letter-spacing:.05em;
+    text-transform:uppercase;color:rgba(20,17,13,.82);}
+  .edrow .val{font-family:'Space Mono';font-weight:700;font-size:clamp(13px,1.25vw,16px);color:var(--ink);
+    letter-spacing:-.01em;background:var(--cream);border:2.5px solid var(--ink);
+    padding:3px 10px;box-shadow:3px 3px 0 var(--ink);min-width:96px;text-align:right;white-space:nowrap;
+    font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;justify-content:flex-end;gap:5px;}
+  .edrow .val .tri{font-size:10px;line-height:1;}
+  .edrow .val.gain{background:var(--gain);color:var(--ink);}
+  .edrow .val.loss{background:var(--loss);color:var(--cream2);}
+  .edrow .val.confirm{background:var(--ink-tint-085);color:rgba(20,17,13,.6);font-style:normal;}
+  .edrow.hero{background:var(--ink);padding:clamp(9px,1.4vh,13px) 12px;}
+  .edrow.hero .lbl{font-size:clamp(13px,1.2vw,15px);color:var(--cream2);font-weight:700;letter-spacing:.08em;}
+  .edrow.hero .val{font-family:'Anton';font-size:clamp(20px,2.2vw,26px);padding:2px 12px;letter-spacing:.02em;
+    background:var(--accent);color:var(--ink);box-shadow:4px 4px 0 rgba(242,236,224,.25);}
+  .edrow.hero .val.gain{background:var(--gain);color:var(--ink);}
+  .edrow.hero .val.loss{background:var(--loss);color:var(--cream2);}
+  .ed-foot{margin-top:14px;font-family:'Oswald';font-weight:600;font-size:clamp(10px,.9vw,11px);letter-spacing:.14em;
+    text-transform:uppercase;color:rgba(20,17,13,.45);padding-top:4px;flex:0 0 auto;}
+
+  /* visually-hidden table mirror (a11y) */
+  .vh{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0 0 0 0);white-space:nowrap;border:0;}
+
+  /* ================= CRT — FULL VIEWPORT (shipped verbatim) ================= */
+  #crt{position:fixed;inset:0;z-index:90;pointer-events:none;overflow:hidden;}
+  #crt .bulge{position:absolute;inset:0;mix-blend-mode:soft-light;opacity:.9;
+    background:radial-gradient(120% 130% at 50% 46%,
+      rgba(255,255,255,.30) 0%, rgba(255,255,255,.06) 32%,
+      transparent 52%, rgba(20,17,13,.28) 80%, rgba(20,17,13,.55) 100%);}
+  #crt .scan{position:absolute;inset:0;mix-blend-mode:multiply;opacity:.26;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.62) 0 1px, transparent 1px 3px);}
+  #crt .grille{position:absolute;inset:0;mix-blend-mode:multiply;opacity:.06;
+    background:repeating-linear-gradient(90deg,rgba(0,0,0,.5) 0 1px, transparent 1px 3px);}
+  #crt .vig{position:absolute;inset:0;
+    background:radial-gradient(125% 135% at 50% 50%,
+      transparent 52%, rgba(20,17,13,.18) 75%, rgba(20,17,13,.44) 92%, rgba(20,17,13,.72) 100%);}
+  #crt .corners{position:absolute;inset:0;
+    background:
+      radial-gradient(42% 42% at 0% 0%,   rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 100% 0%, rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 0% 100%, rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 100% 100%,rgba(20,17,13,.46) 0%, transparent 62%);}
+  #crt .sheen{position:absolute;inset:0;mix-blend-mode:screen;opacity:.10;
+    background:radial-gradient(70% 42% at 28% -4%, #fff 0%, transparent 58%);}
+  #crt .bezel{position:absolute;inset:0;border-radius:46px;
+    box-shadow:
+      inset 0 0 0 4px rgba(20,17,13,.85),
+      inset 0 0 0 16px rgba(20,17,13,.42),
+      inset 0 0 90px 26px rgba(20,17,13,.40),
+      inset 0 0 4px 2px rgba(255,255,255,.10);}
+  #crt .glassmask{position:absolute;inset:10px;border-radius:38px;
+    box-shadow:inset 0 0 0 2px rgba(242,236,224,.10), inset 0 0 40px 8px rgba(20,17,13,.28);}
+
+  @media (prefers-reduced-motion: reduce){
+    .tb-live .dot{animation:none;}
+    .panel.click,.panel.click:hover,.nbox,.nbox:hover,.perBtn{transition:none;}
+    .nt-marble .marble-drift{animation-duration:180s;}
+  }
+</style>
+</head>
+<body class="screen">
+ <!-- ============================================================================
+      SHARED ANIMATED LIQUID-MARBLE DEFINITION (shipped #ntMarble symbol, verbatim).
+      Reads colours from the --mrb-* vars on .screen — now the LIME family — so every
+      marble instance re-skins from that one place. Never behind a chart or number.
+      ============================================================================ -->
+ <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+   <defs>
+     <filter id="ntWarp" x="-15%" y="-15%" width="130%" height="130%">
+       <feTurbulence type="fractalNoise" baseFrequency="0.0085 0.0052" numOctaves="3" seed="11" result="w">
+         <animate attributeName="baseFrequency" dur="34s" repeatCount="indefinite"
+           values="0.0085 0.0052; 0.0125 0.0082; 0.0070 0.0046; 0.0085 0.0052"
+           calcMode="spline" keyTimes="0;0.34;0.7;1"
+           keySplines="0.42 0 0.58 1; 0.42 0 0.58 1; 0.42 0 0.58 1"/>
+       </feTurbulence>
+       <feDisplacementMap in="SourceGraphic" in2="w" scale="240" xChannelSelector="R" yChannelSelector="G"/>
+     </filter>
+     <filter id="ntWarp2" x="-15%" y="-15%" width="130%" height="130%">
+       <feTurbulence type="fractalNoise" baseFrequency="0.013 0.020" numOctaves="2" seed="4" result="w2">
+         <animate attributeName="baseFrequency" dur="26s" repeatCount="indefinite"
+           values="0.013 0.020; 0.019 0.027; 0.013 0.020"
+           calcMode="spline" keyTimes="0;0.5;1"
+           keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>
+       </feTurbulence>
+       <feDisplacementMap in="SourceGraphic" in2="w2" scale="90" xChannelSelector="R" yChannelSelector="G"/>
+     </filter>
+     <pattern id="ntDots" width="14" height="14" patternUnits="userSpaceOnUse">
+       <circle cx="3" cy="3" r="1.5" fill="#0c1012"/>
+     </pattern>
+     <symbol id="ntMarble" viewBox="0 0 1300 760" preserveAspectRatio="xMidYMid slice">
+       <g class="marble-drift">
+         <rect x="-120" y="-120" width="1540" height="1000" fill="var(--mrb-base)"/>
+         <g filter="url(#ntWarp)">
+           <path d="M-120,80 C300,10 360,320 200,520 C40,700 380,720 300,980 L-160,980 Z" fill="var(--mrb-veil)"/>
+           <path d="M1300,-60 C1120,180 1240,400 980,560 C720,720 980,940 820,1080 L1360,1080 L1360,-80 Z" fill="var(--mrb-veil)"/>
+           <path d="M-100,300 C260,220 360,480 200,620 C80,730 360,740 300,940 L120,1000 L-120,1000 Z" fill="var(--mrb-mid)"/>
+           <path d="M620,-60 C840,120 660,360 900,500 C1140,640 980,860 1240,960 L1360,1000 L1360,-80 Z" fill="var(--mrb-bright)" opacity="0.55"/>
+           <path d="M-60,480 C220,420 280,640 160,740 C60,820 280,860 260,1000 L120,1040 L-100,1040 Z" fill="var(--mrb-core)"/>
+           <path d="M860,540 C940,660 840,800 980,880 C1120,960 1020,1060 1180,1120 L1360,1160 L1360,560 Z" fill="var(--mrb-base)"/>
+           <path d="M220,560 C360,520 400,760 280,840 C170,910 280,640 220,680 C340,600 140,600 220,560 Z" fill="var(--mrb-bright)"/>
+           <path d="M640,700 C740,660 780,860 680,920 C600,960 660,760 600,780 Z" fill="var(--mrb-mid)" opacity="0.92"/>
+           <path d="M-120,860 C200,820 300,1000 180,1080 L-120,1120 Z" fill="var(--mrb-deep)"/>
+           <ellipse cx="430" cy="140" rx="110" ry="150" fill="var(--mrb-deep)"/>
+           <ellipse cx="1080" cy="240" rx="120" ry="160" fill="var(--mrb-bright)" opacity="0.35"/>
+         </g>
+         <g filter="url(#ntWarp2)" opacity="0.7">
+           <path d="M-120,150 C300,120 600,260 980,320" fill="none" stroke="var(--mrb-deep)" stroke-width="34"/>
+           <path d="M-120,260 C320,230 600,360 980,420" fill="none" stroke="var(--mrb-bright)" stroke-width="18" opacity="0.7"/>
+           <path d="M-120,560 C320,530 600,660 980,720" fill="none" stroke="var(--mrb-bright)" stroke-width="22" opacity="0.85"/>
+           <path d="M-120,680 C300,650 560,760 940,840" fill="none" stroke="var(--mrb-veil)" stroke-width="26"/>
+           <path d="M-120,860 C300,830 560,920 940,1000" fill="none" stroke="var(--mrb-mid)" stroke-width="30"/>
+         </g>
+         <rect x="-120" y="-120" width="1540" height="1000" fill="url(#ntDots)" opacity="0.10"/>
+       </g>
+     </symbol>
+   </defs>
+ </svg>
+
+ <div id="screen">
+  <!-- OUTER SCREEN FRAME: drifting LIME marble bezel ring (shipped scaffolding) -->
+  <div class="nt-marble screenmarble"><svg><use href="#ntMarble"/></svg></div>
+  <div id="stage">
+    <div class="stage-bg"></div>
+    <div class="halftone"></div>
+    <canvas class="dotcluster" id="dotcl" width="560" height="420" aria-hidden="true"></canvas>
+    <canvas class="dotcluster2" id="dotcl2" width="340" height="300" aria-hidden="true"></canvas>
+    <div class="bgslash"></div>
+
+    <!-- ============ TOP STATUS BAR ============ -->
+    <div class="topbar"><div class="tb-inner">
+      <div class="tb-logo">NT</div>
+      <div class="tb-seg"><div class="k">Value</div><div class="v accent" id="tbValue">—</div></div>
+      <div class="tb-seg"><div class="k">True Growth</div><div class="v" id="tbGrowth">—</div></div>
+      <div class="tb-seg"><div class="k">XIRR</div><div class="v" id="tbXirr">—</div></div>
+      <div class="tb-spacer"></div>
+      <div class="tb-live"><div class="dot"></div><div class="lv"><span class="txt">LIVE</span></div>
+        <div class="sy">T212 · SYNCED&nbsp;14:32</div></div>
+    </div></div>
+
+    <!-- ============ MAIN: TRUTH-ENGINE GRID ============ -->
+    <div class="main">
+
+      <!-- ===== HERO — VALUE OVER TIME (scrubbable) ===== -->
+      <section class="panel hero" id="heroTile"
+        aria-label="Value over time versus net deposits">
+        <div class="p-head">
+          <div class="nm">Value Over Time</div>
+          <div class="sub" id="heroHeadSub">PORTFOLIO VALUE · NET DEPOSITS</div>
+          <button class="ex" type="button" data-exp="value" aria-label="Expand Value over time">EXPAND <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2H10V8M10 2L2 10"/></svg></button>
+        </div>
+        <div class="p-body">
+          <canvas id="cv-value" aria-hidden="true"></canvas>
+          <div class="heroFig">
+            <span class="ft-tag">TRUE GROWTH · DEPOSITS STRIPPED</span>
+            <span class="ft-num" id="ftNum">—</span>
+            <span class="ft-sub" id="ftSub">—</span>
+          </div>
+          <div class="heroLeg">
+            <span class="leg"><span class="sw val"></span>VALUE</span>
+            <span class="leg"><span class="sw dep"></span>NET DEPOSITS</span>
+          </div>
+          <!-- Period window: only ALL ships. DAY/MONTH pills are withheld until real
+               intraday / 30-day series exist — relabelling the same 12-month data as a
+               different window would violate the honesty contract (picture must match the
+               numbers). A single non-interactive marker states the window in force. -->
+          <div class="heroPer" aria-hidden="true"><span class="perBtn perBtn--static" aria-pressed="true"><span>ALL · 12M</span></span></div>
+          <!-- scrub layer: draggable scrubber + value tooltip; surfaces on hover/tap/focus -->
+          <div class="scrub" id="scrub-value" tabindex="0" role="slider" aria-label="Scrub portfolio value over time"
+            aria-valuemin="0" aria-valuemax="11" aria-valuenow="11"></div>
+          <span class="vh" id="vh-value"></span>
+          <div class="vh" id="vhtbl-value"></div>
+        </div>
+      </section>
+
+      <!-- ===== NUMBERS COLUMN — boxed truth readouts ===== -->
+      <section class="panel nums" aria-label="Performance numbers">
+        <div class="p-head">
+          <div class="nm">The Numbers</div>
+          <div class="sub">TRUTH ENGINE · GBP</div>
+        </div>
+        <div class="p-body">
+          <div class="numgrid" id="numGrid"><!-- boxes injected --></div>
+        </div>
+      </section>
+
+      <!-- ===== DRAWDOWN underwater strip ===== -->
+      <section class="panel draw" id="ddTile"
+        aria-label="Drawdown underwater chart">
+        <div class="p-head">
+          <div class="nm">Drawdown</div>
+          <div class="sub" id="ddHeadSub">UNDERWATER · PEAK-TO-TROUGH</div>
+          <button class="ex" type="button" data-exp="dd" aria-label="Expand Drawdown chart">EXPAND <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2H10V8M10 2L2 10"/></svg></button>
+        </div>
+        <div class="p-body">
+          <canvas id="cv-dd" aria-hidden="true"></canvas>
+          <div class="dd-rt"><span class="lbl">MAX DD</span><span id="ddRt">—</span></div>
+          <div class="scrub" id="scrub-dd" tabindex="0" role="img" aria-label="Drawdown underwater chart"></div>
+          <span class="vh" id="vh-dd"></span>
+          <div class="vh" id="vhtbl-dd"></div>
+        </div>
+      </section>
+
+      <!-- ===== GAUGES — XIRR + TWR ===== -->
+      <section class="gaug" aria-label="XIRR and time-weighted return gauges">
+        <div class="g-head"><div class="nm">Return Engines</div><div class="sub">ANNUALISED</div></div>
+        <div class="g-row">
+          <div class="gcell" id="xirrCell" tabindex="0" role="button" aria-label="Money-weighted return XIRR gauge — expand">
+            <canvas id="cv-xirr" aria-hidden="true"></canvas>
+            <div class="gread"><span class="gr-num" id="xirrNum">—</span><span class="gr-lbl">XIRR · MWR</span></div>
+            <span class="vh" id="vh-xirr"></span><div class="vh" id="vhtbl-xirr"></div>
+          </div>
+          <div class="gcell" id="twrCell" tabindex="0" role="button" aria-label="Time-weighted return gauge — expand">
+            <canvas id="cv-twr" aria-hidden="true"></canvas>
+            <div class="gread"><span class="gr-num" id="twrNum">—</span><span class="gr-lbl">TWR</span></div>
+            <span class="vh" id="vh-twr"></span><div class="vh" id="vhtbl-twr"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============ BOTTOM STATUS BAR ============ -->
+    <div class="botbar"><div class="bb-inner">
+      <div class="bb-seg">TRUE GROWTH&nbsp;·&nbsp;<b id="bbGrowth">—</b></div>
+      <div class="bb-seg g">REALISED&nbsp;·&nbsp;<b id="bbReal">—</b></div>
+      <div class="bb-seg">UNREALISED&nbsp;·&nbsp;<b id="bbUnreal">—</b></div>
+      <div class="bb-seg l">MAX DD&nbsp;·&nbsp;<b id="bbDD">—</b></div>
+      <div class="bb-spacer"></div>
+      <div class="bb-seg warn">QUOTES&nbsp;·&nbsp;<b>DELAYED&nbsp;15M</b></div>
+      <div class="bb-pill t"><span class="txt">SINCE · 01 JAN</span></div>
+    </div></div>
+  </div>
+ </div>
+
+ <!-- ============ EXPANDED OVERLAY (shipped z100 machinery) ============ -->
+ <div id="expand" role="dialog" aria-modal="true" aria-labelledby="expVizHead">
+   <div class="scrim" onclick="closeExpand()"></div>
+   <div class="exp-frame">
+     <div class="nt-marble frmarble"><svg><use href="#ntMarble"/></svg></div>
+     <div class="frhalf"></div>
+     <div class="frhatch t"></div>
+     <div class="frhatch b"></div>
+     <div class="frtag" id="expTag"><div class="nt-marble"><svg><use href="#ntMarble"/></svg></div><span class="txt">PERFORMANCE TRUTH</span></div>
+     <button class="exp-close" onclick="closeExpand()">✕ CLOSE</button>
+     <div class="exp-inner">
+       <div class="exp-viz">
+         <div class="evh" id="expVizHead">—</div>
+         <div class="evs" id="expVizSub">—</div>
+         <div class="evbody"><canvas id="cv-exp"></canvas></div>
+       </div>
+       <div class="exp-data">
+         <div class="edh" id="expDataHead">NUMBERS</div>
+         <div class="edlist" id="expRows"></div>
+         <div class="ed-foot" id="expFoot">Trading 212 · delayed quotes 15m · synced 14:32 · since 01 Jan</div>
+       </div>
+     </div>
+   </div>
+ </div>
+
+ <!-- ============ CRT (shipped verbatim) ============ -->
+ <div id="crt" aria-hidden="true">
+   <div class="bulge"></div>
+   <div class="scan"></div>
+   <div class="grille"></div>
+   <div class="sheen"></div>
+   <div class="vig"></div>
+   <div class="corners"></div>
+   <div class="bezel"></div>
+   <div class="glassmask"></div>
+ </div>
+
+<script>
+/* ---------- TOKENS mirrored as JS consts (named tokens, no stray inline hex) ---------- */
+const INK='#14110D', CREAM='#EDE6D2', CREAM2='#F2ECE0',
+      ACCENT='#B4E600', ACCENT_DK='#52640A',
+      GAIN='#2FB5A8', LOSS='#C8402F', ORANGE='#FF5A1F', PURPLE='#5D5A86',
+      GRID='rgba(20,17,13,.12)', RULE='rgba(20,17,13,.18)', WATER='rgba(20,17,13,.22)',
+      TICKTXT='rgba(20,17,13,.66)', INKSHADOW='rgba(20,17,13,.25)',
+      AREA_TOP='rgba(180,230,0,.40)', AREA_BOT='rgba(180,230,0,.03)',
+      AREA_DEP='rgba(93,90,134,.16)', AREA_DD='rgba(200,64,47,.16)', AREA_DD_REC='rgba(200,64,47,.08)',
+      AREA_GAIN='rgba(47,181,168,.16)',   /* realised split wash — gain-teal tint, named (no inline rgba in a draw branch) */
+      GAIN_DK='#0E8A86',                  /* dark-teal underline for positive split values */
+      TRACK_FAINT='rgba(20,17,13,.14)', TICK_FAINT='rgba(20,17,13,.4)', TICK_ANCHOR='rgba(20,17,13,.6)',
+      XLAB='rgba(20,17,13,.55)';          /* x-axis period labels */
+/* DOM glyph triangles carry U+FE0E (text-presentation); canvas markers are drawn paths. */
+const TRI_UP='▲︎', TRI_DN='▼︎', MINUS='−';
+
+/* ---------- Intl formatters (GBP base; never string-concat a symbol) ---------- */
+const LOCALE='en-GB', CCY='GBP';
+const fmtMoney0=new Intl.NumberFormat(LOCALE,{style:'currency',currency:CCY,minimumFractionDigits:0,maximumFractionDigits:0});
+const fmtMoney2=new Intl.NumberFormat(LOCALE,{style:'currency',currency:CCY,minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPct=new Intl.NumberFormat(LOCALE,{style:'percent',minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPct1=new Intl.NumberFormat(LOCALE,{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1});
+function money(v,d){const f=d===0?fmtMoney0:fmtMoney2;const s=f.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+function moneyPlain(v,d){return (d===0?fmtMoney0:fmtMoney2).format(v);}
+function pctSigned(v){const s=fmtPct.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+function pctSigned1(v){const s=fmtPct1.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+
+/* ---------- HONEST, SELF-CONSISTENT MOCK DATA (the truth engine) ----------
+   12 monthly periods (Jan..NOW). For each period we carry:
+     value      = portfolio market value (GBP)
+     deposits   = cumulative NET deposits at that period (the purple benchmark)
+   Everything else is DERIVED, never invented:
+     trueGrowthAbs = value - deposits                  (your money's real work)
+     trueGrowthPct = (value - deposits) / deposits
+     drawdown[i]   = value[i]/runningPeak - 1          (<=0, the underwater curve)
+   Realised vs Unrealised split of TOTAL P/L is a stated honest split that sums
+   exactly to (value - deposits). XIRR/TWR are stated annualised figures (the
+   account-level returns a real engine would compute from the cashflow + period
+   returns; here they are fixed honest mock values, gauged against a signed band). */
+const PERIODS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','NOW'];
+/* cumulative net deposits (step up on the months money was paid in) */
+const DEPOSITS=[ 9000, 9000,10500,10500,10500,12000,12000,12000,13000,13000,13000,13000];
+/* portfolio market value across the 12 periods (honest, self-consistent walk) */
+const VALUE=   [ 9000, 9420,10260, 9980,10760,12180,12640,12060,13180,14060,13720,14640];
+const N=VALUE.length;
+/* derived running-peak drawdown series (<=0) */
+const DD=(()=>{let peak=-Infinity;return VALUE.map(v=>{peak=Math.max(peak,v);return v/peak-1;});})();
+const DD_MIN_IDX=DD.indexOf(Math.min(...DD));
+const MAX_DD=DD[DD_MIN_IDX];
+
+/* headline derivations */
+const CUR_VALUE   = VALUE[N-1];
+const NET_DEP     = DEPOSITS[N-1];
+const TRUE_ABS    = CUR_VALUE - NET_DEP;              // +£1,640
+const TRUE_PCT    = TRUE_ABS / NET_DEP;               // true growth %
+const TOTAL_PL    = TRUE_ABS;                         // open+banked over the account
+/* honest realised/unrealised split of TOTAL_PL (sums exactly) */
+const REALISED    = 410;                              // banked from closed trades
+const UNREALISED  = TOTAL_PL - REALISED;              // open mark-to-market remainder
+/* annualised return engines (stated honest mock figures) */
+const XIRR        = 0.134;                            // money-weighted
+const TWR         = 0.118;                            // time-weighted
+/* gauge bands (signed, asymmetric on purpose; downside shorter) */
+const G_MIN=-0.20, G_MAX=0.40;
+
+/* peak / trough of the value series actually drawn (for aria honesty) */
+const V_HI=Math.max(...VALUE), V_LO=Math.min(...VALUE);
+const V_HI_IDX=VALUE.indexOf(V_HI), V_LO_IDX=VALUE.indexOf(V_LO);
+
+/* scrub index (defaults to NOW) */
+let SCRUB_I=N-1;
+/* cached small-mode plot geometry from the LAST drawValue(small) call, in CSS px:
+   {x0,x1} are the plot's left/right edges. The scrub layer reads these so the
+   tooltip x, crosshair and active node share ONE geometry source (no duplicated pads). */
+let VALUE_GEO={x0:58,x1:0,padT:0,padB:0};
+
+/* fill the chrome (top + bottom bars) from derived totals */
+function fillChrome(){
+  document.getElementById('tbValue').textContent=fmtMoney0.format(CUR_VALUE);
+  const tg=document.getElementById('tbGrowth');
+  tg.textContent=(TRUE_PCT>=0?TRI_UP+' ':TRI_DN+' ')+pctSigned(TRUE_PCT);
+  tg.className='v '+(TRUE_PCT>=0?'gain':'loss');
+  const tx=document.getElementById('tbXirr');
+  tx.textContent=(XIRR>=0?TRI_UP+' ':TRI_DN+' ')+pctSigned1(XIRR);
+  tx.className='v '+(XIRR>=0?'gain':'loss');
+
+  document.getElementById('bbGrowth').textContent=money(TRUE_ABS,0)+' / '+pctSigned1(TRUE_PCT);
+  document.getElementById('bbReal').textContent=money(REALISED,0);
+  document.getElementById('bbUnreal').textContent=money(UNREALISED,0);
+  document.getElementById('bbDD').textContent=pctSigned1(MAX_DD);
+}
+
+/* ---------- shipped helpers (verbatim) ---------- */
+function px(c){ return c.getContext('2d'); }
+function line(ctx,pts,col,w){ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineJoin='round';ctx.beginPath();
+  pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();}
+function fitCanvas(c){
+  const r=c.getBoundingClientRect();
+  let w=Math.max(1,Math.round(r.width)), h=Math.max(1,Math.round(r.height));
+  if(!w||!h){ w=c.width||300; h=c.height||150; }
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  c.width=Math.round(w*dpr); c.height=Math.round(h*dpr);
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+function drawDotCluster(c,fade){
+  const ctx=px(c),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+  const step=15,r=2.0;
+  for(let row=0,y=0;y<H;y+=step,row++){
+    for(let x=0;x<W;x+=step){
+      let d=fade(x/W,y/H);
+      if(Math.random()>d) continue;
+      ctx.fillStyle=INK;ctx.beginPath();ctx.arc(x+(row%2?step/2:0),y,r,0,7);ctx.fill();
+    }
+  }
+}
+/* small ▲/▼ triangle drawn as a canvas path (one icon voice, never an emoji) */
+function triCanvas(ctx,x,y,s,up,col){ctx.fillStyle=col;ctx.beginPath();
+  if(up){ctx.moveTo(x,y-s);ctx.lineTo(x+s,y+s);ctx.lineTo(x-s,y+s);}
+  else  {ctx.moveTo(x,y+s);ctx.lineTo(x+s,y-s);ctx.lineTo(x-s,y-s);}
+  ctx.closePath();ctx.fill();}
+
+/* ---------- a11y mirror helper (shipped idiom) ---------- */
+function setA11y(key,label,cols,rows){
+  const live=document.getElementById('vh-'+key);if(live)live.textContent=label;
+  const tWrap=document.getElementById('vhtbl-'+key);
+  if(tWrap){
+    let html='<table><caption>'+label+'</caption><thead><tr>';
+    cols.forEach(c=>html+='<th scope="col">'+c+'</th>');
+    html+='</tr></thead><tbody>';
+    rows.forEach(r=>{html+='<tr>';r.forEach((cell,i)=>html+=(i===0?'<th scope="row">':'<td>')+cell+(i===0?'</th>':'</td>'));html+='</tr>';});
+    html+='</tbody></table>';tWrap.innerHTML=html;
+  }
+}
+
+/* ====================================================================
+   DATA STATES (CHART_CRAFT §12 / Value-chart spec §10) — IN-FRAME, same canvas.
+   Every draw fn accepts a `state`: 'populated' | 'loading' | 'empty' | 'error' | 'stale'.
+   - loading : dashed hollow ink marks in the viz's OWN silhouette + ONE hard-edged
+               translateX sweep band (no spinner, no blur).
+   - empty   : stamped ink message + a worded CTA, centred in the plot.
+   - error   : worded cause + an --orange RETRY affordance (load-bearing word, not colour).
+   - stale   : the REAL draw with fills/nodes dimmed (lines kept ≥3:1) + a dashed ink
+               hatch band + an Intl-formatted `STALE · {age}` chip.
+   States branch on an explicit flag, NEVER on data presence.
+   ==================================================================== */
+const STATE_CTA='rgba(20,17,13,.5)';
+/* per-viz current state + a stale-age (ms) used to format the chip via Intl. Default live. */
+const VIZ_STATE={value:'populated',dd:'populated',xirr:'populated',twr:'populated',split:'populated',exp:'populated'};
+let STALE_AGE_MS=15*60*1000;                 // demo age; real wiring would set from last-sync delta
+const fmtRel=(('RelativeTimeFormat' in Intl))?new Intl.RelativeTimeFormat(LOCALE,{numeric:'auto'}):null;
+function staleAgeText(){
+  const mins=Math.round(STALE_AGE_MS/60000);
+  if(fmtRel){ if(mins<60)return fmtRel.format(-mins,'minute'); return fmtRel.format(-Math.round(mins/60),'hour'); }
+  return mins+' min ago';
+}
+/* one moving sweep phase, advanced by the loading RAF loop (hard-edged, no spinner) */
+let LOAD_PHASE=0;
+/* dashed hollow ink marks across the plot silhouette (skeleton-in-silhouette) */
+function drawLoading(ctx,g,sil){
+  const {x0,x1,y0,y1}=g;
+  ctx.save();
+  /* silhouette: a faint dashed ink contour the chart's data would occupy */
+  ctx.setLineDash([5,5]);ctx.strokeStyle=INKSHADOW;ctx.lineWidth=2;
+  ctx.beginPath();sil.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();
+  ctx.setLineDash([]);
+  /* hollow ink node squares along the silhouette */
+  sil.forEach(p=>{ctx.strokeStyle=INKSHADOW;ctx.lineWidth=1.5;ctx.strokeRect(p[0]-3,p[1]-3,6,6);});
+  /* ONE hard-edged sweep band travelling left→right (clipped to plot, no gradient blur) */
+  ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();
+  const bw=(x1-x0)*0.18, sx=x0+(((LOAD_PHASE)% 1)*((x1-x0)+bw))-bw;
+  ctx.fillStyle='rgba(180,230,0,.18)';ctx.fillRect(sx,y0,bw,y1-y0);
+  ctx.restore();
+  /* worded status, stamped (load-bearing, not colour-only) */
+  ctx.fillStyle=INK;ctx.font="700 12px 'Oswald'";ctx.textAlign='center';
+  ctx.fillText('LOADING…',(x0+x1)/2,(y0+y1)/2);
+}
+function drawEmpty(ctx,g,msg,cta){
+  const {x0,x1,y0,y1}=g,cxp=(x0+x1)/2,cyp=(y0+y1)/2;
+  ctx.save();
+  /* stamped empty message */
+  ctx.fillStyle=INK;ctx.font="900 18px 'Anton'";ctx.textAlign='center';
+  ctx.fillText(msg,cxp,cyp-4);
+  /* worded CTA in an ink-outlined tag (the call to action) */
+  ctx.font="700 11px 'Oswald'";const tw=ctx.measureText(cta).width+22;
+  ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.strokeRect(cxp-tw/2,cyp+12,tw,22);
+  ctx.fillStyle=STATE_CTA;ctx.fillText(cta,cxp,cyp+27);
+  ctx.restore();
+}
+function drawError(ctx,g,cause){
+  const {x0,x1,y0,y1}=g,cxp=(x0+x1)/2,cyp=(y0+y1)/2;
+  ctx.save();
+  ctx.fillStyle=INK;ctx.font="900 16px 'Anton'";ctx.textAlign='center';
+  ctx.fillText('COULD NOT LOAD',cxp,cyp-14);
+  ctx.fillStyle='rgba(20,17,13,.6)';ctx.font="700 11px 'Oswald'";
+  ctx.fillText(cause,cxp,cyp+4);
+  /* --orange RETRY affordance: orange-filled tag with the word RETRY (orange = warning only) */
+  ctx.font="900 12px 'Anton'";const rw=ctx.measureText('↻ RETRY').width+24;
+  ctx.fillStyle=ORANGE;ctx.fillRect(cxp-rw/2,cyp+16,rw,24);
+  ctx.fillStyle=CREAM2;ctx.fillText('↻ RETRY',cxp,cyp+33);
+  ctx.restore();
+}
+/* dashed ink hatch band + STALE · {age} chip, drawn over a real (dimmed) chart */
+function drawStaleChrome(ctx,g){
+  const {x0,x1,y0}=g;
+  ctx.save();
+  /* dashed-hatch band across the top of the plot */
+  ctx.strokeStyle=INK;ctx.lineWidth=8;ctx.setLineDash([4,9]);ctx.globalAlpha=.5;
+  ctx.beginPath();ctx.moveTo(x0,y0+5);ctx.lineTo(x1,y0+5);ctx.stroke();
+  ctx.restore();
+  /* STALE · {age} chip (ink tag, accent-dk word) */
+  ctx.save();ctx.textAlign='left';ctx.font="900 12px 'Anton'";
+  const txt='STALE · '+staleAgeText().toUpperCase(), tw=ctx.measureText(txt).width+18;
+  ctx.fillStyle=INK;ctx.fillRect(x0,y0-2,tw,20);
+  ctx.fillStyle=ACCENT;ctx.fillText(txt,x0+9,y0+12);
+  ctx.restore();
+}
+/* states that suppress the populated path entirely (return after grid/axes) */
+function isBlank(s){return s==='loading'||s==='empty'||s==='error';}
+
+/* ====================================================================
+   HERO — VALUE-OVER-TIME  drawValue(c,big)
+   3-pass ink/accent-dk/accent line + accent-gradient area, purple dashed
+   net-deposits benchmark + faint purple area, ink+accent node squares,
+   data-derived y-domain, house-texture grid (dashed baseline + tick stubs),
+   scrub crosshair + active node.  REALISED/UNREALISED split shown in big mode
+   as a stacked area under the line (banked floor + open mark-to-market band).
+   ==================================================================== */
+function drawValue(c,big,state){
+  state=state||VIZ_STATE.value;
+  const stale=state==='stale';
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const padL=big?86:58, padR=big?40:18, padT=big?40:Math.min(120,H*0.30), padB=big?46:34;
+  const x0=padL,x1=W-padR,y0=padT,y1=H-padB;
+  /* publish small-mode plot geometry so the scrub layer maps clientX → index from the
+     SAME numbers the chart drew with (no duplicated padL/padR literals downstream) */
+  if(!big)VALUE_GEO={x0,x1,padT,padB};
+  /* data-derived y-domain over value ∪ deposits, with labelled padding */
+  const lo=Math.min(...VALUE,...DEPOSITS), hi=Math.max(...VALUE,...DEPOSITS);
+  const padv=(hi-lo)*0.14||1, mn=Math.max(0,lo-padv), mx=hi+padv;
+  const X=i=>x0+(x1-x0)*i/(N-1);
+  const Y=v=>y1-(y1-y0)*(v-mn)/(mx-mn);
+  /* gridlines + £k labels (quiet sub-layer) */
+  ctx.strokeStyle=GRID;ctx.lineWidth=1;
+  for(let g=0;g<=4;g++){const yy=y0+(y1-y0)*g/4;ctx.beginPath();ctx.moveTo(x0,yy);ctx.lineTo(x1,yy);ctx.stroke();
+    /* house-texture beat: short halftone-style tick stubs at each gridline */
+    ctx.save();ctx.strokeStyle=GRID;ctx.lineWidth=1;
+    for(let sx=x0;sx<x1;sx+=18){ctx.beginPath();ctx.moveTo(sx,yy);ctx.lineTo(sx+3,yy);ctx.stroke();}ctx.restore();
+    const val=mx-(mx-mn)*g/4;ctx.fillStyle=TICKTXT;ctx.font=(big?"13px":"11px")+" 'Space Mono'";ctx.textAlign='right';
+    ctx.fillText('£'+Math.round(val/1000)+'k',x0-8,yy+4);}
+  /* dashed-ink baseline reference at domain floor (house-texture beat) */
+  ctx.save();ctx.setLineDash([6,4]);ctx.strokeStyle=RULE;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(x0,y1);ctx.lineTo(x1,y1);ctx.stroke();ctx.restore();
+
+  /* ---- DATA-STATE branch (in-frame, same canvas) ---- */
+  if(isBlank(state)){
+    const geom={x0,x1,y0,y1};
+    if(state==='loading'){
+      /* silhouette = where the value walk would sit (a gentle rising contour) */
+      const sil=VALUE.map((v,i)=>[X(i),y1-(y1-y0)*(0.2+0.55*i/(N-1))]);
+      drawLoading(ctx,geom,sil);
+    }else if(state==='empty'){
+      drawEmpty(ctx,geom,'NO VALUE HISTORY YET','CONNECT · SYNC TRADING 212');
+    }else{
+      drawError(ctx,geom,'Sync to Trading 212 failed — quotes unavailable');
+    }
+    const lblB={loading:'Value over time — loading.',empty:'Value over time — no history yet. Connect and sync Trading 212.',error:'Value over time — could not load; sync failed.'}[state];
+    if(big){c.setAttribute('role','img');c.setAttribute('aria-label',lblB);}
+    else setA11y('value',lblB,['State'],[[state]]);
+    return {x0,x1,X};
+  }
+  /* stale = real draw with dimmed fills; capture alpha for the wash layers */
+  const fillA=stale?0.45:1;
+
+  /* ---- net-deposits overlay: faint purple area beneath a dashed purple line ---- */
+  ctx.save();ctx.globalAlpha=fillA;   /* stale dims the wash, the dashed benchmark line stays legible */
+  ctx.fillStyle=AREA_DEP;ctx.beginPath();ctx.moveTo(X(0),y1);
+  DEPOSITS.forEach((v,i)=>ctx.lineTo(X(i),Y(v)));ctx.lineTo(X(N-1),y1);ctx.closePath();ctx.fill();
+  ctx.restore();
+  ctx.save();ctx.setLineDash([7,5]);line(ctx,DEPOSITS.map((v,i)=>[X(i),Y(v)]),PURPLE,big?3:2.2);ctx.restore();
+
+  if(big){
+    /* realised/unrealised SPLIT: the gap between value and deposits is the total P/L;
+       split it into a banked (realised) floor band + an open (unrealised) band.
+       Drawn as two honest washes between the deposits line and the value line. */
+    const frac=REALISED/Math.max(1,TOTAL_PL);
+    /* realised floor band: deposits -> deposits + frac*(value-deposits) in gain-tint */
+    ctx.save();ctx.globalAlpha=fillA;
+    ctx.fillStyle=AREA_GAIN;ctx.beginPath();
+    DEPOSITS.forEach((v,i)=>{const yb=Y(v);i?ctx.lineTo(X(i),yb):ctx.moveTo(X(i),yb);});
+    for(let i=N-1;i>=0;i--){const split=DEPOSITS[i]+frac*(VALUE[i]-DEPOSITS[i]);ctx.lineTo(X(i),Y(split));}
+    ctx.closePath();ctx.fill();ctx.restore();
+  }
+
+  /* ---- value area: accent vertical gradient (dimmed when stale) ---- */
+  const grad=ctx.createLinearGradient(0,y0,0,y1);
+  grad.addColorStop(0,AREA_TOP);grad.addColorStop(1,AREA_BOT);
+  ctx.save();ctx.globalAlpha=fillA;
+  ctx.fillStyle=grad;ctx.beginPath();ctx.moveTo(X(0),y1);
+  VALUE.forEach((v,i)=>ctx.lineTo(X(i),Y(v)));ctx.lineTo(X(N-1),y1);ctx.closePath();ctx.fill();
+  ctx.restore();
+  /* ---- value line, 3-pass ink-stamp (ALWAYS full strength — keeps ≥3:1 when stale) ---- */
+  line(ctx,VALUE.map((v,i)=>[X(i)+2,Y(v)+2]),INKSHADOW,big?7:5);
+  line(ctx,VALUE.map((v,i)=>[X(i),Y(v)]),ACCENT_DK,big?7:5);
+  line(ctx,VALUE.map((v,i)=>[X(i),Y(v)]),ACCENT,big?4:3);
+  /* ---- node squares (ink then accent; accent fill dimmed when stale, ink kept) ---- */
+  VALUE.forEach((v,i)=>{const ns=big?5:3.5;
+    ctx.fillStyle=INK;ctx.fillRect(X(i)-ns,Y(v)-ns,ns*2,ns*2);
+    ctx.save();ctx.globalAlpha=fillA;ctx.fillStyle=ACCENT;ctx.fillRect(X(i)-ns+1.2,Y(v)-ns+1.2,ns*2-2.4,ns*2-2.4);ctx.restore();});
+  /* ---- scrub crosshair + active node (the live focal accent) ---- */
+  const si=Math.max(0,Math.min(N-1,SCRUB_I));
+  ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle=INK;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(X(si),y0);ctx.lineTo(X(si),y1);ctx.stroke();ctx.restore();
+  const as=big?8:6;
+  ctx.fillStyle=INK;ctx.fillRect(X(si)-as,Y(VALUE[si])-as,as*2,as*2);
+  ctx.fillStyle=ACCENT;ctx.fillRect(X(si)-as+2,Y(VALUE[si])-as+2,as*2-4,as*2-4);
+  /* x labels */
+  ctx.fillStyle='rgba(20,17,13,.55)';ctx.font=(big?"13px":"11px")+" 'Space Mono'";ctx.textAlign='center';
+  const stepLab=big?1:2;
+  PERIODS.forEach((p,i)=>{ if(i%stepLab===0||i===N-1) ctx.fillText(p,X(i),y1+22);});
+  if(big){
+    /* big-mode hero + split legend on the reserved top strip */
+    ctx.fillStyle=INK;ctx.font="900 30px 'Anton'";ctx.textAlign='left';
+    ctx.fillText(fmtMoney0.format(CUR_VALUE),x0,y0-14);
+    ctx.fillStyle=ACCENT_DK;ctx.font="700 13px 'Space Mono'";
+    ctx.fillText((TRUE_PCT>=0?'+':MINUS)+fmtPct1.format(Math.abs(TRUE_PCT)).replace(MINUS,'')+' true growth vs '+fmtMoney0.format(NET_DEP)+' deposits',x0+150,y0-16);
+  }
+  /* stale chrome: dashed-hatch band + STALE · {age} chip over the (dimmed) real chart */
+  if(stale)drawStaleChrome(ctx,{x0,x1,y0,y1});
+  /* aria + table mirror, derived from the drawn (and possibly scrubbed) series */
+  const lbl=(stale?'STALE ('+staleAgeText()+'). ':'')+'Portfolio '+fmtMoney0.format(CUR_VALUE)+', '+pctSigned1(TRUE_PCT)+' ('+money(TRUE_ABS,0)+') true growth versus '
+    +fmtMoney0.format(NET_DEP)+' net deposits over '+N+' periods; peak '+fmtMoney0.format(V_HI)+' at '+PERIODS[V_HI_IDX]
+    +', trough '+fmtMoney0.format(V_LO)+' at '+PERIODS[V_LO_IDX]+'.';
+  if(big){ c.setAttribute('role','img'); c.setAttribute('aria-label',lbl); }
+  else{ setA11y('value',lbl,['Period','Value','Net deposits'],PERIODS.map((p,i)=>[p,fmtMoney0.format(VALUE[i]),fmtMoney0.format(DEPOSITS[i])])); }
+  return {x0,x1,X};
+}
+/* DOM hero overlay text — driven by the scrub index, real selectable text.
+   Suppressed for blank states (loading/empty/error) so the DOM figure never
+   contradicts the in-frame canvas message; shows a worded status instead. */
+function updateHeroFig(){
+  const st=VIZ_STATE.value;
+  const ftN=document.getElementById('ftNum'), ftS=document.getElementById('ftSub');
+  if(isBlank(st)){
+    ftN.textContent={loading:'—',empty:'—',error:'—'}[st];
+    ftN.className='ft-num';
+    ftS.textContent={loading:'LOADING VALUE HISTORY…',empty:'NO HISTORY · CONNECT TRADING 212',error:'SYNC FAILED · RETRY'}[st];
+    return;
+  }
+  const si=Math.max(0,Math.min(N-1,SCRUB_I));
+  const v=VALUE[si], d=DEPOSITS[si], gAbs=v-d, gPct=gAbs/d;
+  ftN.textContent=(gPct>=0?TRI_UP+' ':TRI_DN+' ')+pctSigned1(gPct);
+  ftN.className='ft-num '+(gPct>=0?'up':'dn');
+  ftS.textContent=PERIODS[si]+' · '+fmtMoney0.format(v)+' · '+money(gAbs,0)+' vs deposits';
+}
+
+/* ====================================================================
+   DRAWDOWN — drawDD(c,big)  the underwater area chart (<=0 series)
+   0% waterline at top; loss-tint flood; ink-shadow + LOSS curve; max-DD node;
+   recovery wash + RECOVERING tag (big); accent "you are here" tick (big).
+   ==================================================================== */
+function drawDD(c,big,state){
+  state=state||VIZ_STATE.dd;
+  const stale=state==='stale', fillA=stale?0.45:1;
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const padL=big?70:46, padR=big?40:14, padT=big?38:16, padB=big?40:22;
+  const x0=padL,x1=W-padR,y0=padT,y1=H-padB;
+  /* domain: 0 at top (waterline), floor = outward-rounded data min (never clamp/fake) */
+  const dmin=Math.min(...DD,-0.02);
+  const floor=Math.floor(dmin*100/2)*2/100;            // round outward to even %
+  const X=i=>x0+(x1-x0)*i/(N-1);
+  const Y=v=>y0+(y1-y0)*(0-v)/(0-floor);
+  /* % gridlines + labels */
+  ctx.strokeStyle=GRID;ctx.lineWidth=1;
+  for(let g=0;g<=4;g++){const val=floor*g/4;const yy=Y(val);ctx.beginPath();ctx.moveTo(x0,yy);ctx.lineTo(x1,yy);ctx.stroke();
+    ctx.fillStyle=TICKTXT;ctx.font=(big?"12px":"10px")+" 'Space Mono'";ctx.textAlign='right';
+    ctx.fillText(pctSigned1(val).replace('+',''),x0-7,yy+3);}
+  /* heavy waterline rule at 0% */
+  ctx.strokeStyle=WATER;ctx.lineWidth=big?2.5:2;ctx.beginPath();ctx.moveTo(x0,Y(0));ctx.lineTo(x1,Y(0));ctx.stroke();
+  /* ---- DATA-STATE branch (in-frame, same canvas) ---- */
+  if(isBlank(state)){
+    const geom={x0,x1,y0,y1};
+    if(state==='loading'){
+      /* silhouette = an underwater dip the drawdown curve would occupy */
+      const sil=DD.map((v,i)=>[X(i),y0+(y1-y0)*(0.1+0.5*(i/(N-1)<0.6?i/(N-1):(1-i/(N-1))))]);
+      drawLoading(ctx,geom,sil);
+    }else if(state==='empty'){
+      drawEmpty(ctx,geom,'NO DRAWDOWN HISTORY','CONNECT · SYNC TRADING 212');
+    }else{
+      drawError(ctx,geom,'Sync to Trading 212 failed — quotes unavailable');
+    }
+    const lblB={loading:'Drawdown — loading.',empty:'Drawdown — no history yet. Connect and sync Trading 212.',error:'Drawdown — could not load; sync failed.'}[state];
+    if(big){c.setAttribute('role','img');c.setAttribute('aria-label',lblB);}
+    else setA11y('dd',lblB,['State'],[[state]]);
+    return;
+  }
+  /* underwater fill (loss-tint) ; recovery wash past the trough in big mode (dimmed when stale) */
+  ctx.save();ctx.globalAlpha=fillA;
+  ctx.fillStyle=AREA_DD;ctx.beginPath();ctx.moveTo(X(0),Y(0));
+  DD.forEach((v,i)=>ctx.lineTo(X(i),Y(v)));ctx.lineTo(X(N-1),Y(0));ctx.closePath();ctx.fill();
+  if(big&&DD_MIN_IDX<N-1){
+    ctx.fillStyle=AREA_DD_REC;ctx.beginPath();ctx.moveTo(X(DD_MIN_IDX),Y(0));
+    for(let i=DD_MIN_IDX;i<N;i++)ctx.lineTo(X(i),Y(DD[i]));
+    ctx.lineTo(X(N-1),Y(0));ctx.closePath();ctx.fill();
+  }
+  ctx.restore();
+  /* drawdown curve: ink-shadow + LOSS overline (the stamp) */
+  line(ctx,DD.map((v,i)=>[X(i)+2,Y(v)+2]),INKSHADOW,big?4:2.5);
+  line(ctx,DD.map((v,i)=>[X(i),Y(v)]),LOSS,big?4:2.5);
+  /* max-DD node: ink square then LOSS square */
+  const mx2=DD_MIN_IDX,ns=big?5:4;
+  ctx.fillStyle=INK;ctx.fillRect(X(mx2)-ns,Y(DD[mx2])-ns,ns*2,ns*2);
+  ctx.fillStyle=LOSS;ctx.fillRect(X(mx2)-ns+1.2,Y(DD[mx2])-ns+1.2,ns*2-2.4,ns*2-2.4);
+  /* x labels */
+  ctx.fillStyle='rgba(20,17,13,.55)';ctx.font=(big?"12px":"9px")+" 'Space Mono'";ctx.textAlign='center';
+  const stepLab=big?1:3;
+  PERIODS.forEach((p,i)=>{if(i%stepLab===0||i===N-1)ctx.fillText(p,X(i),y1+(big?20:15));});
+  if(big){
+    /* accent "you are here" tick at current drawdown x */
+    ctx.strokeStyle=ACCENT_DK;ctx.lineWidth=3;ctx.beginPath();
+    ctx.moveTo(X(N-1),y0);ctx.lineTo(X(N-1),y0+12);ctx.stroke();
+    /* max-DD call-out: drawn down-triangle + ink-shadowed LOSS Anton number */
+    triCanvas(ctx,X(mx2),Y(DD[mx2])+22,8,false,LOSS);
+    ctx.fillStyle=INK;ctx.font="900 22px 'Anton'";ctx.textAlign='center';
+    ctx.fillText(pctSigned1(MAX_DD),X(mx2)+1.5,Y(DD[mx2])+46+1.5);
+    ctx.fillStyle=LOSS;ctx.fillText(pctSigned1(MAX_DD),X(mx2),Y(DD[mx2])+46);
+    /* RECOVERING worded tag (load-bearing, not colour-only) */
+    if(DD[N-1]>MAX_DD){ctx.fillStyle=ACCENT_DK;ctx.font="700 12px 'Oswald'";ctx.textAlign='right';
+      ctx.fillText('RECOVERING · NOW '+pctSigned1(DD[N-1]),x1,y0-10);}
+  }
+  if(stale)drawStaleChrome(ctx,{x0,x1,y0,y1});
+  const lbl=(stale?'STALE ('+staleAgeText()+'). ':'')+'Drawdown underwater chart: worst decline '+pctSigned1(MAX_DD)+' at '+PERIODS[DD_MIN_IDX]
+    +'; currently '+pctSigned1(DD[N-1])+'.';
+  if(big){ c.setAttribute('role','img'); c.setAttribute('aria-label',lbl); }
+  else{ setA11y('dd',lbl,['Period','Drawdown'],PERIODS.map((p,i)=>[p,pctSigned1(DD[i])])); }
+}
+
+/* ====================================================================
+   GAUGE — drawGauge(c,big,val,key,caption)  180° semicircle (shipped idiom)
+   frac=(val-min)/(max-min); ink-shadow arc -> accent/loss arc; needle+hub+cap;
+   anchor-ticks at min/zero/max; collapsed draws NO big text (DOM .gread holds it).
+   ==================================================================== */
+function drawGauge(c,big,val,key,caption,state){
+  state=state||VIZ_STATE[key]||'populated';
+  const stale=state==='stale', fillA=stale?0.5:1;
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const a0=Math.PI,a1=0;
+  let trackW,r,cx=W/2,cy;
+  if(big){trackW=42;r=Math.min(W,H)*0.42;cy=H*0.78;}
+  else{const topM=big?14:36,botM=big?8:14;cy=H-botM;r=Math.max(20,Math.min(W*0.40,cy-topM));trackW=Math.max(10,Math.min(20,r*0.30));}
+  const neg=val<0;
+  const arcCol=neg?LOSS:ACCENT;
+  const frac=(val-G_MIN)/(G_MAX-G_MIN);
+  const zeroFrac=(0-G_MIN)/(G_MAX-G_MIN);
+  const av=a0+(a1-a0)*frac;
+  /* track (the gauge's own silhouette) */
+  ctx.lineCap='butt';
+  ctx.strokeStyle=TRACK_FAINT;ctx.lineWidth=trackW;
+  ctx.beginPath();ctx.arc(cx,cy,r,a0,a1);ctx.stroke();
+  /* ---- DATA-STATE branch (in-frame; the track stays as the gauge silhouette) ---- */
+  if(isBlank(state)){
+    const gn=document.getElementById(key+'Num');if(gn){gn.textContent='—';gn.className='gr-num';}
+    if(state==='loading'){
+      /* dashed hollow marks travelling round the arc + ONE sweep tick (no spinner) */
+      ctx.save();ctx.setLineDash([6,8]);ctx.strokeStyle=INKSHADOW;ctx.lineWidth=Math.max(3,trackW*0.4);
+      ctx.beginPath();ctx.arc(cx,cy,r,a0,a1);ctx.stroke();ctx.restore();
+      const sa=a0+(a1-a0)*((LOAD_PHASE)%1);
+      ctx.save();ctx.strokeStyle=ACCENT;ctx.lineWidth=trackW*0.5;
+      ctx.beginPath();ctx.arc(cx,cy,r,sa-0.12,sa+0.12);ctx.stroke();ctx.restore();
+      ctx.fillStyle=INK;ctx.font="700 "+(big?14:10)+"px 'Oswald'";ctx.textAlign='center';ctx.fillText('LOADING…',cx,cy-r*0.30);
+    }else if(state==='empty'){
+      ctx.fillStyle=INK;ctx.font="900 "+(big?20:12)+"px 'Anton'";ctx.textAlign='center';ctx.fillText('NO DATA',cx,cy-r*0.34);
+      ctx.fillStyle=STATE_CTA;ctx.font="700 "+(big?12:9)+"px 'Oswald'";ctx.fillText('SYNC TO COMPUTE',cx,cy-r*0.34+(big?20:13));
+    }else{
+      ctx.fillStyle=INK;ctx.font="900 "+(big?16:11)+"px 'Anton'";ctx.textAlign='center';ctx.fillText('LOAD FAILED',cx,cy-r*0.40);
+      ctx.fillStyle=ORANGE;const rw=(big?92:64);ctx.fillRect(cx-rw/2,cy-r*0.40+(big?10:7),rw,(big?22:16));
+      ctx.fillStyle=CREAM2;ctx.font="900 "+(big?12:9)+"px 'Anton'";ctx.fillText('↻ RETRY',cx,cy-r*0.40+(big?26:19));
+    }
+    const lblB=caption+' — '+state+'.';
+    if(big){c.setAttribute('role','img');c.setAttribute('aria-label',lblB);}
+    else setA11y(key,lblB,['State'],[[state]]);
+    return;
+  }
+  /* stamped tick ladder, anchors heavier+longer at min/zero/max */
+  for(let t=0;t<=10;t++){const tf=t/10;const a=a0+(a1-a0)*tf;
+    const anchor=(t===0)||(t===10)||Math.abs(tf-zeroFrac)<0.051;
+    ctx.strokeStyle=anchor?TICK_ANCHOR:TICK_FAINT;
+    ctx.lineWidth=(big?3:2)+(anchor?1:0);
+    const o1=r+(big?24:11)+(anchor?(big?4:3):0), o2=r+(big?12:6);
+    ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*o1,cy+Math.sin(a)*o1);ctx.lineTo(cx+Math.cos(a)*o2,cy+Math.sin(a)*o2);ctx.stroke();}
+  /* value arc — ink shadow then accent/loss overline (overline dimmed when stale, ink kept) */
+  ctx.strokeStyle=INK;ctx.lineWidth=trackW+(big?4:3);ctx.beginPath();ctx.arc(cx,cy,r,a0,av);ctx.stroke();
+  ctx.save();ctx.globalAlpha=fillA;ctx.strokeStyle=arcCol;ctx.lineWidth=trackW-(big?2:1);ctx.beginPath();ctx.arc(cx,cy,r,a0,av);ctx.stroke();ctx.restore();
+  /* needle + ink hub + accent hub cap */
+  ctx.strokeStyle=INK;ctx.lineWidth=big?9:5;ctx.beginPath();ctx.moveTo(cx,cy);
+  ctx.lineTo(cx+Math.cos(av)*(r+(big?6:4)),cy+Math.sin(av)*(r+(big?6:4)));ctx.stroke();
+  ctx.fillStyle=INK;ctx.beginPath();ctx.arc(cx,cy,big?14:8,0,7);ctx.fill();
+  ctx.fillStyle=arcCol;ctx.beginPath();ctx.arc(cx,cy,big?7:4,0,7);ctx.fill();
+  if(big){
+    ctx.fillStyle=INK;ctx.font="900 58px 'Anton'";ctx.textAlign='center';
+    ctx.fillText((neg?MINUS:'+')+fmtPct1.format(Math.abs(val)).replace(MINUS,''),cx,cy-r*0.20);
+    ctx.fillStyle=ACCENT_DK;ctx.font="700 18px 'Space Mono'";ctx.fillText(caption,cx,cy-r*0.20+28);
+    ctx.fillStyle=TICKTXT;ctx.font="13px 'Space Mono'";
+    ctx.textAlign='left';ctx.fillText(pctSigned1(G_MIN),cx-r-6,cy+22);
+    ctx.textAlign='right';ctx.fillText(pctSigned1(G_MAX),cx+r+6,cy+22);
+    if(neg)triCanvas(ctx,cx,cy-r*0.20-42,10,false,LOSS);
+  }
+  /* stale chrome: dashed hatch band across the top + STALE chip (over the dimmed gauge) */
+  if(stale)drawStaleChrome(ctx,{x0:big?cx-r:6,x1:big?cx+r:W-6,y0:big?14:8});
+  const lbl=(stale?'STALE ('+staleAgeText()+'). ':'')+caption+' '+(neg?'down ':'up ')+pctSigned(val)+' within a '+pctSigned1(G_MIN)+' to '+pctSigned1(G_MAX)+' annualised range';
+  if(big){ c.setAttribute('role','img'); c.setAttribute('aria-label',lbl); }
+  else{
+    const gn=document.getElementById(key+'Num');
+    if(gn){gn.textContent=pctSigned1(val);gn.className='gr-num '+(neg?'dn':'up');}
+    setA11y(key,lbl,['Metric','Value'],[[caption,pctSigned1(val)],['Min',pctSigned1(G_MIN)],['Max',pctSigned1(G_MAX)],['Period','annualised']]);
+  }
+}
+
+/* ====================================================================
+   NUMBERS COLUMN — boxed truth readouts (exactly ONE full-ink hero)
+   ==================================================================== */
+const NUMBOXES=[
+  /* cls(span/hero), key, label, value, kind, sub(optional), expandKey */
+  {hero:true,span:true, k:'TRUE GROWTH · DEPOSITS STRIPPED', v:pctSigned1(TRUE_PCT), kind:TRUE_PCT>=0?'up':'dn',
+     sub:money(TRUE_ABS,0)+' real vs '+fmtMoney0.format(NET_DEP)+' deposits', tri:TRUE_PCT>=0?TRI_UP:TRI_DN, exp:'value'},
+  {k:'TOTAL P/L', v:money(TOTAL_PL,0), kind:TOTAL_PL>=0?'gain':'loss', tri:TOTAL_PL>=0?TRI_UP:TRI_DN, exp:'value'},
+  {k:'NET DEPOSITS', v:fmtMoney0.format(NET_DEP), kind:'dep', exp:'value'},
+  {k:'REALISED', v:money(REALISED,0), kind:REALISED>=0?'gain':'loss', tri:REALISED>=0?TRI_UP:TRI_DN, exp:'split'},
+  {k:'UNREALISED', v:money(UNREALISED,0), kind:UNREALISED>=0?'gain':'loss', tri:UNREALISED>=0?TRI_UP:TRI_DN, exp:'split'},
+  {k:'XIRR · MWR', v:pctSigned1(XIRR), kind:XIRR>=0?'gain':'loss', tri:XIRR>=0?TRI_UP:TRI_DN, exp:'xirr'},
+  {k:'TWR', v:pctSigned1(TWR), kind:TWR>=0?'gain':'loss', tri:TWR>=0?TRI_UP:TRI_DN, exp:'twr'},
+  {k:'MAX DRAWDOWN', v:pctSigned1(MAX_DD), kind:'loss', tri:TRI_DN, exp:'dd'},
+];
+function buildNums(){
+  const g=document.getElementById('numGrid');g.innerHTML='';
+  NUMBOXES.forEach(b=>{
+    const d=document.createElement('div');
+    d.className='nbox'+(b.hero?' hero':'')+(b.span?' span2':'');
+    d.tabIndex=0;d.setAttribute('role','button');
+    d.setAttribute('aria-label',b.k+' '+b.v+(b.sub?', '+b.sub:'')+'. Activate to expand.');
+    const triHTML=b.tri?'<span class="tri">'+b.tri+'</span>':'';
+    d.innerHTML='<div class="nb-k">'+b.k+'</div>'
+      +'<div class="nb-v '+(b.kind||'')+'">'+triHTML+b.v+'</div>'
+      +(b.sub?'<div class="nb-sub">'+b.sub+'</div>':'');
+    d.addEventListener('click',()=>{LAST_TRIGGER=d;openExpand(b.exp);});
+    d.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();LAST_TRIGGER=d;openExpand(b.exp);}});
+    g.appendChild(d);
+  });
+}
+
+/* ====================================================================
+   REALISED / UNREALISED SPLIT — drawSplit(c,big) (modal-only viz)
+   honest stacked bars: TOTAL P/L split into banked (realised, gain-tint) +
+   open (unrealised) segments around a true-zero ink baseline.
+   ==================================================================== */
+function drawSplit(c,big,state){
+  state=state||VIZ_STATE.split;
+  const stale=state==='stale', fillA=stale?0.45:1;
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const padL=big?90:60,padR=big?40:20,padT=big?40:18,padB=big?44:24;
+  const x0=padL,x1=W-padR,y0=padT,y1=H-padB;
+  const rows=[['REALISED',REALISED,GAIN],['UNREALISED',UNREALISED,UNREALISED>=0?GAIN:LOSS],['TOTAL P/L',TOTAL_PL,TOTAL_PL>=0?GAIN:LOSS]];
+  const dom=Math.max(Math.abs(REALISED),Math.abs(UNREALISED),Math.abs(TOTAL_PL))*1.15;
+  const zero=x0;                                   // bars grow right from a true-zero left axis
+  const Xv=v=>x0+(x1-x0)*Math.max(0,Math.min(1,v/dom));
+  const n=rows.length,gap=big?22:10,bh=(y1-y0)/n-gap;
+  /* zero spine */
+  ctx.strokeStyle=WATER;ctx.lineWidth=big?3:2;ctx.beginPath();ctx.moveTo(zero,y0-4);ctx.lineTo(zero,y1+4);ctx.stroke();
+  /* ---- DATA-STATE branch (in-frame; bar silhouettes are the viz outline) ---- */
+  if(isBlank(state)){
+    const geom={x0,x1,y0,y1};
+    if(state==='loading'){
+      const sil=[];rows.forEach((rw,i)=>{const yy=y0+i*((y1-y0)/n)+gap/2;sil.push([zero,yy+bh/2]);sil.push([x0+(x1-x0)*0.5,yy+bh/2]);});
+      /* dashed hollow bar outlines as the silhouette */
+      ctx.save();ctx.setLineDash([5,5]);ctx.strokeStyle=INKSHADOW;ctx.lineWidth=2;
+      rows.forEach((rw,i)=>{const yy=y0+i*((y1-y0)/n)+gap/2;ctx.strokeRect(zero,yy,(x1-x0)*0.5,bh);});
+      ctx.setLineDash([]);ctx.restore();
+      drawLoading(ctx,geom,sil);
+    }else if(state==='empty'){
+      drawEmpty(ctx,geom,'NO CLOSED OR OPEN P/L','CONNECT · SYNC TRADING 212');
+    }else{
+      drawError(ctx,geom,'Sync to Trading 212 failed — quotes unavailable');
+    }
+    c.setAttribute('role','img');c.setAttribute('aria-label','Profit and loss split — '+state+'.');
+    return;
+  }
+  rows.forEach((rw,i)=>{
+    const [lab,val,col]=rw;const yy=y0+i*((y1-y0)/n)+gap/2;
+    const xv=Xv(val),w=Math.abs(xv-zero);
+    ctx.fillStyle=INK;ctx.fillRect(zero+(big?4:2),yy+(big?4:2),w,bh);
+    ctx.save();ctx.globalAlpha=fillA;ctx.fillStyle=col;ctx.fillRect(zero,yy,w,bh);ctx.restore();
+    if(big){
+      ctx.fillStyle=INK;ctx.font="700 16px 'Oswald'";ctx.textAlign='right';ctx.fillText(lab,x0-12,yy+bh*0.62);
+      const up=val>=0;triCanvas(ctx,xv+10,yy+bh*0.5-5,5,up,up?GAIN:LOSS);
+      ctx.fillStyle=up?GAIN_DK:LOSS;ctx.font="700 15px 'Space Mono'";ctx.textAlign='left';
+      ctx.fillText(money(val,0),xv+20,yy+bh*0.62);
+    }else{
+      ctx.fillStyle=INK;ctx.font="700 9px 'Oswald'";ctx.textAlign='left';ctx.fillText(lab,x0+4,yy-3);
+    }
+  });
+  if(stale)drawStaleChrome(ctx,{x0,x1,y0,y1});
+  const lbl=(stale?'STALE ('+staleAgeText()+'). ':'')+'Profit and loss split: realised '+money(REALISED,0)+', unrealised '+money(UNREALISED,0)+', total '+money(TOTAL_PL,0)+'.';
+  c.setAttribute('role','img');c.setAttribute('aria-label',lbl);
+}
+
+/* ====================================================================
+   EXPAND CONFIG — registers each viz; viz LEFT, boxed numbers RIGHT
+   ==================================================================== */
+const EXP={
+  value:{head:'Value Over Time',sub:'Portfolio value vs net deposits · 12 periods',tag:'PERFORMANCE TRUTH',
+    draw:(c,b)=>drawValue(c,b),
+    rows:[
+      ['hero','True growth',(TRUE_PCT>=0?TRI_UP+' ':TRI_DN+' ')+pctSigned1(TRUE_PCT),TRUE_PCT>=0?'gain':'loss'],
+      ['Current value',fmtMoney0.format(CUR_VALUE),'plain'],
+      ['Net deposits',fmtMoney0.format(NET_DEP),'plain'],
+      ['Total P/L',money(TOTAL_PL,0),TOTAL_PL>=0?'gain':'loss'],
+      ['Realised',money(REALISED,0),'gain'],
+      ['Unrealised',money(UNREALISED,0),UNREALISED>=0?'gain':'loss'],
+      ['Period high',fmtMoney0.format(V_HI)+' · '+PERIODS[V_HI_IDX],'plain'],
+      ['Period low',fmtMoney0.format(V_LO)+' · '+PERIODS[V_LO_IDX],'plain'],
+      ['Max drawdown',pctSigned1(MAX_DD),'loss'],
+    ]},
+  split:{head:'Realised / Unrealised',sub:'Banked vs open profit & loss',tag:'P/L TRUTH',
+    draw:(c,b)=>drawSplit(c,b),
+    rows:[
+      ['hero','Total P/L',(TOTAL_PL>=0?TRI_UP+' ':TRI_DN+' ')+money(TOTAL_PL,0),TOTAL_PL>=0?'gain':'loss'],
+      ['Realised (banked)',money(REALISED,0),'gain'],
+      ['Unrealised (open)',money(UNREALISED,0),UNREALISED>=0?'gain':'loss'],
+      ['True growth %',pctSigned1(TRUE_PCT),TRUE_PCT>=0?'gain':'loss'],
+      ['Net deposits',fmtMoney0.format(NET_DEP),'plain'],
+      ['Current value',fmtMoney0.format(CUR_VALUE),'plain'],
+    ]},
+  dd:{head:'Drawdown',sub:'Underwater · peak-to-trough decline',tag:'RISK TRUTH',
+    draw:(c,b)=>drawDD(c,b),
+    rows:[
+      ['hero','Max drawdown',TRI_DN+' '+pctSigned1(MAX_DD),'loss'],
+      ['Worst period',PERIODS[DD_MIN_IDX],'plain'],
+      ['Current drawdown',pctSigned1(DD[N-1]),DD[N-1]>=-0.0001?'gain':'loss'],
+      ['Peak value',fmtMoney0.format(V_HI),'plain'],
+      ['Recovered from trough',money(CUR_VALUE-VALUE[DD_MIN_IDX],0),'gain'],
+      ['Status',DD[N-1]>MAX_DD?'RECOVERING':'AT TROUGH','plain'],
+    ]},
+  xirr:{head:'Money-Weighted Return',sub:'XIRR · annualised, cashflow-timed',tag:'RETURN TRUTH',
+    draw:(c,b)=>drawGauge(c,b,XIRR,'xirr','XIRR · MWR'),
+    rows:[
+      ['hero','XIRR',(XIRR>=0?TRI_UP+' ':TRI_DN+' ')+pctSigned1(XIRR),XIRR>=0?'gain':'loss'],
+      ['Time-weighted (TWR)',pctSigned1(TWR),TWR>=0?'gain':'loss'],
+      ['True growth %',pctSigned1(TRUE_PCT),TRUE_PCT>=0?'gain':'loss'],
+      ['Total P/L',money(TOTAL_PL,0),TOTAL_PL>=0?'gain':'loss'],
+      ['Net deposits',fmtMoney0.format(NET_DEP),'plain'],
+      ['Range',pctSigned1(G_MIN)+' … '+pctSigned1(G_MAX),'plain'],
+    ]},
+  twr:{head:'Time-Weighted Return',sub:'TWR · annualised, deposit-neutral',tag:'RETURN TRUTH',
+    draw:(c,b)=>drawGauge(c,b,TWR,'twr','TWR'),
+    rows:[
+      ['hero','TWR',(TWR>=0?TRI_UP+' ':TRI_DN+' ')+pctSigned1(TWR),TWR>=0?'gain':'loss'],
+      ['Money-weighted (XIRR)',pctSigned1(XIRR),XIRR>=0?'gain':'loss'],
+      ['True growth %',pctSigned1(TRUE_PCT),TRUE_PCT>=0?'gain':'loss'],
+      ['Total P/L',money(TOTAL_PL,0),TOTAL_PL>=0?'gain':'loss'],
+      ['XIRR − TWR gap',pctSigned1(XIRR-TWR),(XIRR-TWR)>=0?'gain':'loss'],
+      ['Range',pctSigned1(G_MIN)+' … '+pctSigned1(G_MAX),'plain'],
+    ]},
+};
+
+let CURRENT_EXP=null, LAST_TRIGGER=null;
+function openExpand(key){
+  const cfg=EXP[key];if(!cfg)return;
+  CURRENT_EXP={draw:cfg.draw};
+  document.getElementById('expVizHead').textContent=cfg.head;
+  document.getElementById('expVizSub').textContent=cfg.sub;
+  document.getElementById('expDataHead').textContent=cfg.head.split(' · ')[0]+' · NUMBERS';
+  document.querySelector('#expTag .txt').textContent=cfg.tag;
+  const rowsEl=document.getElementById('expRows');rowsEl.innerHTML='';
+  cfg.rows.forEach(r=>{
+    const hero=r[0]==='hero';
+    const lbl=hero?r[1]:r[0], val=hero?r[2]:r[1], kind=hero?r[3]:r[2];
+    const d=document.createElement('div');d.className='edrow'+(hero?' hero':'');
+    d.innerHTML='<div class="lbl">'+lbl+'</div><div class="val '+(kind==='gain'?'gain':kind==='loss'?'loss':'')+'">'+val+'</div>';
+    rowsEl.appendChild(d);
+  });
+  document.getElementById('expand').classList.add('on');
+  try{const u=new URL(location);u.searchParams.set('expand',key);history.replaceState(null,'',u);}catch(e){}
+  requestAnimationFrame(()=>cfg.draw(document.getElementById('cv-exp'),true));
+  setTimeout(()=>{const cb=document.querySelector('.exp-close');if(cb)cb.focus();},0);
+}
+function closeExpand(){
+  CURRENT_EXP=null;
+  document.getElementById('expand').classList.remove('on');
+  try{const u=new URL(location);u.searchParams.delete('expand');history.replaceState(null,'',u);}catch(e){}
+  if(LAST_TRIGGER&&LAST_TRIGGER.focus)LAST_TRIGGER.focus();
+}
+/* HERO + DRAWDOWN expand via a dedicated EXPAND button in the head — the tile itself is
+   NOT role=button, so the scrub slider / drawdown img inside it are not nested in a button. */
+document.querySelectorAll('.ex[data-exp]').forEach(btn=>{
+  const key=btn.getAttribute('data-exp');
+  btn.addEventListener('click',()=>{LAST_TRIGGER=btn;openExpand(key);});
+});
+/* GAUGE cells stay role=button (no nested interactive content inside them) */
+[['xirrCell','xirr'],['twrCell','twr']].forEach(([id,key])=>{
+  const el=document.getElementById(id);if(!el)return;
+  el.addEventListener('click',()=>{LAST_TRIGGER=el;openExpand(key);});
+  el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();LAST_TRIGGER=el;openExpand(key);}});
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeExpand();});
+document.getElementById('expand').addEventListener('keydown',e=>{
+  if(e.key!=='Tab')return;const f=document.querySelector('.exp-close');if(!f)return;e.preventDefault();f.focus();});
+
+/* ---------- HERO SCRUB layer — drag scrubber + tooltip; hover/tap/keyboard ---------- */
+function wireScrub(){
+  const sc=document.getElementById('scrub-value');if(!sc)return;
+  const body=sc.parentElement;
+  let tip=body.querySelector('.scrubtip');
+  if(!tip){tip=document.createElement('div');tip.className='scrubtip';body.appendChild(tip);}
+  /* map a clientX to a data index using the value chart's OWN cached plot geometry */
+  function idxFromX(clientX){
+    const r=body.getBoundingClientRect();
+    const {x0,x1}=VALUE_GEO;
+    const rel=(clientX-r.left-x0)/Math.max(1,(x1-x0));
+    return Math.max(0,Math.min(N-1,Math.round(rel*(N-1))));
+  }
+  function showTip(){
+    const r=body.getBoundingClientRect();const si=SCRUB_I;
+    const {x0,x1}=VALUE_GEO;
+    const px2=x0+(x1-x0)*si/(N-1);
+    const v=VALUE[si],d=DEPOSITS[si],gAbs=v-d,gPct=gAbs/d,up=gAbs>=0;
+    tip.innerHTML='<span class="st-k">'+PERIODS[si]+'</span> '+fmtMoney0.format(v)
+      +'<br><span class="st-k">vs DEP</span> <span class="'+(up?'st-up':'st-dn')+'">'+(up?TRI_UP:TRI_DN)+' '+money(gAbs,0)+'</span>';
+    tip.style.left=Math.max(8,Math.min(r.width-8,px2))+'px';
+    tip.style.top=Math.max(36,r.height*0.34)+'px';
+    tip.classList.add('on');
+  }
+  function setScrub(i){SCRUB_I=Math.max(0,Math.min(N-1,i));
+    sc.setAttribute('aria-valuenow',SCRUB_I);
+    sc.setAttribute('aria-valuetext',PERIODS[SCRUB_I]+' '+fmtMoney0.format(VALUE[SCRUB_I]));
+    drawValue(document.getElementById('cv-value'),false);updateHeroFig();showTip();}
+  let dragging=false;
+  sc.addEventListener('pointerdown',e=>{dragging=true;sc.setPointerCapture(e.pointerId);setScrub(idxFromX(e.clientX));});
+  sc.addEventListener('pointermove',e=>{if(dragging)setScrub(idxFromX(e.clientX));else{SCRUB_I=idxFromX(e.clientX);drawValue(document.getElementById('cv-value'),false);updateHeroFig();showTip();}});
+  sc.addEventListener('pointerup',e=>{dragging=false;});
+  sc.addEventListener('pointerleave',()=>{if(!dragging){SCRUB_I=N-1;sc.setAttribute('aria-valuenow',SCRUB_I);drawValue(document.getElementById('cv-value'),false);updateHeroFig();tip.classList.remove('on');}});
+  sc.addEventListener('focus',()=>{showTip();});
+  sc.addEventListener('blur',()=>{tip.classList.remove('on');});
+  sc.addEventListener('keydown',e=>{
+    if(e.key==='ArrowLeft'){e.preventDefault();setScrub(SCRUB_I-1);}
+    else if(e.key==='ArrowRight'){e.preventDefault();setScrub(SCRUB_I+1);}
+    else if(e.key==='Home'){e.preventDefault();setScrub(0);}
+    else if(e.key==='End'){e.preventDefault();setScrub(N-1);}
+    else if(e.key==='Enter'||e.key===' '){e.preventDefault();const xb=document.querySelector('#heroTile .ex[data-exp]');LAST_TRIGGER=xb||sc;openExpand('value');}
+  });
+}
+/* inset the scrub layer to the plot rect so off-plot drags (reserved top strip / x-axis
+   label band) don't clamp to end indices. Reads the chart's own cached geometry. */
+function positionScrub(){
+  const sc=document.getElementById('scrub-value');if(!sc)return;
+  const r=sc.parentElement.getBoundingClientRect();if(!r.width||!r.height)return;
+  const {x0,x1,padT,padB}=VALUE_GEO;
+  sc.style.left=x0+'px';
+  sc.style.right=Math.max(0,r.width-x1)+'px';
+  sc.style.top=(padT||0)+'px';
+  sc.style.bottom=(padB||0)+'px';
+}
+/* ---------- RENDER + responsive redraw ---------- */
+function drawAllSmall(){
+  drawValue(document.getElementById('cv-value'),false);updateHeroFig();positionScrub();
+  drawDD(document.getElementById('cv-dd'),false);
+  /* suppress the floating MAX-DD readout when the drawdown viz can't render data */
+  document.getElementById('ddRt').textContent=isBlank(VIZ_STATE.dd)?'—':pctSigned1(MAX_DD);
+  drawGauge(document.getElementById('cv-xirr'),false,XIRR,'xirr','XIRR · MWR');
+  drawGauge(document.getElementById('cv-twr'),false,TWR,'twr','TWR');
+}
+function renderAll(){
+  fillChrome();buildNums();wireScrub();
+  drawAllSmall();
+  drawDotCluster(document.getElementById('dotcl'),(x,y)=>Math.max(0,1-Math.hypot(x,1-y)*0.95));
+  drawDotCluster(document.getElementById('dotcl2'),(x,y)=>Math.max(0,1-Math.hypot(1-x,y)*1.05));
+}
+
+/* ====================================================================
+   DATA-STATE control (the states are reachable, not just defined).
+   - setAllStates(s) flips every viz to one state, reflects it in the chrome,
+     and starts/stops the loading sweep RAF. The bottom-bar QUOTES segment is
+     the honest stale/blank indicator the bar already advertises.
+   - exercise via  ?state=loading|empty|error|stale  or by pressing the
+     1/2/3/4/5 keys (5=back to live). Default ships 'populated'.
+   ==================================================================== */
+const STATE_KEYS=['value','dd','xirr','twr','split','exp'];
+let __loadRAF=null;
+function anyLoading(){return STATE_KEYS.some(k=>VIZ_STATE[k]==='loading');}
+function loadTick(){
+  LOAD_PHASE=(performance.now()/1100)%1;
+  drawAllSmall();
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))
+    CURRENT_EXP.draw(document.getElementById('cv-exp'),true);
+  __loadRAF=anyLoading()?requestAnimationFrame(loadTick):null;
+}
+function reflectStateChrome(s){
+  const seg=document.querySelector('.bb-seg.warn');if(!seg)return;
+  const b=seg.querySelector('b');
+  if(s==='stale'){seg.classList.add('warn');b.textContent='STALE · '+staleAgeText().toUpperCase();}
+  else if(s==='loading'){b.textContent='SYNCING…';}
+  else if(s==='empty'){b.textContent='NO DATA';}
+  else if(s==='error'){b.textContent='SYNC FAILED';}
+  else{b.textContent='DELAYED 15M';}   // live/populated — the shipped honest label
+}
+function setAllStates(s){
+  STATE_KEYS.forEach(k=>VIZ_STATE[k]=s);
+  reflectStateChrome(s);
+  drawAllSmall();
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))
+    CURRENT_EXP.draw(document.getElementById('cv-exp'),true);
+  if(anyLoading()&&!__loadRAF){const mq=window.matchMedia('(prefers-reduced-motion: reduce)');
+    if(!mq.matches)__loadRAF=requestAnimationFrame(loadTick);else{LOAD_PHASE=0.5;drawAllSmall();}}
+}
+document.addEventListener('keydown',e=>{
+  if(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName))return;
+  const map={'1':'loading','2':'empty','3':'error','4':'stale','5':'populated'};
+  if(map[e.key]){setAllStates(map[e.key]);}
+});
+
+if('ResizeObserver' in window){
+  const ro=new ResizeObserver(()=>{ if(__rzT)clearTimeout(__rzT); __rzT=setTimeout(()=>{
+    drawAllSmall();
+    if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))
+      CURRENT_EXP.draw(document.getElementById('cv-exp'),true);
+  },70);});
+  ['cv-value','cv-dd','cv-xirr','cv-twr'].forEach(id=>{const c=document.getElementById(id);if(c&&c.parentElement)ro.observe(c.parentElement);});
+  const expBody=document.querySelector('.exp-viz .evbody');if(expBody)ro.observe(expBody);
+}
+let __rzT=null;
+window.addEventListener('resize',()=>{clearTimeout(__rzT);__rzT=setTimeout(()=>{
+  drawAllSmall();
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))
+    CURRENT_EXP.draw(document.getElementById('cv-exp'),true);
+},80);});
+
+function go(){
+  renderAll();
+  const sm=location.search.match(/[?&]state=([^&]+)/);
+  if(sm){const s=decodeURIComponent(sm[1]);if(['loading','empty','error','stale','populated'].includes(s))setAllStates(s);}
+  const m=location.search.match(/[?&]expand=([^&]+)/);
+  if(m){openExpand(decodeURIComponent(m[1]));}
+}
+if(document.fonts&&document.fonts.ready){
+  document.fonts.ready.then(()=>{go();
+    requestAnimationFrame(()=>{drawAllSmall();if(CURRENT_EXP)CURRENT_EXP.draw(document.getElementById('cv-exp'),true);});
+    setTimeout(()=>{drawAllSmall();if(CURRENT_EXP)CURRENT_EXP.draw(document.getElementById('cv-exp'),true);},240);
+    setTimeout(()=>{drawAllSmall();if(CURRENT_EXP)CURRENT_EXP.draw(document.getElementById('cv-exp'),true);},380);
+  });
+}else{window.addEventListener('load',go);}
+
+/* ---------- prefers-reduced-motion: pause marble SMIL (shipped) ---------- */
+(function(){
+  const mq=window.matchMedia('(prefers-reduced-motion: reduce)');
+  function apply(){
+    document.querySelectorAll('svg').forEach(svg=>{try{if(mq.matches){svg.pauseAnimations();}else{svg.unpauseAnimations();}}catch(e){}});
+  }
+  apply();if(mq.addEventListener)mq.addEventListener('change',apply);
+})();
+</script>
+</body>
+</html>

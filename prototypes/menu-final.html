@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NET TRADE — Menu Final</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;900&family=Anton&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#EDE6D2; --cream2:#F2ECE0; --ink:#14110D; --orange:#FF5A1F;
+    --purple:#5D5A86; --mteal:#2FB5A8; --morange:#E8632A;
+    --inkw:16px;            /* master ink outline weight */
+  }
+  *{margin:0;padding:0;box-sizing:border-box;border-radius:0;}
+  html,body{width:1512px;height:982px;overflow:hidden;background:var(--cream);}
+  body{font-family:'Oswald',sans-serif;color:var(--ink);position:relative;}
+
+  /* ---- background cream field + halftone (clipped to cream side of slash) ---- */
+  .stage{position:absolute;inset:0;background:var(--cream);}
+  .halftone{position:absolute;inset:0;
+    background-image:radial-gradient(var(--ink) 1.3px, transparent 1.5px);
+    background-size:15px 15px;opacity:.05;mix-blend-mode:multiply;
+    clip-path:polygon(34% 0, 100% 0, 100% 100%, 18% 100%);}
+  /* faint paper grain so it reads printed, not flat digital */
+  .grain{position:absolute;inset:0;z-index:6;pointer-events:none;
+    mix-blend-mode:multiply;opacity:.05;
+    clip-path:polygon(33% 0,100% 0,100% 100%,17% 100%);}
+
+  /* ================= LEFT MARBLE COLUMN — STEEP DIAGONAL SLASH ================= */
+  /* hard ink drop shadow behind the whole column (offset, zero blur) */
+  .slab-shadow{position:absolute;top:0;left:0;width:642px;height:982px;
+    clip-path:polygon(0 0, 100% 0, 64% 100%, 0 100%);
+    background:var(--ink);transform:translate(18px,15px);z-index:1;}
+
+  /* the marble column itself */
+  .slab{position:absolute;top:0;left:0;width:620px;height:982px;
+    clip-path:polygon(0 0, 100% 0, 62% 100%, 0 100%);
+    overflow:hidden;background:#2B2740;z-index:2;}
+  .slab svg{position:absolute;top:-6%;left:-6%;width:116%;height:116%;}
+  .marble-drift{transform-origin:52% 46%;
+    animation:drift 30s ease-in-out infinite alternate;}
+  @keyframes drift{
+    0%{transform:translate(0,0) scale(1.08) rotate(0deg);}
+    100%{transform:translate(-26px,-40px) scale(1.20) rotate(3.5deg);}}
+
+  /* BOLD INK keyline running along the steep diagonal edge of the column */
+  .slab-ink{position:absolute;top:0;left:0;width:680px;height:982px;z-index:4;
+    pointer-events:none;}
+  .slab-ink path{fill:none;stroke:var(--ink);stroke-width:var(--inkw);stroke-linejoin:miter;stroke-linecap:square;}
+  /* thin orange rail just inside the slash */
+  .slab-rail{position:absolute;top:0;left:0;width:680px;height:982px;z-index:5;
+    pointer-events:none;}
+  .slab-rail path{fill:none;stroke:var(--orange);stroke-width:7;stroke-linecap:square;}
+
+  /* ---- SECONDARY DIAGONAL SHARD — a marble facet bleeding OUT of the column slash ---- */
+  .shard-shadow{position:absolute;left:382px;top:520px;width:336px;height:236px;z-index:2;
+    clip-path:polygon(2% 4%, 100% 40%, 30% 100%);
+    background:var(--ink);transform:translate(13px,13px) rotate(-7deg);}
+  .shard{position:absolute;left:382px;top:520px;width:336px;height:236px;z-index:3;
+    clip-path:polygon(2% 4%, 100% 40%, 30% 100%);overflow:hidden;background:#2B2740;
+    transform:rotate(-7deg);}
+  .shard svg{position:absolute;inset:-12%;width:124%;height:124%;}
+  .shard-ink{position:absolute;left:374px;top:512px;width:356px;height:256px;z-index:6;
+    pointer-events:none;transform:rotate(-7deg);}
+  .shard-ink path{fill:none;stroke:var(--ink);stroke-width:14;stroke-linejoin:miter;stroke-linecap:square;}
+
+  /* ---- halftone cluster drifting from boundary into cream ---- */
+  .dotcluster{position:absolute;left:610px;top:104px;width:440px;height:230px;opacity:.42;z-index:3;}
+
+  /* ================= TITLE — stacked top-left, tilted harder, bold ink ================= */
+  .titlewrap{position:absolute;left:56px;top:60px;z-index:8;transform:rotate(-7deg);}
+  .title-net,.title-trade{font-family:'Unbounded',sans-serif;font-weight:900;
+    line-height:.80;letter-spacing:-.02em;text-transform:uppercase;display:block;
+    paint-order:stroke fill;}
+  .title-net{font-size:122px;color:var(--orange);
+    -webkit-text-stroke:8px var(--ink);
+    text-shadow:10px 10px 0 var(--ink);}
+  .title-trade{font-size:122px;color:var(--cream2);
+    -webkit-text-stroke:8px var(--ink);
+    text-shadow:10px 10px 0 var(--orange);margin-left:10px;}
+  /* exaggerated orange slash behind title, sheared hard, bold ink outline */
+  .title-slash{position:absolute;left:-42px;top:-46px;width:32px;height:348px;
+    background:var(--orange);transform:skewX(-26deg);
+    border:6px solid var(--ink);box-shadow:10px 10px 0 var(--ink);}
+
+  /* ================= STATUS TAG — tiny account/combined ================= */
+  .status{position:absolute;left:64px;bottom:66px;z-index:8;
+    background:var(--ink);color:var(--cream2);
+    font-family:'Oswald',sans-serif;font-weight:700;font-size:15px;
+    letter-spacing:.26em;text-transform:uppercase;
+    padding:12px 24px 11px;transform:skewX(-18deg);
+    border:5px solid var(--ink);box-shadow:9px 9px 0 var(--orange);}
+  .status b{color:var(--orange);font-weight:700;letter-spacing:.26em;}
+  .status span{display:inline-block;transform:skewX(18deg);}
+
+  /* ================= MENU — right-aligned orange list, sheared HARD, bold ink tags ===== */
+  .menu{position:absolute;right:62px;top:196px;width:900px;z-index:7;
+    display:flex;flex-direction:column;gap:19px;align-items:flex-end;}
+  .row{position:relative;display:flex;align-items:center;justify-content:flex-end;
+    transform:skewX(-19deg);transition:transform .16s cubic-bezier(.2,.8,.2,1);}
+  .label{font-family:'Unbounded',sans-serif;font-weight:800;font-size:44px;
+    text-transform:uppercase;letter-spacing:-.012em;
+    color:var(--cream2);
+    -webkit-text-stroke:2.5px var(--ink);
+    paint-order:stroke fill;
+    display:inline-block;transform:skewX(19deg);
+    text-shadow:none;line-height:.94;}
+  /* default (inactive) rows get a bold ink-outlined cream tag plate */
+  .row .plate{padding:7px 28px 10px;background:var(--cream2);
+    border:7px solid var(--ink);box-shadow:9px 9px 0 var(--ink);
+    display:flex;align-items:center;}
+  .row .plate .label{color:var(--ink);-webkit-text-stroke:0;}
+
+  /* ACTIVE row — solid orange block, bold ink frame, ink type, arrow marker */
+  .row.active .plate{background:var(--orange);border:8px solid var(--ink);
+    box-shadow:14px 14px 0 var(--ink);padding:9px 34px 12px 70px;}
+  .row.active{transform:skewX(-19deg) translateX(-12px);}
+  .row.active .label{color:var(--ink);-webkit-text-stroke:0;font-weight:900;}
+  .row.active::before{content:"";position:absolute;left:32px;top:50%;
+    width:24px;height:26px;background:var(--ink);
+    transform:translateY(-50%) skewX(19deg);
+    clip-path:polygon(0 0,100% 50%,0 100%);z-index:2;}
+
+  /* off-grid cascade + VARIED WIDTHS (hand-stamped feel) */
+  .row.pull{margin-right:-20px;}
+  .row.kick{margin-right:60px;}
+  .row.kick2{margin-right:26px;}
+  .row.w1 .plate{padding-left:48px;padding-right:48px;}
+  .row.w2 .plate{padding-left:30px;padding-right:30px;}
+
+  /* hover = kick out + deepen shadow (great as still; lively in motion) */
+  .row:not(.active):hover{transform:skewX(-19deg) translateX(-14px);}
+  .row:not(.active):hover .plate{box-shadow:14px 14px 0 var(--ink);background:var(--cream2);}
+  .row:not(.active):hover .label{color:var(--orange);-webkit-text-stroke:0;}
+
+  /* ---- bottom-right marble accent wedge ---- */
+  .wedge-shadow{position:absolute;right:0;bottom:0;width:272px;height:184px;z-index:1;
+    clip-path:polygon(100% 0,100% 100%,0 100%);background:var(--ink);}
+  .wedge{position:absolute;right:0;bottom:0;width:252px;height:166px;
+    clip-path:polygon(100% 0,100% 100%,0 100%);overflow:hidden;z-index:2;background:#2B2740;}
+  .wedge svg{position:absolute;inset:-10%;width:120%;height:120%;}
+  .wedge-ink{position:absolute;right:0;bottom:0;width:272px;height:188px;z-index:5;pointer-events:none;}
+  .wedge-ink path{fill:none;stroke:var(--ink);stroke-width:13;stroke-linecap:square;}
+
+  @media (prefers-reduced-motion: reduce){
+    .marble-drift{animation:none;}
+    .row,.row:hover{transition:none;}
+  }
+</style>
+</head>
+<body>
+  <div class="stage"></div>
+  <div class="halftone"></div>
+
+  <!-- ============ LEFT MARBLE COLUMN — STEEP SLASH ============ -->
+  <div class="slab-shadow"></div>
+  <div class="slab">
+    <svg viewBox="0 0 620 982" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- liquid domain-warp: strong displacement for flowing ribbons -->
+        <filter id="warp" x="-15%" y="-15%" width="130%" height="130%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.0085 0.0052" numOctaves="3" seed="11" result="w"/>
+          <feDisplacementMap in="SourceGraphic" in2="w" scale="240" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+        <!-- secondary fine warp ribbons that read as marble striation -->
+        <filter id="warp2" x="-15%" y="-15%" width="130%" height="130%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.013 0.020" numOctaves="2" seed="4" result="w"/>
+          <feDisplacementMap in="SourceGraphic" in2="w" scale="90" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+        <pattern id="dotsM" width="14" height="14" patternUnits="userSpaceOnUse">
+          <circle cx="3" cy="3" r="1.5" fill="#0c0a12"/>
+        </pattern>
+      </defs>
+
+      <g class="marble-drift">
+        <!-- base purple field (dominant) -->
+        <rect x="-80" y="-80" width="800" height="1160" fill="#5D5A86"/>
+
+        <!-- BROAD FLOWING RIBBONS, warped heavily into liquid marble -->
+        <g filter="url(#warp)">
+          <!-- deep purple shadow ribbons -->
+          <path d="M-80,60 C200,10 240,260 120,400 C20,520 260,560 200,760 C150,920 420,900 520,1100 L-100,1100 Z" fill="#46436B"/>
+          <path d="M620,-40 C520,140 600,300 460,420 C320,540 460,720 360,900 C300,1010 520,980 700,1100 L700,-60 Z" fill="#46436B"/>
+          <!-- light purple highlight ribbons (keep purple clearly dominant) -->
+          <path d="M-60,220 C160,160 220,360 120,460 C40,540 220,560 180,720 C150,840 320,820 300,1000 L120,1080 L-80,1080 Z" fill="#7E7BAC"/>
+          <path d="M300,-40 C420,90 320,260 440,360 C560,460 460,640 600,720 L700,760 L700,-60 Z" fill="#6E6B9C"/>
+          <!-- ORANGE ribbons (minority — thin flowing accents, kept off the title zone) -->
+          <path d="M-40,360 C120,320 150,470 80,540 C20,600 150,640 140,790 C125,910 240,910 235,1060 L150,1090 L50,1090 Z" fill="#E8632A"/>
+          <path d="M470,420 C520,520 460,620 540,690 C620,760 560,860 660,920 L700,940 L700,460 Z" fill="#E8632A" opacity="0.9"/>
+          <!-- TEAL accents (restrained) -->
+          <path d="M120,470 C200,440 220,600 150,660 C90,710 150,540 110,560 C190,520 80,520 120,470 Z" fill="#2FB5A8"/>
+          <path d="M360,640 C420,610 440,740 380,780 C330,810 360,690 330,700 Z" fill="#2FB5A8" opacity="0.9"/>
+          <!-- near-black flow (minority, contained to corners) -->
+          <path d="M-60,800 C100,770 150,920 80,980 C40,1010 150,1010 190,1070 L-80,1070 Z" fill="#211C30"/>
+          <ellipse cx="230" cy="90" rx="64" ry="100" fill="#211C30"/>
+        </g>
+
+        <!-- fine striation pass: thin warped ribbons add liquid marble detail -->
+        <g filter="url(#warp2)" opacity="0.7">
+          <path d="M-80,110 C200,90 360,210 560,250" fill="none" stroke="#3A3658" stroke-width="30"/>
+          <path d="M-80,200 C220,180 360,300 560,330" fill="none" stroke="#8C89B8" stroke-width="16"/>
+          <path d="M-80,430 C220,410 360,520 560,560" fill="none" stroke="#9B98C6" stroke-width="20"/>
+          <path d="M-80,520 C200,500 320,600 540,650" fill="none" stroke="#3A3658" stroke-width="22"/>
+          <path d="M-80,660 C200,640 320,720 520,780" fill="none" stroke="#E8632A" stroke-width="13" opacity="0.85"/>
+          <path d="M-80,880 C200,860 320,920 520,980" fill="none" stroke="#46436B" stroke-width="26"/>
+        </g>
+
+        <!-- ben-day dots over marble, subtle -->
+        <rect x="-80" y="-80" width="800" height="1160" fill="url(#dotsM)" opacity="0.10"/>
+      </g>
+    </svg>
+  </div>
+  <!-- bold ink keyline + orange rail along the slash -->
+  <svg class="slab-ink" viewBox="0 0 680 982" xmlns="http://www.w3.org/2000/svg">
+    <path d="M620,-8 L384,990"/>
+  </svg>
+  <svg class="slab-rail" viewBox="0 0 680 982" xmlns="http://www.w3.org/2000/svg">
+    <path d="M590,-8 L354,990"/>
+  </svg>
+
+  <!-- ============ SECONDARY MARBLE SHARD bleeding across boundary ============ -->
+  <div class="shard-shadow"></div>
+  <div class="shard">
+    <svg viewBox="0 0 336 236" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <g filter="url(#warp)">
+        <rect x="-30" y="-30" width="400" height="300" fill="#6E6B9C"/>
+        <path d="M-20,40 C80,10 120,140 60,200 C20,240 140,220 200,260 L-20,260 Z" fill="#5D5A86"/>
+        <path d="M120,-20 C180,60 120,140 200,180 C280,220 240,260 336,260 L336,-20 Z" fill="#8C89B8"/>
+        <path d="M40,90 C120,70 150,180 90,230 C50,255 150,250 180,260 L40,260 Z" fill="#E8632A"/>
+        <ellipse cx="260" cy="70" rx="56" ry="74" fill="#46436B"/>
+        <ellipse cx="80" cy="60" rx="40" ry="38" fill="#2FB5A8"/>
+      </g>
+      <rect x="0" y="0" width="336" height="236" fill="url(#dotsM)" opacity="0.10"/>
+    </svg>
+  </div>
+  <svg class="shard-ink" viewBox="0 0 336 236" xmlns="http://www.w3.org/2000/svg">
+    <path d="M9,12 L334,96 L102,234 Z"/>
+  </svg>
+
+  <!-- halftone cluster drifting into cream -->
+  <svg class="dotcluster" viewBox="0 0 440 230" xmlns="http://www.w3.org/2000/svg">
+    <defs><pattern id="dc" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="5" cy="5" r="3.3" fill="#14110D"/></pattern></defs>
+    <path d="M0,230 L440,0 L440,230 Z" fill="url(#dc)" opacity="0.16"/>
+  </svg>
+
+  <!-- ============ TITLE ============ -->
+  <div class="titlewrap">
+    <div class="title-slash"></div>
+    <span class="title-net">NET</span>
+    <span class="title-trade">TRADE</span>
+  </div>
+
+  <!-- ============ STATUS ============ -->
+  <div class="status"><span>ACCOUNT&nbsp;&nbsp;<b>COMBINED</b></span></div>
+
+  <!-- ============ MENU ============ -->
+  <nav class="menu">
+    <div class="row active"><div class="plate"><span class="label">Dashboard</span></div></div>
+    <div class="row pull w2"><div class="plate"><span class="label">Positions</span></div></div>
+    <div class="row kick w1"><div class="plate"><span class="label">Watchlist</span></div></div>
+    <div class="row kick2"><div class="plate"><span class="label">Performance</span></div></div>
+    <div class="row kick w1"><div class="plate"><span class="label">Compare</span></div></div>
+    <div class="row pull w2"><div class="plate"><span class="label">Journal</span></div></div>
+    <div class="row kick2 w1"><div class="plate"><span class="label">Settings</span></div></div>
+  </nav>
+
+  <!-- ============ corner marble wedge accent ============ -->
+  <div class="wedge-shadow"></div>
+  <div class="wedge">
+    <svg viewBox="0 0 252 166" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <g filter="url(#warp)">
+        <rect x="-20" y="-20" width="292" height="206" fill="#5D5A86"/>
+        <path d="M-10,30 C60,10 90,110 40,150 L-10,166 Z" fill="#46436B"/>
+        <path d="M120,-10 C170,40 130,110 200,140 L252,166 L252,-10 Z" fill="#7E7BAC"/>
+        <ellipse cx="180" cy="120" rx="80" ry="70" fill="#E8632A"/>
+        <ellipse cx="80" cy="50" rx="46" ry="44" fill="#2FB5A8"/>
+        <ellipse cx="220" cy="30" rx="42" ry="56" fill="#211C30"/>
+      </g>
+    </svg>
+  </div>
+  <svg class="wedge-ink" viewBox="0 0 272 188" xmlns="http://www.w3.org/2000/svg">
+    <path d="M272,18 L20,188"/>
+  </svg>
+</body>
+</html>

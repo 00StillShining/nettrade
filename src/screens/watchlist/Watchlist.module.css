@@ -1,0 +1,527 @@
+/* Watchlist — the SDN roster-card strip "at rest" (VISUAL_DIRECTION.md §5
+   "Watchlist": "same roster grammar as Positions but at rest — neutral/teal
+   status tags, no P/L glow, quieter portraits"). Structurally this is
+   Positions.module.css's recipe (SCREEN_PATTERNS.md §7 the LOCKED cream-paper
+   panel: --paper fill + inert paper-grain + ~2.5-3px --ink outline +
+   solid-colour header ribbon) — only the card's ribbon/glyph/P/L-row weight
+   changes to read as "watching", not "holding". Viewport-locked exactly like
+   Positions: .screen flex column overflow:hidden -> .panel flex:1
+   min-height:0 -> .gridScroll overflow-y:auto (SCREEN_PATTERNS §2). */
+
+.screen {
+  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/></svg>");
+  --gain-ink: #3f6f45;
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s4);
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: var(--s3) var(--s4) var(--s4);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* ============================== HERO ============================== */
+
+.hero {
+  flex: 0 0 auto;
+  width: 100%;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 7px;
+  padding: var(--s5) var(--s6);
+  padding-top: calc(var(--s4) + 30px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+.heroRibbon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: var(--amber);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s5);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.heroRow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: stretch;
+  gap: var(--s6);
+  flex-wrap: wrap;
+}
+
+.heroStat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: var(--s5);
+  border-left: 2px solid var(--paper-2);
+}
+
+.heroStat:first-child {
+  padding-left: 0;
+  border-left: none;
+}
+
+.heroLabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+}
+
+.heroValue {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: clamp(22px, 2.6vw, 30px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+/* TOP MOVER reads smaller than the count stats — a movement callout, not the
+   headline number (the hero still has ONE clear biggest figure: WATCHING). */
+.heroValueSm {
+  font-size: clamp(16px, 1.6vw, 20px);
+}
+
+.heroTri {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.heroFoot {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+
+.heroNote {
+  max-width: 62ch;
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-body);
+}
+
+/* ============================== ROSTER PANEL ============================== */
+
+.panel {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+.panelHead {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s2) var(--s4);
+  background: var(--teal);
+  position: relative;
+  z-index: 1;
+}
+
+.panelTitle {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.panelMeta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink);
+}
+
+.gridScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  position: relative;
+  z-index: 1;
+  padding: var(--s4);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--s4);
+  align-content: start;
+}
+
+/* ============================== ROSTER CARD (AT REST) ============================== */
+/* Per VISUAL_DIRECTION.md §5 Watchlist: "neutral/teal status tags, no P/L
+   glow, quieter portraits" — the ribbon never colours by day-move (that's
+   Positions' P/L glow); only the small market chip carries colour (teal),
+   and it's a venue tag, not a direction signal. */
+
+.card {
+  background: var(--paper);
+  border: 2.5px solid var(--ink);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+/* Interactivity affordance stays amber even though the "at rest" body is
+   quieter (actuality-ui skill §1: interactive things must look interactive). */
+.card:hover,
+.card:focus-visible {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(232, 132, 42, 0.35), 0 0 18px rgba(232, 132, 42, 0.25);
+}
+
+/* ---- Header ribbon: NEUTRAL flat (the "at rest" ribbonFlat recipe, never
+   green/red — the day move lives quietly in the body's DAY row instead) ---- */
+
+.ribbon {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: 7px var(--s3);
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.ribbonTicker {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Small teal market-venue chip — the ONE colour on the ribbon, a location
+   tag, never a direction signal (that discipline stays in the DAY row). */
+.marketChip {
+  flex: 0 0 auto;
+  background: var(--teal);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s3) var(--s3) var(--s4);
+}
+
+/* ---- Portrait glyph + name ---- */
+
+.topRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+/* Quieter glyph — same tickerGlyph shapes, lower opacity + a duller ink so
+   the "watching, not holding" body reads calmer than a Positions card
+   (VISUAL_DIRECTION.md §5: "quieter portraits"). Local override only —
+   tickerGlyph.ts and Positions' own styles are untouched. */
+.glyphQuiet {
+  flex: 0 0 auto;
+  position: relative;
+  width: 52px;
+  height: 40px;
+  border-radius: 4px;
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink-body);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.82;
+}
+
+.glyphQuietSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.55;
+}
+
+.glyphQuietShape {
+  fill: var(--ink-body);
+}
+
+.glyphQuietInitials {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink-body);
+}
+
+.nameCol {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.name {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qty {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-body);
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Price ---- */
+
+.priceRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.priceLabel {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  opacity: 0.85;
+}
+
+.price {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---- Day move — SMALLER than Positions' P/L row (a day tick is not your
+   money): exactly-flat renders neutral ink, no triangle, no sign ---- */
+
+.dayRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.dayRow.gain {
+  color: var(--gain-ink);
+}
+
+.dayRow.loss {
+  color: var(--loss);
+}
+
+.dayTri {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.dayValue {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dayPct {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* ---- Note — humanist body, 2-line clamp ---- */
+
+.note {
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-body);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---- Foot: freshness pill + as-of time ---- */
+
+.footRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1.5px solid var(--paper-2);
+}
+
+.freshPill {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-body);
+  border: 1.5px solid var(--ink-body);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+.asOf {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-body);
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Shared gain/loss colour (hero) ---- */
+
+.gain {
+  color: var(--gain-ink);
+}
+
+.loss {
+  color: var(--loss);
+}
+
+/* ============================== STATES ============================== */
+
+.emptyState {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--s6) var(--s5);
+  text-align: center;
+  font-family: var(--font-body);
+  color: #9aa1b4;
+  border: 1px dashed var(--ink-line);
+  border-radius: 6px;
+}
+
+.emptyTitle {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--animus-field);
+  margin-bottom: var(--s2);
+}
+
+@media (max-width: 720px) {
+  .heroRow {
+    gap: var(--s4);
+  }
+
+  .heroStat {
+    padding-left: var(--s4);
+  }
+}

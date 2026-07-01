@@ -1,0 +1,336 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;600;700&family=Permanent+Marker&family=Bungee&display=swap');
+
+:root{
+  --ink:#0D0D0D; --ink2:#1A1A17; --paper:#F2ECE0; --cream:#EDE6D2; --bone:#FFFFFF;
+  --orange:#FF5A1F; --orange2:#FF7A18; --teal:#2FD0C5; --purple:#8A7FD0;
+  --red:#E60012; --shout:#FFE100;
+}
+
+#nt-stations *{ margin:0; padding:0; box-sizing:border-box; border-radius:0 !important; }
+
+/* ---- texture fields behind the rail ---- */
+#nt-stations .field{
+  position:absolute; top:120px; right:0; width:820px; height:730px;
+  transform:rotate(-4deg); transform-origin:top right;
+  background-image:radial-gradient(var(--purple) 1.4px, transparent 1.6px);
+  background-size:11px 11px;
+  -webkit-mask-image:linear-gradient(115deg, transparent 0%, #000 38%, #000 70%, transparent 100%);
+          mask-image:linear-gradient(115deg, transparent 0%, #000 38%, #000 70%, transparent 100%);
+  opacity:.20; pointer-events:none; z-index:1;
+}
+#nt-stations .streaks{
+  position:absolute; top:150px; right:200px; width:600px; height:680px;
+  transform:rotate(-4deg); transform-origin:top right;
+  background:repeating-linear-gradient(116deg,
+     var(--orange) 0 2px, transparent 2px 26px);
+  -webkit-mask-image:linear-gradient(116deg, transparent 0%, #000 30%, transparent 62%);
+          mask-image:linear-gradient(116deg, transparent 0%, #000 30%, transparent 62%);
+  opacity:.16; pointer-events:none; z-index:1;
+}
+
+/* decorative stamps for P5 density */
+#nt-stations .stamp{ position:absolute; z-index:48; pointer-events:none; }
+#nt-stations .stamp.st-7{
+  top:792px; right:560px;
+  font-family:"Anton",sans-serif; font-size:78px; line-height:.8;
+  color:transparent; -webkit-text-stroke:2px var(--teal);
+  transform:rotate(-9deg); opacity:.9;
+}
+#nt-stations .stamp.st-7 span{
+  display:block; font-size:15px; letter-spacing:0.32em;
+  -webkit-text-stroke:0; color:var(--teal); transform:translateX(4px);
+}
+#nt-stations .stamp.st-arrow{
+  top:560px; right:738px; font-size:30px; color:var(--orange);
+  transform:rotate(-4deg);
+}
+#nt-stations .bar-graffiti{
+  position:absolute; top:470px; right:780px; z-index:48; pointer-events:none;
+  font-family:"Permanent Marker",cursive; font-size:30px;
+  color:var(--purple); transform:rotate(-90deg) rotate(6deg);
+  text-shadow:2px 2px 0 var(--ink); opacity:.92;
+}
+
+/* ---- the diagonal rail that holds the 7 station tags ---- */
+#nt-stations .rail{
+  z-index:5;
+  position:absolute;
+  top:150px; right:36px;
+  width:760px; height:760px;
+  transform:rotate(-4deg);
+  transform-origin:top right;
+}
+
+/* per-item slot keeps the kicked shadow from being clipped by neighbours */
+#nt-stations .slot{
+  position:absolute;
+  right:0;
+  height:84px;
+  display:flex; align-items:center; justify-content:flex-end;
+  overflow:visible;
+}
+
+/* ---------------- the station tag ---------------- */
+#nt-stations .stn{
+  position:relative;
+  display:flex; align-items:stretch;
+  height:78px;
+  background:var(--ink);
+  color:var(--bone);
+  cursor:pointer;
+  transform-origin:right center;
+  clip-path:polygon(4% 0, 100% 0, 96% 100%, 0 100%);
+  box-shadow:9px 9px 0 var(--ink2), 9px 9px 0 0 var(--ink2);
+  border-left:5px solid var(--bone);
+  transition:transform .14s cubic-bezier(0.2,1.4,0.3,1),
+             background .12s linear, color .12s linear,
+             box-shadow .14s cubic-bezier(0.2,1.4,0.3,1);
+  outline:0;
+}
+/* per-item width / skew variation */
+#nt-stations .stn{ width:var(--w,440px); }
+
+/* index stamp block */
+#nt-stations .idx{
+  flex:0 0 78px;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--orange);
+  color:var(--ink);
+  font-family:"Anton",sans-serif;
+  font-size:38px; line-height:1;
+  letter-spacing:-0.02em;
+  -webkit-text-stroke:1.5px var(--ink);
+  clip-path:polygon(0 0, 100% 0, 84% 100%, 0 100%);
+  position:relative;
+}
+#nt-stations .idx::after{
+  /* halftone shade in the stamp */
+  content:""; position:absolute; inset:0;
+  background-image:radial-gradient(var(--ink) 1.2px, transparent 1.3px);
+  background-size:7px 7px; opacity:.22; mix-blend-mode:multiply;
+}
+
+/* name + tagline block */
+#nt-stations .body{
+  flex:1 1 auto;
+  display:flex; flex-direction:column; justify-content:center;
+  padding:6px 26px 6px 20px;
+  min-width:0;
+}
+#nt-stations .name{
+  font-family:"Anton",sans-serif;
+  text-transform:uppercase;
+  font-size:34px; line-height:.92;
+  letter-spacing:0.005em;
+  color:var(--bone);
+  -webkit-text-stroke:1.2px var(--ink);
+  text-shadow:3px 3px 0 var(--orange);
+  white-space:nowrap;
+  transform:translateY(-1px);
+}
+#nt-stations .tag{
+  font-family:"Oswald",sans-serif; font-weight:600;
+  text-transform:uppercase;
+  font-size:12.5px; line-height:1;
+  letter-spacing:0.16em;
+  color:var(--teal);
+  margin-top:5px;
+  white-space:nowrap;
+  text-shadow:1.5px 1.5px 0 var(--ink);
+}
+
+/* little corner ticks / marks on each tag */
+#nt-stations .stn::after{
+  content:""; position:absolute; top:7px; right:18px;
+  width:9px; height:9px; background:var(--teal);
+  clip-path:polygon(50% 0,100% 100%,0 100%);
+  opacity:.85;
+}
+
+/* ---------------- HOVER ---------------- */
+#nt-stations .stn:hover{
+  background:var(--ink2);
+  transform:translateX(-14px) scale(1.035);
+  box-shadow:13px 13px 0 var(--orange);
+  z-index:30;
+}
+#nt-stations .stn:hover .name{ text-shadow:3px 3px 0 var(--purple); }
+#nt-stations .stn:hover .tag{ color:var(--shout); }
+
+/* ---------------- ACTIVE (Dashboard) ---------------- */
+#nt-stations .stn.active{
+  background:var(--orange);
+  color:var(--ink);
+  border-left:5px solid var(--ink);
+  transform:translateX(-32px) scale(1.085);
+  box-shadow:0 0 0 4px var(--bone), 16px 16px 0 var(--ink);
+  z-index:40;
+}
+/* ben-day grit inside the active fill (behind text, low opacity) */
+#nt-stations .stn.active .body{ position:relative; }
+#nt-stations .stn.active .body::before{
+  content:""; position:absolute; inset:0; z-index:0;
+  background-image:radial-gradient(var(--ink) 1px, transparent 1.2px);
+  background-size:8px 8px; opacity:.16; pointer-events:none;
+}
+#nt-stations .stn.active .name,
+#nt-stations .stn.active .tag{ position:relative; z-index:1; }
+#nt-stations .stn.active .idx{
+  background:var(--ink); color:var(--shout);
+  -webkit-text-stroke:0;
+}
+#nt-stations .stn.active .idx::after{ opacity:.3; background-image:radial-gradient(var(--bone) 1.1px,transparent 1.2px); }
+#nt-stations .stn.active .name{
+  color:var(--ink);
+  -webkit-text-stroke:0;
+  text-shadow:2.5px 2.5px 0 var(--bone);
+}
+#nt-stations .stn.active .tag{
+  color:var(--ink); opacity:.78;
+  text-shadow:none;
+}
+#nt-stations .stn.active::after{ background:var(--ink); }
+
+/* a graffiti "ACTIVE" scrawl pinned off the active tag */
+#nt-stations .scrawl{
+  position:absolute;
+  font-family:"Permanent Marker",cursive;
+  font-size:21px; color:var(--shout);
+  transform:rotate(-9deg);
+  text-shadow:2px 2px 0 var(--ink);
+  pointer-events:none;
+  z-index:45;
+  white-space:nowrap;
+}
+/* arrow/chevron prompt on the active row */
+#nt-stations .stn.active .body::after{
+  content:"\25B6";
+  position:absolute; right:14px; top:50%;
+  transform:translateY(-50%);
+  font-size:15px; color:var(--ink);
+}
+
+/* boxed MENU // MAIN signage tag, top of rail */
+#nt-stations .menutag{
+  position:absolute; top:64px; right:118px;
+  background:var(--ink); color:var(--bone);
+  font-family:"Bungee",sans-serif; font-size:15px;
+  letter-spacing:0.05em;
+  padding:9px 20px 9px 16px;
+  transform:rotate(-4deg);
+  clip-path:polygon(6% 0,100% 0,94% 100%,0 100%);
+  box-shadow:6px 6px 0 var(--teal), 0 0 0 3px var(--bone);
+  z-index:50;
+}
+#nt-stations .menutag b{ color:var(--orange); }
+
+#nt-stations .selectprompt{
+  position:absolute; top:106px; right:128px;
+  font-family:"Oswald",sans-serif; font-weight:600;
+  font-size:11px; letter-spacing:0.22em; text-transform:uppercase;
+  color:var(--teal);
+  transform:rotate(-4deg);
+  z-index:50;
+}
+
+@media (prefers-reduced-motion: reduce){
+  #nt-stations .stn,
+  #nt-stations .stn:hover,
+  #nt-stations .stn.active{ transition:none; }
+}
+</style>
+</head>
+<body style="margin:0;background:var(--ink)">
+<div id="nt-stations" style="position:absolute;inset:0;width:1512px;height:982px;overflow:visible">
+
+  <!-- SVG roughen / grain filter -->
+  <svg width="0" height="0" style="position:absolute">
+    <filter id="print-stn">
+      <feTurbulence type="fractalNoise" baseFrequency="0.013 0.038" numOctaves="2" seed="11" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="4"/>
+    </filter>
+  </svg>
+
+  <!-- halftone + speed-line field behind the rail for density -->
+  <div class="field"></div>
+  <div class="streaks"></div>
+
+  <div class="menutag">MENU <b>//</b> MAIN</div>
+  <div class="selectprompt">// SELECT A STATION</div>
+
+  <!-- decorative stamps / stickers packed around the rail -->
+  <div class="stamp st-7">07<span>STATIONS</span></div>
+  <div class="stamp st-arrow">&#9660;</div>
+  <div class="bar-graffiti">routes</div>
+
+  <div class="rail" id="nt-rail"></div>
+
+</div>
+
+<script>
+(function(){
+  var stations = [
+    {n:"DASHBOARD",   t:"OVERVIEW · PULSE · P&L",       w:466, active:true},
+    {n:"POSITIONS",   t:"OPEN HOLDINGS · EXPOSURE",         w:430},
+    {n:"WATCHLIST",   t:"TRACKED · ALERTS · MOVERS",   w:452},
+    {n:"PERFORMANCE", t:"RETURNS · DRAWDOWN · CURVE",  w:498},
+    {n:"COMPARE",     t:"YOU vs PARTNER vs INDEX",               w:420},
+    {n:"JOURNAL",     t:"NOTES · TRADES · REVIEW",      w:408},
+    {n:"SETTINGS",    t:"SYNC · ACCOUNTS · THEME",      w:386}
+  ];
+  var rail = document.getElementById('nt-rail');
+  var y = 8;
+  stations.forEach(function(s,i){
+    var slot = document.createElement('div');
+    slot.className='slot';
+    slot.style.top = y+'px';
+    slot.style.right='0px';
+    // alternate a tiny counter-skew on the slot for kinetic variation
+    var skew = (i%2===0)? -0.6 : 1.4;
+    slot.style.transform = 'rotate('+skew+'deg)';
+
+    var btn = document.createElement('button');
+    btn.className='stn'+(s.active?' active':'');
+    btn.style.setProperty('--w', s.w+'px');
+    btn.setAttribute('data-name', s.n);
+
+    var idx = document.createElement('div');
+    idx.className='idx';
+    idx.textContent = '0'+(i+1);
+
+    var body = document.createElement('div');
+    body.className='body';
+    var nm = document.createElement('div'); nm.className='name'; nm.textContent=s.n;
+    var tg = document.createElement('div'); tg.className='tag'; tg.textContent=s.t;
+    body.appendChild(nm); body.appendChild(tg);
+
+    btn.appendChild(idx); btn.appendChild(body);
+    slot.appendChild(btn);
+    rail.appendChild(slot);
+
+    if(s.active){
+      var sc = document.createElement('div');
+      sc.className='scrawl';
+      sc.textContent='★ LIVE NOW';
+      sc.style.top=(y-18)+'px';
+      sc.style.right=(s.w-46)+'px';
+      rail.appendChild(sc);
+    }
+
+    // click selection: invert + kick the chosen, restore others
+    btn.addEventListener('click', function(){
+      rail.querySelectorAll('.stn').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+    });
+
+    y += 100;
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+.wipe {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  /* diagonal bone/red band */
+  background: linear-gradient(
+    115deg,
+    rgba(232, 230, 226, 0) 0%,
+    rgba(232, 230, 226, 0.92) 38%,
+    rgba(178, 34, 34, 0.96) 52%,
+    rgba(232, 230, 226, 0.92) 66%,
+    rgba(232, 230, 226, 0) 100%
+  );
+  clip-path: inset(0 100% 0 0);
+  animation: sweep 600ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  transform-origin: left center;
+}
+
+@keyframes sweep {
+  0% {
+    clip-path: inset(0 100% 0 0);
+    transform: scale(1.02);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  55% {
+    clip-path: inset(0 0 0 0);
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    clip-path: inset(0 0 0 100%);
+    transform: scale(0.99);
+    opacity: 0;
+  }
+}

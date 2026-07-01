@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NET TRADE — Compare (FINAL · You vs Partner Duel)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;600;700&family=Space+Mono:wght@400;700&family=Bungee&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================================
+     NETTRADE — COMPARE SCREEN  (YOU vs PARTNER duel / split-screen)
+     Carries the shipped chrome VERBATIM from positions-final.html: CRT overlay,
+     #ntMarble liquid-marble symbol + MarbleDefs, fitCanvas/line canvas helpers,
+     the EXP click-to-expand machinery (z100 above CRT; .exp-frame no clip-path +
+     overflow:visible; ?expand= deep-link; Esc close), top/bottom status bars,
+     halftone, the TIGHT spacing tokens. The ONLY re-skin is MAGENTA -> VIOLET,
+     applied by overriding --accent / --accent-dk / --area-accent-* and the six
+     --mrb-* marble vars on .screen. The locked semantic pair (--gain teal /
+     --loss red), --purple (benchmark), the creams, --ink and --orange (warning
+     only) are NEVER recoloured.
+
+     LAYOUT (distinct — NOT the Positions deck, NOT the Dashboard rail):
+     a SPLIT-SCREEN DUEL. A central VERSUS divider splits YOU (left) and PARTNER
+     (right). Mirrored metric rows face the divider as opposed diverging bars; the
+     leader of each metric is highlighted with the violet accent outline + a winner
+     chevron pointing at the divider. A COMBINED strip (the fund total) sits below.
+     Click any metric row -> expand to YOU vs PARTNER side-by-side + the gap.
+
+     VIOLET-vs-PURPLE collision resolved like the magenta-vs-loss case:
+     accent (#7A3CFF) = OUTLINE / focal stroke / winner chevron; --purple
+     (#5D5A86) stays the muted benchmark FILL. They never fight as fills.
+     ============================================================================ */
+  :root{
+    --cream:#EDE6D2; --cream2:#F2ECE0; --ink:#14110D; --orange:#FF5A1F;
+    --gain:#2FB5A8; --loss:#C8402F;
+    --purple:#5D5A86;
+    --inkw:14px;
+    --slant:16px; --slant-sm:9px; --vslant:14px;
+    --skew:0deg; --unskew:0deg;
+    --pad:clamp(5px,0.7vw,11px);
+    --gap:clamp(4px,0.45vw,7px);
+    --grid:rgba(20,17,13,.12);
+    --rule:rgba(20,17,13,.18);
+    --waterline:rgba(20,17,13,.22);
+    --tick-text:rgba(20,17,13,.66);
+    --axis-faint:rgba(20,17,13,.5);
+    --ink-shadow-line:rgba(20,17,13,.25);
+    --ink-tint-085:rgba(20,17,13,.085);
+    --area-deposits:rgba(93,90,134,.16);
+  }
+  /* ===== .screen — per-screen pigment binding. COMPARE = VIOLET. =====
+     The ONLY block a new screen overrides.
+     CONTRAST PROOF: --accent-dk #4B1F9E on cream #EDE6D2 = 8.47:1 (clears 4.5:1
+     text floor easily). The bright --accent #7A3CFF (4.30:1) rides the ink-stamp
+     (focal stroke / fill ON TOP of an ink offset, NEVER text on bare cream).
+     DISTINCTNESS: accent H=259 S=100% vs --purple H=244 S=20% — a vivid violet
+     against a muted slate; vs gain teal H=174, loss red H=7, orange H=16. */
+  .screen{
+    --accent:#7A3CFF; --accent-dk:#4B1F9E;
+    --area-accent-top:rgba(122,60,255,.40);
+    --area-accent-bot:rgba(122,60,255,.03);
+    /* VIOLET-family marble (same lightness structure as the shipped originals:
+       deep indigo base -> vivid violet core -> bright lavender highlight) */
+    --mrb-base:#2A1466;    /* deepest field — deep indigo */
+    --mrb-deep:#160A33;    /* darkest indigo-ink shadow blobs */
+    --mrb-veil:#3A1D8A;    /* deep violet mass */
+    --mrb-mid:#6A3CE0;     /* mid violet */
+    --mrb-core:#4B1F9E;    /* violet core */
+    --mrb-bright:#A98CFF;  /* bright lavender highlight */
+  }
+  *{margin:0;padding:0;box-sizing:border-box;border-radius:0;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0a0908;}
+  body{font-family:'Oswald',sans-serif;color:var(--ink);}
+
+  /* ============ FLUID FULL-VIEWPORT ROOT (shipped) ============ */
+  #screen{position:fixed;inset:0;overflow:hidden;background:var(--mrb-deep);
+    --bezel:clamp(14px,1.9vw,30px);}
+  #screen > .screenmarble{position:absolute;inset:0;z-index:0;}
+  #screen > .screenmarble > svg{position:absolute;top:-6%;left:-6%;width:112%;height:112%;}
+  #stage{position:absolute;inset:var(--bezel);z-index:1;overflow:hidden;
+    background:var(--cream);
+    border:6px solid var(--ink);box-shadow:0 0 0 3px var(--mrb-deep), 16px 16px 0 var(--ink);
+    display:flex;flex-direction:column;
+    gap:var(--gap);
+    padding:var(--pad);
+    padding-top:calc(var(--pad) + 2px);}
+
+  .stage-bg{position:absolute;inset:0;background:var(--cream);z-index:0;}
+  .halftone{position:absolute;inset:0;z-index:0;
+    background-image:radial-gradient(var(--ink) 1.35px, transparent 1.55px);
+    background-size:15px 15px;opacity:.07;mix-blend-mode:multiply;pointer-events:none;}
+  .dotcluster{position:absolute;left:-70px;bottom:-60px;width:560px;height:420px;z-index:0;
+    opacity:.16;pointer-events:none;}
+  .dotcluster2{position:absolute;right:-40px;top:80px;width:340px;height:300px;z-index:0;
+    opacity:.10;pointer-events:none;}
+  .bgslash{position:absolute;left:-60px;bottom:-40px;width:520px;height:360px;z-index:0;
+    clip-path:polygon(0 38%,100% 100%,0 100%);background:var(--ink);opacity:.05;pointer-events:none;}
+
+  /* ================= TOP STATUS BAR — CLEAN, NO SKEW (shipped) ================= */
+  .topbar{position:relative;z-index:20;flex:0 0 auto;
+    height:clamp(56px,6.4vh,74px);
+    background:var(--ink);box-shadow:9px 9px 0 var(--ink);
+    display:flex;align-items:stretch;}
+  .tb-inner{display:flex;align-items:center;width:100%;height:100%;padding:0 clamp(12px,1.5vw,22px);gap:0;}
+  .tb-logo{font-family:'Bungee',sans-serif;font-size:clamp(24px,2.4vw,34px);color:var(--accent);
+    letter-spacing:.02em;line-height:1;text-shadow:3px 3px 0 #000;padding-right:clamp(10px,1.2vw,18px);}
+  .tb-seg{display:flex;flex-direction:column;justify-content:center;
+    padding:0 clamp(12px,1.5vw,22px);height:46px;border-left:3px solid rgba(242,236,224,.16);}
+  .tb-seg .k{font-family:'Oswald';font-weight:700;font-size:11px;letter-spacing:.22em;
+    color:rgba(242,236,224,.55);text-transform:uppercase;}
+  .tb-seg .v{font-family:'Space Mono',monospace;font-weight:700;font-size:clamp(15px,1.45vw,21px);
+    color:var(--cream2);line-height:1.05;margin-top:2px;font-variant-numeric:tabular-nums;}
+  .tb-seg .v.accent{color:var(--accent);}
+  .tb-seg .v.gain{color:var(--gain);}
+  .tb-seg .v.loss{color:var(--loss);}
+  /* the two duellist value segments in the header */
+  .tb-seg .v.you{color:var(--accent);}
+  .tb-seg .v.partner{color:var(--cream2);}
+  .tb-spacer{flex:1;}
+  .tb-asof{display:flex;align-items:center;gap:10px;padding:0 clamp(8px,1vw,16px);}
+  .tb-asof .stamp{font-family:'Anton';font-size:clamp(14px,1.25vw,18px);letter-spacing:.06em;color:var(--ink);
+    background:var(--accent);padding:3px 16px;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);}
+  .tb-asof .stamp span.txt{display:inline-block;transform:skewX(var(--unskew));}
+  .tb-asof .sy{font-family:'Space Mono';font-size:12px;color:rgba(242,236,224,.6);letter-spacing:.04em;
+    font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+  /* ================= MAIN REGION — THE DUEL ================= */
+  .main{position:relative;z-index:10;flex:1 1 auto;min-height:0;
+    display:flex;flex-direction:column;gap:var(--gap);}
+
+  /* ===== DUEL HEADER — two name plates facing a central VS badge ===== */
+  .duelhead{flex:0 0 auto;display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;gap:var(--gap);}
+  .nameplate{position:relative;overflow:hidden;background:var(--ink);
+    border:5px solid var(--ink);box-shadow:8px 8px 0 var(--ink);
+    display:flex;align-items:center;padding:clamp(7px,1vh,12px) clamp(14px,1.6vw,26px);min-width:0;}
+  .nameplate.you{justify-content:flex-end;text-align:right;
+    clip-path:polygon(0 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);}
+  .nameplate.partner{justify-content:flex-start;text-align:left;
+    clip-path:polygon(var(--slant) 0, 100% 0, 100% 100%, 0 100%);}
+  .nameplate .npmarble{position:absolute;inset:0;z-index:0;opacity:.9;}
+  .nameplate.partner .npmarble{filter:grayscale(.85) brightness(.7);} /* partner = muted, the foil */
+  .nameplate::after{content:'';position:absolute;inset:0;z-index:1;background:rgba(20,17,13,.46);}
+  .nameplate.partner::after{background:rgba(20,17,13,.62);}
+  .np-in{position:relative;z-index:2;display:flex;flex-direction:column;gap:1px;min-width:0;}
+  .np-role{font-family:'Oswald';font-weight:700;font-size:clamp(9px,.78vw,11px);letter-spacing:.24em;
+    text-transform:uppercase;}
+  .nameplate.you .np-role{color:var(--accent);}
+  .nameplate.partner .np-role{color:rgba(242,236,224,.6);}
+  .np-name{font-family:'Anton';font-size:clamp(20px,2.5vw,38px);letter-spacing:.02em;line-height:.92;
+    color:var(--cream2);text-transform:uppercase;text-shadow:2px 2px 0 var(--ink);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;}
+  .np-sub{font-family:'Space Mono';font-weight:700;font-size:clamp(11px,1.05vw,15px);
+    color:var(--cream2);letter-spacing:.01em;font-variant-numeric:tabular-nums;margin-top:2px;}
+  .np-sub b{color:var(--accent);}
+  .nameplate.partner .np-sub b{color:var(--cream2);}
+  /* central VS badge — the divider crown */
+  .vsbadge{position:relative;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    align-self:center;background:var(--accent-dk);border:5px solid var(--ink);box-shadow:7px 7px 0 var(--ink);
+    padding:clamp(5px,0.9vh,9px) clamp(12px,1.3vw,18px);
+    clip-path:polygon(var(--slant-sm) 0, calc(100% - var(--slant-sm)) 0, 100% 100%, 0 100%);}
+  .vsbadge .vs{font-family:'Bungee';font-size:clamp(18px,2vw,30px);letter-spacing:.04em;color:var(--cream2);
+    line-height:.9;text-shadow:2px 2px 0 var(--ink);}
+  .vsbadge .vk{font-family:'Oswald';font-weight:700;font-size:clamp(7px,.62vw,9px);letter-spacing:.2em;
+    color:rgba(242,236,224,.7);text-transform:uppercase;margin-top:2px;}
+
+  /* ===== THE DUEL BOARD — mirrored metric rows around the central spine ===== */
+  .board{position:relative;flex:1 1 auto;min-height:0;
+    background:var(--cream2);border:6px solid var(--ink);box-shadow:10px 10px 0 var(--ink);
+    display:flex;flex-direction:column;overflow:hidden;}
+  .board-head{flex:0 0 auto;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+    background:var(--ink);padding:7px clamp(10px,1.4vw,20px);gap:8px;}
+  .bh-side{font-family:'Oswald';font-weight:700;font-size:clamp(9px,.82vw,12px);letter-spacing:.18em;
+    text-transform:uppercase;color:rgba(242,236,224,.62);}
+  .bh-side.l{text-align:right;color:var(--accent);}
+  .bh-side.r{text-align:left;}
+  .bh-mid{font-family:'Space Mono';font-weight:700;font-size:clamp(8px,.7vw,10px);letter-spacing:.12em;
+    color:rgba(242,236,224,.5);text-transform:uppercase;white-space:nowrap;padding:0 clamp(6px,1vw,16px);}
+
+  .board-rows{flex:1 1 auto;min-height:0;overflow:auto;position:relative;display:flex;flex-direction:column;}
+  /* metric row = [you value][you bar] [metric label spine] [partner bar][partner value] */
+  .mrow{flex:1 1 0;min-height:clamp(46px,8vh,72px);
+    display:grid;grid-template-columns:minmax(74px,0.7fr) 1fr auto 1fr minmax(74px,0.7fr);
+    align-items:center;cursor:pointer;border-bottom:2px solid rgba(20,17,13,.16);
+    transition:background .1s;}
+  .mrow:last-child{border-bottom:0;}
+  .mrow:nth-child(even){background:var(--ink-tint-085);}
+  .mrow:hover{background:rgba(122,60,255,.10);}
+  .mrow:focus-visible{outline:3px solid var(--ink);outline-offset:-3px;}
+  /* the numeric readouts, facing the divider */
+  .mr-val{font-family:'Space Mono';font-weight:700;font-size:clamp(13px,1.35vw,19px);
+    font-variant-numeric:tabular-nums;padding:0 clamp(6px,0.8vw,12px);white-space:nowrap;
+    display:inline-flex;align-items:center;gap:5px;}
+  .mr-val.you{justify-content:flex-end;color:var(--ink);}
+  .mr-val.partner{justify-content:flex-start;color:rgba(20,17,13,.78);}
+  .mr-val .tri{font-size:10px;line-height:1;}
+  .mr-val.up{color:var(--gain);} .mr-val.dn{color:var(--loss);}
+  /* the opposed diverging bar canvases */
+  .mr-bar{height:100%;min-width:0;}
+  .mr-bar canvas{display:block;width:100%;height:100%;}
+  /* central metric-label spine */
+  .mr-spine{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+    padding:0 clamp(8px,1.1vw,18px);min-width:clamp(96px,11vw,168px);position:relative;
+    border-left:2px solid rgba(20,17,13,.14);border-right:2px solid rgba(20,17,13,.14);}
+  .mr-spine .lbl{font-family:'Oswald';font-weight:700;font-size:clamp(9px,.86vw,12px);letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink);text-align:center;line-height:1.05;}
+  .mr-spine .unit{font-family:'Space Mono';font-weight:700;font-size:clamp(7px,.62vw,9px);
+    letter-spacing:.06em;color:rgba(20,17,13,.5);text-transform:uppercase;}
+  /* winner chevron — violet accent, points FROM the spine TOWARD the leader */
+  .mr-spine .win{position:absolute;top:50%;transform:translateY(-50%);width:0;height:0;}
+  .mr-spine .win.l{left:-2px;border-top:7px solid transparent;border-bottom:7px solid transparent;
+    border-right:9px solid var(--accent);}
+  .mr-spine .win.r{right:-2px;border-top:7px solid transparent;border-bottom:7px solid transparent;
+    border-left:9px solid var(--accent);}
+
+  /* ===== COMBINED STRIP — the fund total (toggle look) ===== */
+  .combined{flex:0 0 auto;display:flex;align-items:stretch;
+    background:var(--cream2);border:5px solid var(--ink);box-shadow:8px 8px 0 var(--ink);overflow:hidden;}
+  .cb-tag{position:relative;overflow:hidden;display:flex;align-items:center;
+    background:var(--ink);padding:0 clamp(12px,1.5vw,22px);flex:0 0 auto;}
+  .cb-tag .cbmarble{position:absolute;inset:0;z-index:0;}
+  .cb-tag::after{content:'';position:absolute;inset:0;z-index:1;background:rgba(20,17,13,.42);}
+  .cb-tag .nm{position:relative;z-index:2;font-family:'Anton';font-size:clamp(12px,1.2vw,17px);
+    letter-spacing:.05em;color:var(--cream2);text-transform:uppercase;text-shadow:2px 2px 0 var(--ink);white-space:nowrap;}
+  .cb-seg{font-family:'Oswald';font-weight:700;font-size:clamp(10px,.95vw,13px);letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink);padding:0 clamp(10px,1.4vw,20px);display:flex;align-items:center;gap:8px;
+    border-right:3px solid rgba(20,17,13,.18);white-space:nowrap;}
+  .cb-seg b{color:var(--accent-dk);font-variant-numeric:tabular-nums;font-family:'Space Mono';}
+  .cb-seg b.gain{color:var(--gain);} .cb-seg b.loss{color:var(--loss);}
+  .cb-spacer{flex:1;}
+  .cb-bar{flex:0 0 clamp(150px,18vw,300px);position:relative;align-self:center;height:60%;margin-right:clamp(8px,1vw,16px);}
+  .cb-bar canvas{display:block;width:100%;height:100%;}
+
+  /* ================= BOTTOM STATUS BAR — CLEAN, NO SKEW (shipped) ================= */
+  .botbar{position:relative;z-index:20;flex:0 0 auto;
+    height:clamp(44px,5.4vh,54px);
+    background:var(--cream2);border:5px solid var(--ink);box-shadow:8px 8px 0 var(--ink);
+    display:flex;align-items:center;}
+  .bb-inner{display:flex;align-items:center;width:100%;height:100%;padding:0 clamp(12px,1.5vw,22px);}
+  .bb-seg{font-family:'Oswald';font-weight:700;font-size:clamp(11px,1vw,13px);letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink);padding:0 clamp(12px,1.4vw,20px);display:flex;align-items:center;gap:8px;
+    border-right:3px solid rgba(20,17,13,.18);white-space:nowrap;}
+  .bb-seg:last-child{border-right:0;}
+  .bb-seg b{color:var(--accent-dk);font-variant-numeric:tabular-nums;}
+  .bb-seg.warn b{color:var(--orange);}
+  .bb-spacer{flex:1;}
+  .bb-pill{font-family:'Anton';font-size:clamp(13px,1.2vw,15px);letter-spacing:.1em;color:var(--cream2);
+    background:var(--ink);padding:6px 22px;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);}
+  .bb-pill span.txt{display:inline-block;transform:skewX(var(--unskew));}
+  .bb-pill.t{background:var(--accent-dk);}
+
+  /* ================= EXPANDED OVERLAY — VIEWPORT-LEVEL, NEVER CLIPPED (shipped) ================= */
+  #expand{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+    padding:clamp(58px,8vh,84px) clamp(16px,3vw,40px) clamp(34px,5vh,52px);}
+  #expand.on{display:flex;}
+  #expand .scrim{position:absolute;inset:0;background:rgba(10,9,7,.66);}
+  .exp-frame{position:relative;z-index:2;
+    width:min(1300px,92vw);max-height:min(80vh,720px);height:auto;
+    display:flex;flex-direction:column;
+    background:var(--accent-dk);padding:16px;box-shadow:0 0 0 6px var(--ink),26px 26px 0 rgba(20,17,13,.5);
+    overflow:visible;}
+
+  /* ===== ANIMATED VIOLET LIQUID-MARBLE — REUSABLE .nt-marble (shipped technique) ===== */
+  .nt-marble{position:absolute;inset:0;overflow:hidden;pointer-events:none;
+    background:var(--mrb-base);}
+  .nt-marble > svg{position:absolute;top:-8%;left:-8%;width:116%;height:116%;}
+  .nt-marble .marble-drift{transform-origin:52% 46%;
+    animation:frdrift 34s ease-in-out infinite alternate;}
+  @keyframes frdrift{
+    0%{transform:translate(0,0) scale(1.08) rotate(0deg);}
+    100%{transform:translate(-22px,-34px) scale(1.18) rotate(3deg);}}
+
+  .exp-frame .frmarble{z-index:1;}
+  .exp-frame .frhalf{position:absolute;inset:0;z-index:2;
+    background-image:radial-gradient(var(--ink) 2px, transparent 2.2px);
+    background-size:14px 14px;opacity:.20;pointer-events:none;}
+  .exp-frame .frhatch{position:absolute;left:0;right:0;height:16px;z-index:2;pointer-events:none;opacity:.5;
+    background-image:repeating-linear-gradient(90deg,var(--ink) 0 4px,transparent 4px 13px);}
+  .exp-frame .frhatch.t{top:0;} .exp-frame .frhatch.b{bottom:0;}
+  .exp-frame .frtag{position:absolute;left:30px;top:-22px;z-index:5;overflow:hidden;
+    background:var(--mrb-deep);color:var(--accent);font-family:'Bungee';font-size:clamp(14px,1.5vw,19px);
+    letter-spacing:.05em;padding:8px 20px;border:3px solid var(--ink);
+    box-shadow:6px 6px 0 rgba(20,17,13,.4);white-space:nowrap;}
+  .exp-frame .frtag .nt-marble{z-index:0;}
+  .exp-frame .frtag::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+    background:rgba(20,17,13,.5);}
+  .exp-frame .frtag .txt{position:relative;z-index:2;
+    text-shadow:2px 2px 0 var(--ink),0 0 6px rgba(20,17,13,.85);}
+  .exp-close{position:absolute;right:26px;top:-22px;z-index:6;cursor:pointer;
+    background:var(--ink);color:var(--cream2);font-family:'Anton';font-size:clamp(14px,1.4vw,18px);letter-spacing:.1em;
+    padding:9px 18px;border:0;box-shadow:6px 6px 0 rgba(20,17,13,.4);white-space:nowrap;
+    transition:background .12s,color .12s;display:inline-flex;align-items:center;gap:8px;}
+  .exp-close .xglyph{display:block;}
+  .exp-close .xword{display:inline-block;line-height:1;}
+  .exp-close:hover{background:var(--loss);color:var(--cream2);}
+  .exp-close:focus-visible{outline:3px solid var(--cream2);outline-offset:2px;}
+
+  .exp-inner{position:relative;z-index:3;width:100%;flex:1 1 auto;min-height:0;background:var(--cream2);
+    border:5px solid var(--ink);display:grid;grid-template-columns:1fr minmax(360px,470px);}
+  .exp-viz{position:relative;padding:clamp(18px,3vh,30px) clamp(18px,2vw,26px);border-right:5px solid var(--ink);
+    display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+  .exp-viz::before{content:'';position:absolute;inset:0;z-index:0;
+    background-image:radial-gradient(var(--ink) 1.35px,transparent 1.55px);
+    background-size:15px 15px;opacity:.05;mix-blend-mode:multiply;pointer-events:none;}
+  .exp-viz > *{position:relative;z-index:1;}
+  .exp-viz .evh{font-family:'Anton';font-size:clamp(22px,2.4vw,30px);letter-spacing:.03em;text-transform:uppercase;color:var(--ink);}
+  .exp-viz .evs{font-family:'Oswald';font-weight:600;font-size:clamp(11px,1vw,13px);letter-spacing:.12em;
+    text-transform:uppercase;color:rgba(20,17,13,.55);margin-top:2px;}
+  .exp-viz .evbody{flex:1 1 auto;position:relative;margin-top:14px;min-height:0;}
+  .exp-viz .evbody > canvas{position:absolute;inset:0;width:100%;height:100%;}
+
+  /* DATA PANEL — boxed value tags, alternating bands, one ink hero row */
+  .exp-data{padding:clamp(18px,3vh,28px) clamp(18px,2vw,26px);display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+  .exp-data .edh{font-family:'Anton';font-size:clamp(14px,1.4vw,18px);letter-spacing:.1em;color:var(--ink);
+    background:var(--accent);display:inline-block;padding:6px 12px;align-self:flex-start;
+    border:3px solid var(--ink);box-shadow:5px 5px 0 var(--ink);text-transform:uppercase;}
+  .edlist{margin-top:16px;display:flex;flex-direction:column;gap:0;border:3px solid var(--ink);
+    box-shadow:6px 6px 0 var(--ink);overflow:auto;min-height:0;}
+  .edrow{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:clamp(6px,1vh,9px) 12px;border-bottom:2px solid var(--ink);position:relative;}
+  .edrow:last-child{border-bottom:0;}
+  .edrow:nth-child(odd){background:var(--cream2);}
+  .edrow:nth-child(even){background:var(--ink-tint-085);}
+  .edrow .lbl{font-family:'Oswald';font-weight:700;font-size:clamp(12px,1.1vw,14px);letter-spacing:.05em;
+    text-transform:uppercase;color:rgba(20,17,13,.82);}
+  .edrow .val{font-family:'Space Mono';font-weight:700;font-size:clamp(13px,1.25vw,16px);color:var(--ink);
+    letter-spacing:-.01em;background:var(--cream);border:2.5px solid var(--ink);
+    padding:3px 10px;box-shadow:3px 3px 0 var(--ink);min-width:96px;text-align:right;white-space:nowrap;
+    font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;justify-content:flex-end;gap:5px;}
+  .edrow .val .tri{font-size:10px;line-height:1;}
+  .edrow .val.gain{background:var(--gain);color:var(--ink);}
+  .edrow .val.loss{background:var(--loss);color:var(--cream2);}
+  .edrow .val.accent{background:var(--accent);color:var(--cream2);}      /* the leader's figure (cream2 on violet = legible) */
+  .edrow .val.confirm{background:var(--ink-tint-085);color:rgba(20,17,13,.6);font-style:normal;}
+  .edrow.hero{background:var(--ink);padding:clamp(9px,1.4vh,13px) 12px;}
+  .edrow.hero .lbl{font-size:clamp(13px,1.2vw,15px);color:var(--cream2);font-weight:700;letter-spacing:.08em;}
+  .edrow.hero .val{font-family:'Anton';font-size:clamp(20px,2.2vw,26px);padding:2px 12px;letter-spacing:.02em;
+    background:var(--accent);color:var(--cream2);box-shadow:4px 4px 0 rgba(242,236,224,.25);}
+  .edrow.hero .val.gain{background:var(--gain);color:var(--ink);}
+  .edrow.hero .val.loss{background:var(--loss);color:var(--cream2);}
+  .ed-foot{margin-top:14px;font-family:'Oswald';font-weight:600;font-size:clamp(10px,.9vw,11px);letter-spacing:.14em;
+    text-transform:uppercase;color:rgba(20,17,13,.45);padding-top:4px;flex:0 0 auto;}
+
+  /* visually-hidden mirror (a11y) */
+  .vh{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0 0 0 0);white-space:nowrap;border:0;}
+
+  /* ===== DATA-STATE CHROME (empty / loading / error / stale) =====
+     Hard-edged, ink-stamped, NO rounding / NO blur. The viz states render INSIDE
+     the canvases (drawHalfBar/drawSplitBar/drawExpDuel branch on STATE). These
+     DOM affordances are the worded layer that sits over the board / strip. */
+  /* the board overlay panel: empty CTA + error + Retry (stamped, centred) */
+  .stateover{position:absolute;inset:0;z-index:6;display:none;flex-direction:column;
+    align-items:center;justify-content:center;gap:clamp(8px,1.4vh,14px);
+    background:rgba(242,236,224,.86);pointer-events:auto;padding:clamp(14px,3vw,30px);text-align:center;}
+  .board.is-empty .stateover.empty{display:flex;}
+  .board.is-error .stateover.error{display:flex;}
+  .stateover .so-tag{font-family:'Anton';font-size:clamp(16px,1.7vw,23px);letter-spacing:.05em;
+    text-transform:uppercase;color:var(--cream2);background:var(--ink);padding:7px 18px;
+    box-shadow:6px 6px 0 var(--ink);}
+  .stateover.error .so-tag{background:var(--accent-dk);}
+  .stateover .so-msg{font-family:'Oswald';font-weight:700;font-size:clamp(11px,1.05vw,14px);
+    letter-spacing:.1em;text-transform:uppercase;color:rgba(20,17,13,.74);max-width:46ch;line-height:1.4;}
+  .stateover .so-cause{font-family:'Space Mono';font-weight:700;font-size:clamp(10px,.95vw,12px);
+    color:var(--loss);letter-spacing:.02em;}
+  .so-btn{font-family:'Anton';font-size:clamp(13px,1.3vw,16px);letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink);background:var(--orange);border:3px solid var(--ink);box-shadow:5px 5px 0 var(--ink);
+    padding:8px 22px;cursor:pointer;transition:transform .08s;}
+  .so-btn:active{transform:translate(3px,3px);box-shadow:2px 2px 0 var(--ink);}
+  .so-btn:focus-visible{outline:3px solid var(--ink);outline-offset:3px;}
+  .so-btn.ghost{background:var(--cream2);}
+
+  /* STALE chip — dimmed real data + the Intl-formatted age. Rides the bottom bar
+     SNAPSHOT segment; also flagged on the board via a hatch band drawn on canvas. */
+  .bb-seg.stale-chip{display:none;align-items:center;}
+  body.is-stale .bb-seg.stale-chip{display:flex;}
+  body.is-stale .bb-seg.fresh-snap{display:none;}
+  .stale-chip .chip{font-family:'Anton';font-size:clamp(12px,1.1vw,14px);letter-spacing:.06em;
+    text-transform:uppercase;color:var(--ink);background:var(--orange);padding:3px 12px;
+    box-shadow:3px 3px 0 var(--ink);white-space:nowrap;display:inline-flex;align-items:center;gap:7px;}
+  .stale-chip .chip .hatch{display:inline-block;width:16px;height:11px;
+    background-image:repeating-linear-gradient(90deg,var(--ink) 0 2px,transparent 2px 5px);}
+  /* the per-row DOM numeric readouts mute when there is no live data
+     (empty/error/loading) so they don't read as populated next to the canvases */
+  body.no-data .mr-val{opacity:.3;}
+  /* board goes visually dimmed when stale (real data stays, fills muted) */
+  .board.is-stale .board-rows{opacity:.62;}
+  .board.is-stale::after{content:'';position:absolute;left:0;right:0;bottom:0;height:14px;z-index:5;
+    pointer-events:none;opacity:.55;
+    background-image:repeating-linear-gradient(90deg,var(--ink) 0 4px,transparent 4px 12px);}
+
+  /* split-bar / combined-strip DOM percentage tags (never canvas-only) */
+  .cb-split-tags{display:flex;align-items:center;gap:7px;padding:0 clamp(8px,1vw,14px);flex:0 0 auto;}
+  .cb-split-tags .pt{font-family:'Space Mono';font-weight:700;font-size:clamp(10px,.92vw,12px);
+    letter-spacing:.02em;color:var(--ink);background:var(--cream);border:2.5px solid var(--ink);
+    box-shadow:3px 3px 0 var(--ink);padding:2px 9px;font-variant-numeric:tabular-nums;white-space:nowrap;
+    display:inline-flex;align-items:center;gap:5px;}
+  .cb-split-tags .pt .swatch{width:9px;height:9px;border:1.5px solid var(--ink);display:inline-block;}
+  .cb-split-tags .pt.you .swatch{background:var(--accent);}
+  .cb-split-tags .pt.partner .swatch{background:var(--purple);}
+
+  /* ================= CRT — FULL VIEWPORT (shipped verbatim) ================= */
+  #crt{position:fixed;inset:0;z-index:90;pointer-events:none;overflow:hidden;}
+  #crt .bulge{position:absolute;inset:0;mix-blend-mode:soft-light;opacity:.9;
+    background:radial-gradient(120% 130% at 50% 46%,
+      rgba(255,255,255,.30) 0%, rgba(255,255,255,.06) 32%,
+      transparent 52%, rgba(20,17,13,.28) 80%, rgba(20,17,13,.55) 100%);}
+  #crt .scan{position:absolute;inset:0;mix-blend-mode:multiply;opacity:.26;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.62) 0 1px, transparent 1px 3px);}
+  #crt .grille{position:absolute;inset:0;mix-blend-mode:multiply;opacity:.06;
+    background:repeating-linear-gradient(90deg,rgba(0,0,0,.5) 0 1px, transparent 1px 3px);}
+  #crt .vig{position:absolute;inset:0;
+    background:radial-gradient(125% 135% at 50% 50%,
+      transparent 52%, rgba(20,17,13,.18) 75%, rgba(20,17,13,.44) 92%, rgba(20,17,13,.72) 100%);}
+  #crt .corners{position:absolute;inset:0;
+    background:
+      radial-gradient(42% 42% at 0% 0%,   rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 100% 0%, rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 0% 100%, rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 100% 100%,rgba(20,17,13,.46) 0%, transparent 62%);}
+  #crt .sheen{position:absolute;inset:0;mix-blend-mode:screen;opacity:.10;
+    background:radial-gradient(70% 42% at 28% -4%, #fff 0%, transparent 58%);}
+  #crt .bezel{position:absolute;inset:0;border-radius:46px;
+    box-shadow:
+      inset 0 0 0 4px rgba(20,17,13,.85),
+      inset 0 0 0 16px rgba(20,17,13,.42),
+      inset 0 0 90px 26px rgba(20,17,13,.40),
+      inset 0 0 4px 2px rgba(255,255,255,.10);}
+  #crt .glassmask{position:absolute;inset:10px;border-radius:38px;
+    box-shadow:inset 0 0 0 2px rgba(242,236,224,.10), inset 0 0 40px 8px rgba(20,17,13,.28);}
+
+  @media (prefers-reduced-motion: reduce){
+    .mrow{transition:none;}
+    .nt-marble .marble-drift{animation-duration:180s;}
+  }
+</style>
+</head>
+<body class="screen">
+ <!-- ============================================================================
+      SHARED ANIMATED LIQUID-MARBLE DEFINITION (shipped #ntMarble symbol, verbatim).
+      Reads colours from the --mrb-* vars on .screen — now the VIOLET family.
+      Never placed behind a chart or number.
+      ============================================================================ -->
+ <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+   <defs>
+     <filter id="ntWarp" x="-15%" y="-15%" width="130%" height="130%">
+       <feTurbulence type="fractalNoise" baseFrequency="0.0085 0.0052" numOctaves="3" seed="11" result="w">
+         <animate attributeName="baseFrequency" dur="34s" repeatCount="indefinite"
+           values="0.0085 0.0052; 0.0125 0.0082; 0.0070 0.0046; 0.0085 0.0052"
+           calcMode="spline" keyTimes="0;0.34;0.7;1"
+           keySplines="0.42 0 0.58 1; 0.42 0 0.58 1; 0.42 0 0.58 1"/>
+       </feTurbulence>
+       <feDisplacementMap in="SourceGraphic" in2="w" scale="240" xChannelSelector="R" yChannelSelector="G"/>
+     </filter>
+     <filter id="ntWarp2" x="-15%" y="-15%" width="130%" height="130%">
+       <feTurbulence type="fractalNoise" baseFrequency="0.013 0.020" numOctaves="2" seed="4" result="w2">
+         <animate attributeName="baseFrequency" dur="26s" repeatCount="indefinite"
+           values="0.013 0.020; 0.019 0.027; 0.013 0.020"
+           calcMode="spline" keyTimes="0;0.5;1"
+           keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>
+       </feTurbulence>
+       <feDisplacementMap in="SourceGraphic" in2="w2" scale="90" xChannelSelector="R" yChannelSelector="G"/>
+     </filter>
+     <pattern id="ntDots" width="14" height="14" patternUnits="userSpaceOnUse">
+       <circle cx="3" cy="3" r="1.5" fill="#0c1012"/>
+     </pattern>
+     <symbol id="ntMarble" viewBox="0 0 1300 760" preserveAspectRatio="xMidYMid slice">
+       <g class="marble-drift">
+         <rect x="-120" y="-120" width="1540" height="1000" fill="var(--mrb-base)"/>
+         <g filter="url(#ntWarp)">
+           <path d="M-120,80 C300,10 360,320 200,520 C40,700 380,720 300,980 L-160,980 Z" fill="var(--mrb-veil)"/>
+           <path d="M1300,-60 C1120,180 1240,400 980,560 C720,720 980,940 820,1080 L1360,1080 L1360,-80 Z" fill="var(--mrb-veil)"/>
+           <path d="M-100,300 C260,220 360,480 200,620 C80,730 360,740 300,940 L120,1000 L-120,1000 Z" fill="var(--mrb-mid)"/>
+           <path d="M620,-60 C840,120 660,360 900,500 C1140,640 980,860 1240,960 L1360,1000 L1360,-80 Z" fill="var(--mrb-bright)" opacity="0.55"/>
+           <path d="M-60,480 C220,420 280,640 160,740 C60,820 280,860 260,1000 L120,1040 L-100,1040 Z" fill="var(--mrb-core)"/>
+           <path d="M860,540 C940,660 840,800 980,880 C1120,960 1020,1060 1180,1120 L1360,1160 L1360,560 Z" fill="var(--mrb-base)"/>
+           <path d="M220,560 C360,520 400,760 280,840 C170,910 280,640 220,680 C340,600 140,600 220,560 Z" fill="var(--mrb-bright)"/>
+           <path d="M640,700 C740,660 780,860 680,920 C600,960 660,760 600,780 Z" fill="var(--mrb-mid)" opacity="0.92"/>
+           <path d="M-120,860 C200,820 300,1000 180,1080 L-120,1120 Z" fill="var(--mrb-deep)"/>
+           <ellipse cx="430" cy="140" rx="110" ry="150" fill="var(--mrb-deep)"/>
+           <ellipse cx="1080" cy="240" rx="120" ry="160" fill="var(--mrb-bright)" opacity="0.35"/>
+         </g>
+         <g filter="url(#ntWarp2)" opacity="0.7">
+           <path d="M-120,150 C300,120 600,260 980,320" fill="none" stroke="var(--mrb-deep)" stroke-width="34"/>
+           <path d="M-120,260 C320,230 600,360 980,420" fill="none" stroke="var(--mrb-bright)" stroke-width="18" opacity="0.7"/>
+           <path d="M-120,560 C320,530 600,660 980,720" fill="none" stroke="var(--mrb-bright)" stroke-width="22" opacity="0.85"/>
+           <path d="M-120,680 C300,650 560,760 940,840" fill="none" stroke="var(--mrb-veil)" stroke-width="26"/>
+           <path d="M-120,860 C300,830 560,920 940,1000" fill="none" stroke="var(--mrb-mid)" stroke-width="30"/>
+         </g>
+         <rect x="-120" y="-120" width="1540" height="1000" fill="url(#ntDots)" opacity="0.10"/>
+       </g>
+     </symbol>
+   </defs>
+ </svg>
+
+ <div id="screen">
+  <div class="nt-marble screenmarble"><svg><use href="#ntMarble"/></svg></div>
+  <div id="stage">
+    <div class="stage-bg"></div>
+    <div class="halftone"></div>
+    <canvas class="dotcluster" id="dotcl" width="560" height="420" aria-hidden="true"></canvas>
+    <canvas class="dotcluster2" id="dotcl2" width="340" height="300" aria-hidden="true"></canvas>
+    <div class="bgslash"></div>
+
+    <!-- ============ TOP STATUS BAR ============ -->
+    <div class="topbar"><div class="tb-inner">
+      <div class="tb-logo">NT</div>
+      <div class="tb-seg"><div class="k">You</div><div class="v you" id="tbYou">—</div></div>
+      <div class="tb-seg"><div class="k">Partner</div><div class="v partner" id="tbPartner">—</div></div>
+      <div class="tb-seg"><div class="k">Combined</div><div class="v accent" id="tbCombined">—</div></div>
+      <div class="tb-spacer"></div>
+      <div class="tb-asof"><div class="stamp"><span class="txt">COMPARE</span></div>
+        <div class="sy">SNAPSHOT · AS OF&nbsp;<span id="tbAsOf">—</span></div></div>
+    </div></div>
+
+    <!-- ============ MAIN: THE DUEL ============ -->
+    <div class="main">
+
+      <!-- ===== DUEL HEADER — name plates facing the VS badge ===== -->
+      <div class="duelhead">
+        <div class="nameplate you">
+          <div class="nt-marble npmarble"><svg><use href="#ntMarble"/></svg></div>
+          <div class="np-in">
+            <div class="np-role">You</div>
+            <div class="np-name" id="npYouName">—</div>
+            <div class="np-sub">VALUE <b id="npYouVal">—</b></div>
+          </div>
+        </div>
+        <div class="vsbadge"><div class="vs">VS</div><div class="vk">Head&nbsp;to&nbsp;Head</div></div>
+        <div class="nameplate partner">
+          <div class="nt-marble npmarble"><svg><use href="#ntMarble"/></svg></div>
+          <div class="np-in">
+            <div class="np-role">Partner</div>
+            <div class="np-name" id="npPartnerName">—</div>
+            <div class="np-sub">VALUE <b id="npPartnerVal">—</b></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== THE DUEL BOARD — mirrored metric rows ===== -->
+      <section class="board" aria-label="You versus partner metric comparison">
+        <div class="board-head">
+          <div class="bh-side l" id="bhYou">YOU</div>
+          <div class="bh-mid">METRIC · DIVERGING FROM SPINE · LEADER ◀▶</div>
+          <div class="bh-side r" id="bhPartner">PARTNER</div>
+        </div>
+        <div class="board-rows" id="boardRows"><!-- metric rows injected --></div>
+
+        <!-- worded data-states over the board (canvas carries the viz states) -->
+        <div class="stateover empty" aria-hidden="true">
+          <div class="so-tag">NO DUEL YET</div>
+          <div class="so-msg">No shared snapshot to compare. Invite a partner or load a snapshot to start the head-to-head.</div>
+          <button class="so-btn" type="button" onclick="setState('populated')">LOAD SNAPSHOT</button>
+        </div>
+        <div class="stateover error" aria-hidden="true">
+          <div class="so-tag">SNAPSHOT FAILED</div>
+          <div class="so-cause" id="boardErrCause">Shared snapshot unreachable · source timed out</div>
+          <button class="so-btn" type="button" onclick="setState('loading');setTimeout(()=>setState('populated'),900)">RETRY</button>
+        </div>
+      </section>
+
+      <!-- ===== COMBINED STRIP — the fund total ===== -->
+      <div class="combined">
+        <div class="cb-tag"><div class="nt-marble cbmarble"><svg><use href="#ntMarble"/></svg></div>
+          <span class="nm">Combined Fund</span></div>
+        <div class="cb-seg">VALUE&nbsp;·&nbsp;<b id="cbVal">—</b></div>
+        <div class="cb-seg">TOTAL P/L&nbsp;·&nbsp;<b id="cbPl">—</b></div>
+        <div class="cb-seg">TRUE GROWTH&nbsp;·&nbsp;<b id="cbGrowth">—</b></div>
+        <div class="cb-seg">XIRR&nbsp;·&nbsp;<b id="cbXirr">—</b></div>
+        <div class="cb-spacer"></div>
+        <!-- split percentages as real DOM text (never canvas-width-gated) -->
+        <div class="cb-split-tags">
+          <span class="pt you"><span class="swatch"></span><span id="cbYouPct">—</span></span>
+          <span class="pt partner"><span class="swatch"></span><span id="cbPartnerPct">—</span></span>
+        </div>
+        <div class="cb-bar"><canvas id="cbSplitBar" aria-hidden="true"></canvas></div>
+      </div>
+
+      <!-- ===== VISUALLY-HIDDEN DATA MIRROR — the canvas-encoded numbers as a real
+           text/data equivalent for screen readers (the .vh class made live) ===== -->
+      <table class="vh" id="vhTable">
+        <caption>You versus partner comparison, shared snapshot. Metric, your value, partner value, leader, and gap.</caption>
+        <thead><tr><th scope="col">Metric</th><th scope="col" id="vhYouHead">You</th>
+          <th scope="col" id="vhPartnerHead">Partner</th><th scope="col">Leader</th><th scope="col">Gap</th></tr></thead>
+        <tbody id="vhBody"></tbody>
+        <tfoot><tr><th scope="row">Combined fund split</th>
+          <td id="vhYouShare">—</td><td id="vhPartnerShare">—</td>
+          <td colspan="2" id="vhSplitNote">—</td></tr></tfoot>
+      </table>
+    </div>
+
+    <!-- ============ BOTTOM STATUS BAR ============ -->
+    <div class="botbar"><div class="bb-inner">
+      <div class="bb-seg">DUEL&nbsp;·&nbsp;<b id="bbLead">—</b></div>
+      <div class="bb-seg">METRICS&nbsp;·&nbsp;<b id="bbWon">—</b></div>
+      <div class="bb-seg">SOURCE&nbsp;·&nbsp;<b>SHARED&nbsp;SNAPSHOT</b></div>
+      <div class="bb-seg fresh-snap">SNAPSHOT&nbsp;·&nbsp;<b id="bbFresh">—</b></div>
+      <div class="bb-seg stale-chip"><span class="chip"><span class="hatch" aria-hidden="true"></span><span id="bbStale">—</span></span></div>
+      <div class="bb-spacer"></div>
+      <div class="bb-seg">BASE&nbsp;·&nbsp;<b>GBP</b></div>
+      <div class="bb-pill t"><span class="txt">VIEW · DUEL ◀▶</span></div>
+    </div></div>
+  </div>
+ </div>
+
+ <!-- ============ EXPANDED OVERLAY (shipped z100 machinery) ============ -->
+ <div id="expand" role="dialog" aria-modal="true" aria-labelledby="expVizHead">
+   <div class="scrim" onclick="closeExpand()"></div>
+   <div class="exp-frame">
+     <div class="nt-marble frmarble"><svg><use href="#ntMarble"/></svg></div>
+     <div class="frhalf"></div>
+     <div class="frhatch t"></div>
+     <div class="frhatch b"></div>
+     <div class="frtag" id="expTag"><div class="nt-marble"><svg><use href="#ntMarble"/></svg></div><span class="txt">METRIC DUEL</span></div>
+     <button class="exp-close" onclick="closeExpand()" aria-label="Close">
+       <svg class="xglyph" viewBox="0 0 18 18" width="14" height="14" aria-hidden="true" focusable="false">
+         <line x1="3" y1="3" x2="15" y2="15" stroke="currentColor" stroke-width="3" stroke-linecap="square"/>
+         <line x1="15" y1="3" x2="3" y2="15" stroke="currentColor" stroke-width="3" stroke-linecap="square"/>
+       </svg><span class="xword">CLOSE</span></button>
+     <div class="exp-inner">
+       <div class="exp-viz">
+         <div class="evh" id="expVizHead">—</div>
+         <div class="evs" id="expVizSub">—</div>
+         <div class="evbody"><canvas id="cv-exp" tabindex="0"></canvas></div>
+       </div>
+       <div class="exp-data">
+         <div class="edh" id="expDataHead">NUMBERS</div>
+         <div class="edlist" id="expRows"></div>
+         <div class="ed-foot" id="expFoot">Shared snapshot · option A · figures as of stamp</div>
+       </div>
+     </div>
+   </div>
+ </div>
+
+ <!-- ============ CRT (shipped verbatim) ============ -->
+ <div id="crt" aria-hidden="true">
+   <div class="bulge"></div>
+   <div class="scan"></div>
+   <div class="grille"></div>
+   <div class="sheen"></div>
+   <div class="vig"></div>
+   <div class="corners"></div>
+   <div class="bezel"></div>
+   <div class="glassmask"></div>
+ </div>
+
+<script>
+/* ---------- TOKENS mirrored as JS consts (named tokens, no stray inline hex) ---------- */
+const INK='#14110D', CREAM='#EDE6D2', CREAM2='#F2ECE0',
+      ACCENT='#7A3CFF', ACCENT_DK='#4B1F9E',
+      GAIN='#2FB5A8', LOSS='#C8402F', ORANGE='#FF5A1F', PURPLE='#5D5A86',
+      GRID='rgba(20,17,13,.12)', RULE='rgba(20,17,13,.18)', WATER='rgba(20,17,13,.22)',
+      TICKTXT='rgba(20,17,13,.66)', INKSHADOW='rgba(20,17,13,.25)';
+const TRI_UP='▲︎', TRI_DN='▼︎', MINUS='−';
+
+/* ---------- Intl formatters (GBP base; never string-concat a symbol) ---------- */
+const LOCALE='en-GB', CCY='GBP';
+const fmtMoney0=new Intl.NumberFormat(LOCALE,{style:'currency',currency:CCY,minimumFractionDigits:0,maximumFractionDigits:0});
+const fmtMoney2=new Intl.NumberFormat(LOCALE,{style:'currency',currency:CCY,minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPct=new Intl.NumberFormat(LOCALE,{style:'percent',minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPct1=new Intl.NumberFormat(LOCALE,{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1});
+function money(v,d){const f=d===0?fmtMoney0:fmtMoney2;const s=f.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+function moneyPlain(v,d){return (d===0?fmtMoney0:fmtMoney2).format(v);}
+function pctSigned(v){const s=fmtPct.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+function pctSigned1(v){const s=fmtPct1.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+function pctPlain1(v){return fmtPct1.format(v);}
+
+/* ---------- HONEST, SELF-CONSISTENT MOCK DATA ----------
+   Two duellists (YOU + PARTNER), Option A shared snapshot, "as of" stamp.
+   Each carries a portfolio value, net deposits, xirr, win counts. Everything
+   else is DERIVED, never invented:
+     pl        = value - deposits           (P/L vs cash in)
+     growth    = pl / deposits              (true growth, deposits stripped)
+     winRate   = winning positions / total
+   Combined fund = simple sum (value, deposits, pl), growth re-derived; combined
+   XIRR = deposit-weighted blend (honest approximation, labelled Money-weighted). */
+/* Real as-of timestamp (not a literal string). The stamp text + the STALE age
+   chip are both DERIVED from this Date via Intl, so staleness is detected, never
+   hard-coded. Default = a fixed snapshot moment for the mock. */
+const AS_OF_TS = new Date('2026-06-30T14:32:00');
+const fmtAsOf = new Intl.DateTimeFormat(LOCALE,{day:'2-digit',month:'short',year:'numeric',
+  hour:'2-digit',minute:'2-digit',hour12:false});
+const fmtClock = new Intl.DateTimeFormat(LOCALE,{hour:'2-digit',minute:'2-digit',hour12:false});
+const AS_OF = fmtAsOf.format(AS_OF_TS).toUpperCase().replace(',',' ·');
+const rtf = new Intl.RelativeTimeFormat(LOCALE,{numeric:'auto'});
+/* staleness threshold in minutes; if the snapshot is older we surface STALE */
+const STALE_AFTER_MIN = 15;
+function snapshotAgeMin(now){return Math.max(0,Math.round((now.getTime()-AS_OF_TS.getTime())/60000));}
+function staleAgeLabel(now){
+  const mins=snapshotAgeMin(now);
+  if(mins>=60){const h=Math.round(mins/60);return rtf.format(-h,'hour');}
+  return rtf.format(-mins,'minute');
+}
+
+const YOU = {
+  name:'YOU', value:41820, deposits:34500, xirr:0.142, wins:11, positions:14,
+};
+const PARTNER = {
+  name:'MAYA', value:33240, deposits:29800, xirr:0.118, wins:7, positions:12,
+};
+[YOU,PARTNER].forEach(p=>{
+  p.pl = p.value - p.deposits;
+  p.growth = p.pl / p.deposits;
+  p.winRate = p.wins / p.positions;
+});
+const COMB = { value: YOU.value + PARTNER.value, deposits: YOU.deposits + PARTNER.deposits };
+COMB.pl = COMB.value - COMB.deposits;
+COMB.growth = COMB.pl / COMB.deposits;
+COMB.xirr = (YOU.xirr*YOU.deposits + PARTNER.xirr*PARTNER.deposits)/COMB.deposits;
+COMB.winRate = (YOU.wins+PARTNER.wins)/(YOU.positions+PARTNER.positions);
+
+/* ---------- THE FIVE DUEL METRICS (mirrored rows) ----------
+   each: key, label, unit, accessors, fmt, kind ('money'|'pct'|'plsigned'). */
+const METRICS=[
+  {key:'value',  label:'Portfolio Value', unit:'GBP',     get:p=>p.value,    fmt:v=>fmtMoney0.format(v),  kind:'money'},
+  {key:'growth', label:'True Growth',     unit:'%',        get:p=>p.growth,   fmt:v=>pctSigned1(v),        kind:'plsigned'},
+  {key:'pl',     label:'Total P/L',       unit:'GBP',      get:p=>p.pl,       fmt:v=>money(v,0),           kind:'plsigned'},
+  {key:'xirr',   label:'XIRR',            unit:'Money-wtd',get:p=>p.xirr,     fmt:v=>pctPlain1(v),         kind:'pct'},
+  {key:'winrate',label:'Win Rate',        unit:'Positions',get:p=>p.winRate,  fmt:v=>pctPlain1(v),         kind:'pct'},
+];
+METRICS.forEach(m=>{
+  const a=m.get(YOU), b=m.get(PARTNER);
+  m.domain=Math.max(Math.abs(a),Math.abs(b))||1;
+  m.youV=a; m.partnerV=b;
+  m.leader = a>b?'you':(b>a?'partner':'tie');
+  m.gap = a-b;                       // signed: positive => you ahead
+});
+const YOU_WON = METRICS.filter(m=>m.leader==='you').length;
+const PARTNER_WON = METRICS.filter(m=>m.leader==='partner').length;
+const OVERALL_LEAD = YOU_WON>PARTNER_WON?YOU.name:(PARTNER_WON>YOU_WON?PARTNER.name:'TIED');
+
+/* ====================================================================
+   DATA-STATE MACHINE — empty | loading | error | stale | populated.
+   Every canvas (drawHalfBar / drawSplitBar / drawExpDuel) branches on STATE,
+   not on data presence, so all five states render in the viz's own silhouette.
+   ==================================================================== */
+let STATE='populated';            // empty | loading | error | stale | populated
+let ERROR_CAUSE='Shared snapshot unreachable · source timed out';
+const STAMP_FROZEN = true;        // mock: 'now' is pinned so the snapshot reads stale on demand
+function nowRef(){ return STAMP_FROZEN ? new Date(AS_OF_TS.getTime()+ (STATE==='stale'? (28*60000):0)) : new Date(); }
+function isLoading(){return STATE==='loading';}
+function isStale(){return STATE==='stale';}
+function hasBars(){return STATE==='populated'||STATE==='stale'||STATE==='loading';}
+
+function setState(s){
+  STATE=s;
+  const board=document.querySelector('.board');
+  if(board){
+    board.classList.toggle('is-empty',s==='empty');
+    board.classList.toggle('is-error',s==='error');
+    board.classList.toggle('is-stale',s==='stale');
+  }
+  document.body.classList.toggle('is-stale',s==='stale');
+  document.body.classList.toggle('no-data',s==='empty'||s==='error'||s==='loading');
+  const cause=document.getElementById('boardErrCause');
+  if(cause)cause.textContent=ERROR_CAUSE;
+  // empty/error: the board rows are not meaningful — clear the live mirror politely
+  fillChrome();
+  buildBoard();
+  drawAllBars();
+  fillVhTable();
+  // keep an open expand in sync with the new state
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))
+    CURRENT_EXP.draw(document.getElementById('cv-exp'),true);
+}
+
+/* one hard-edged sweep for the loading state (no blur, translateX only) */
+let SWEEP_T0=0;
+function sweepFrac(){
+  const period=900; const t=(performance.now()-SWEEP_T0)%period; return t/period;
+}
+let sweepRAF=null;
+function startSweep(){
+  if(sweepRAF)return; SWEEP_T0=performance.now();
+  const tick=()=>{ if(!isLoading()){sweepRAF=null;return;} drawAllBars(); sweepRAF=requestAnimationFrame(tick); };
+  sweepRAF=requestAnimationFrame(tick);
+}
+
+/* shared loading-skeleton drawer: dashed hollow bar in the row silhouette + sweep */
+function drawSkeletonBar(ctx,x,y,w,h){
+  ctx.save();
+  ctx.setLineDash([6,5]);ctx.lineWidth=2;ctx.strokeStyle=RULE;
+  ctx.strokeRect(x+.5,y+.5,Math.max(1,w-1),h-1);
+  ctx.setLineDash([]);
+  // single hard-edged translateX sweep clipped to the silhouette
+  const sf=sweepFrac(); const sx=x + (w+40)*sf - 20;
+  ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+  ctx.fillStyle='rgba(122,60,255,.22)';ctx.fillRect(sx-8,y,16,h);
+  ctx.restore();
+}
+/* dashed hatch band drawn ON a bar to flag stale (real data dimmed beneath) */
+function drawStaleHatch(ctx,x,y,w,h){
+  ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+  ctx.globalAlpha=.5;ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.setLineDash([3,7]);
+  for(let xx=x-h; xx<x+w+h; xx+=8){ctx.beginPath();ctx.moveTo(xx,y+h);ctx.lineTo(xx+h,y);ctx.stroke();}
+  ctx.setLineDash([]);ctx.restore();
+}
+
+function fillChrome(){
+  document.getElementById('tbYou').textContent=fmtMoney0.format(YOU.value);
+  document.getElementById('tbPartner').textContent=fmtMoney0.format(PARTNER.value);
+  document.getElementById('tbCombined').textContent=fmtMoney0.format(COMB.value);
+  document.getElementById('tbAsOf').textContent=AS_OF;
+  document.getElementById('npYouName').textContent=YOU.name;
+  document.getElementById('npPartnerName').textContent=PARTNER.name;
+  document.getElementById('npYouVal').textContent=fmtMoney0.format(YOU.value);
+  document.getElementById('npPartnerVal').textContent=fmtMoney0.format(PARTNER.value);
+  document.getElementById('bhYou').textContent=YOU.name;
+  document.getElementById('bhPartner').textContent=PARTNER.name;
+  document.getElementById('cbVal').textContent=fmtMoney0.format(COMB.value);
+  const plEl=document.getElementById('cbPl');plEl.textContent=money(COMB.pl,0);plEl.className=COMB.pl>=0?'gain':'loss';
+  const grEl=document.getElementById('cbGrowth');grEl.textContent=pctSigned1(COMB.growth);grEl.className=COMB.growth>=0?'gain':'loss';
+  document.getElementById('cbXirr').textContent=pctPlain1(COMB.xirr);
+  document.getElementById('bbLead').textContent=OVERALL_LEAD+(OVERALL_LEAD==='TIED'?'':' AHEAD');
+  document.getElementById('bbWon').textContent=YOU.name+' '+YOU_WON+' · '+PARTNER.name+' '+PARTNER_WON;
+  // SNAPSHOT segment: fresh shows the as-of clock; stale shows Intl-formatted age,
+  // both derived from the real AS_OF_TS — never the literal 'AS OF 14:32'.
+  document.getElementById('bbFresh').textContent='AS OF '+fmtClock.format(AS_OF_TS);
+  document.getElementById('bbStale').textContent='STALE · '+staleAgeLabel(nowRef());
+  // combined split percentages as DOM text (never canvas-width-gated)
+  const yf=YOU.value/COMB.value, pf=PARTNER.value/COMB.value;
+  document.getElementById('cbYouPct').textContent='YOU '+fmtPct1.format(yf);
+  document.getElementById('cbPartnerPct').textContent=PARTNER.name+' '+fmtPct1.format(pf);
+}
+
+/* populate the visually-hidden data mirror — the canvas numbers as a real table */
+function fillVhTable(){
+  document.getElementById('vhYouHead').textContent=YOU.name;
+  document.getElementById('vhPartnerHead').textContent=PARTNER.name;
+  const body=document.getElementById('vhBody');if(!body)return;
+  body.innerHTML='';
+  if(!hasBars()){
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td colspan="5">'+(STATE==='empty'?'No shared snapshot loaded.':'Snapshot failed to load: '+ERROR_CAUSE)+'</td>';
+    body.appendChild(tr);
+  }else{
+    METRICS.forEach(m=>{
+      const leadName=m.leader==='you'?YOU.name:(m.leader==='partner'?PARTNER.name:'Tie');
+      const gapStr=m.fmt(Math.abs(m.gap)).replace('+','').replace(MINUS,'');
+      const tr=document.createElement('tr');
+      tr.innerHTML='<th scope="row">'+m.label+'</th>'
+        +'<td>'+m.fmt(m.youV)+'</td><td>'+m.fmt(m.partnerV)+'</td>'
+        +'<td>'+leadName+'</td><td>'+gapStr+'</td>';
+      body.appendChild(tr);
+    });
+  }
+  const yf=YOU.value/COMB.value, pf=PARTNER.value/COMB.value;
+  document.getElementById('vhYouShare').textContent=fmtPct1.format(yf);
+  document.getElementById('vhPartnerShare').textContent=fmtPct1.format(pf);
+  document.getElementById('vhSplitNote').textContent=
+    (hasBars()? 'Combined fund '+fmtMoney0.format(COMB.value)+(isStale()?' · snapshot stale ('+staleAgeLabel(nowRef())+')':'') : 'Not available');
+}
+
+/* ---------- shipped helpers (verbatim) ---------- */
+function px(c){ return c.getContext('2d'); }
+function line(ctx,pts,col,w){ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineJoin='round';ctx.beginPath();
+  pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();}
+function fitCanvas(c){
+  const r=c.getBoundingClientRect();
+  let w=Math.max(1,Math.round(r.width)), h=Math.max(1,Math.round(r.height));
+  if(!w||!h){ w=c.width||300; h=c.height||150; }
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  c.width=Math.round(w*dpr); c.height=Math.round(h*dpr);
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+function drawDotCluster(c,fade){
+  const ctx=px(c),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+  const step=15,r=2.0;
+  for(let row=0,y=0;y<H;y+=step,row++){
+    for(let x=0;x<W;x+=step){
+      let d=fade(x/W,y/H);
+      if(Math.random()>d) continue;
+      ctx.fillStyle=INK;ctx.beginPath();ctx.arc(x+(row%2?step/2:0),y,r,0,7);ctx.fill();
+    }
+  }
+}
+/* ▲/▼ + ◀/▶ triangles drawn as canvas paths (one icon voice, never an emoji) */
+function triCanvas(ctx,x,y,s,up,col){ctx.fillStyle=col;ctx.beginPath();
+  if(up){ctx.moveTo(x,y-s);ctx.lineTo(x+s,y+s);ctx.lineTo(x-s,y+s);}
+  else  {ctx.moveTo(x,y+s);ctx.lineTo(x+s,y-s);ctx.lineTo(x-s,y-s);}
+  ctx.closePath();ctx.fill();}
+function chevCanvas(ctx,x,y,s,right,col){ctx.fillStyle=col;ctx.beginPath();
+  if(right){ctx.moveTo(x-s,y-s);ctx.lineTo(x+s,y);ctx.lineTo(x-s,y+s);}
+  else     {ctx.moveTo(x+s,y-s);ctx.lineTo(x-s,y);ctx.lineTo(x+s,y+s);}
+  ctx.closePath();ctx.fill();}
+
+/* ====================================================================
+   OPPOSED DIVERGING HALF-BAR — one side of a metric row.
+   you-side: bar anchored at the RIGHT (divider) edge, grows leftward.
+   partner : bar anchored at the LEFT  (divider) edge, grows rightward.
+   gain/loss are the FILLS for signed P/L-style metrics (sanctioned exception);
+   neutral metrics fill in muted --purple (the benchmark slate). The VIOLET
+   --accent is the OUTLINE that marks the LEADER only (collision-safe: accent is
+   never a competing fill against the slate purple).
+   ==================================================================== */
+function drawHalfBar(c,m,side){
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  c.setAttribute('aria-hidden','true');
+  const isYou=side==='you';
+  const yb=Math.round(H*0.28), bh=Math.round(H*0.44);
+  const inset=6;                              // gap to the central spine edge
+  const track=W-inset*2;
+  // STATE BRANCH (not data-presence): empty/error draw nothing here (the worded
+  // board overlay carries them); loading = dashed skeleton in the row silhouette.
+  if(STATE==='empty'||STATE==='error'){ return; }
+  if(STATE==='loading'){
+    const skx=isYou?inset:inset, skw=track*0.62; // hollow placeholder length
+    const sx0=isYou?(W-inset-skw):inset;
+    drawSkeletonBar(ctx,sx0,yb,skw,bh);
+    ctx.strokeStyle=WATER;ctx.lineWidth=2;const ax=isYou?W-inset:inset;
+    ctx.beginPath();ctx.moveTo(ax,2);ctx.lineTo(ax,H-2);ctx.stroke();
+    return;
+  }
+  const v=side==='you'?m.youV:m.partnerV;
+  const isLeader=(m.leader===side);
+  const frac=Math.max(0,Math.min(1,Math.abs(v)/m.domain));
+  const len=track*frac;
+  let x0,x1;
+  if(isYou){ x1=W-inset; x0=x1-len; }         // grows leftward from right (divider) edge
+  else     { x0=inset;   x1=x0+len; }         // grows rightward from left (divider) edge
+  let fill, fillSoft;
+  if(m.kind==='plsigned'){
+    const up=v>=0; fill=up?GAIN:LOSS;
+    fillSoft=up?'rgba(47,181,168,.30)':'rgba(200,64,47,.28)';
+  }else{
+    fill=PURPLE; fillSoft='rgba(93,90,134,.34)';
+  }
+  // divider-edge anchor spine (heaviest rule, on the facing edge)
+  ctx.strokeStyle=WATER;ctx.lineWidth=2;
+  const anchorX=isYou?W-inset:inset;
+  ctx.beginPath();ctx.moveTo(anchorX,2);ctx.lineTo(anchorX,H-2);ctx.stroke();
+  // faint track baseline under the bar
+  ctx.strokeStyle=GRID;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(inset,yb+bh+4);ctx.lineTo(W-inset,yb+bh+4);ctx.stroke();
+  const bw=Math.max(0,x1-x0);
+  // ink offset shadow under the bar (the stamp)
+  ctx.fillStyle=INKSHADOW;ctx.fillRect(x0+2.5,yb+2.5,bw,bh);
+  // STALE = real bars, fills DIMMED (the data is honest but old)
+  const stale=isStale();
+  ctx.save(); if(stale)ctx.globalAlpha=.5;
+  // soft fill body + solid fill core
+  ctx.fillStyle=fillSoft;ctx.fillRect(x0,yb,bw,bh);
+  ctx.fillStyle=fill;ctx.fillRect(x0,yb,bw,bh);
+  ctx.restore();
+  // stale hatch band over the dimmed fill
+  if(stale)drawStaleHatch(ctx,x0,yb,bw,bh);
+  // ink keyline around the bar (cut-paper)
+  ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.strokeRect(x0+.5,yb+.5,Math.max(1,bw-1),bh-1);
+  // LEADER signal — VIOLET accent OUTLINE ring + end-cap node (focal stroke, ≤5%)
+  if(isLeader){
+    ctx.save(); if(stale)ctx.globalAlpha=.55;
+    ctx.strokeStyle=ACCENT;ctx.lineWidth=3;
+    ctx.strokeRect(x0-2.5,yb-2.5,Math.max(2,bw+5),bh+5);
+    const tipX=isYou?x0:x1, ty=yb+bh/2;       // end-cap at the bar tip (away from divider)
+    ctx.fillStyle=INK;ctx.fillRect(tipX-5,ty-5,10,10);
+    ctx.fillStyle=ACCENT;ctx.fillRect(tipX-3,ty-3,6,6);
+    ctx.restore();
+  }
+}
+
+/* ====================================================================
+   COMBINED SPLIT BAR — one bar showing YOU vs PARTNER share of the combined
+   fund value. you = violet accent fill (the user's own segment, focal);
+   partner = muted slate purple (the foil). ink-stamped cut-paper.
+   ==================================================================== */
+function drawSplitBar(c){
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  c.setAttribute('aria-hidden','true');
+  const yb=Math.round(H*0.22), bh=Math.round(H*0.56);
+  const x0=2,x1=W-2,span=x1-x0;
+  // STATE BRANCH (not data-presence) on the same canvas silhouette
+  if(STATE==='empty'){
+    ctx.setLineDash([6,5]);ctx.lineWidth=2;ctx.strokeStyle=RULE;
+    ctx.strokeRect(x0+.5,yb+.5,span-1,bh-1);ctx.setLineDash([]);
+    ctx.fillStyle=TICKTXT;ctx.font="700 10px 'Oswald'";ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('NO SPLIT',(x0+x1)/2,yb+bh/2);ctx.textBaseline='alphabetic';return;
+  }
+  if(STATE==='error'){
+    ctx.setLineDash([6,5]);ctx.lineWidth=2;ctx.strokeStyle='rgba(200,64,47,.6)';
+    ctx.strokeRect(x0+.5,yb+.5,span-1,bh-1);ctx.setLineDash([]);
+    ctx.fillStyle=LOSS;ctx.font="700 10px 'Oswald'";ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('LOAD FAILED',(x0+x1)/2,yb+bh/2);ctx.textBaseline='alphabetic';return;
+  }
+  if(STATE==='loading'){ drawSkeletonBar(ctx,x0,yb,span,bh); return; }
+  const total=COMB.value, yf=YOU.value/total, pf=PARTNER.value/total;
+  const split=x0+span*yf;
+  const stale=isStale();
+  ctx.fillStyle=INKSHADOW;ctx.fillRect(x0+3,yb+3,span,bh);
+  // COLLISION RULE: accent stays the FOCAL STROKE, --purple stays the muted FILL.
+  // YOU = neutral cream fill + ACCENT ink-outline (focal stroke). PARTNER = slate
+  // purple fill. They no longer fight as adjacent fills.
+  ctx.save(); if(stale)ctx.globalAlpha=.5;
+  ctx.fillStyle=CREAM2;ctx.fillRect(x0,yb,split-x0,bh);                  // you = neutral fill
+  ctx.fillStyle=PURPLE;ctx.fillRect(split,yb,x1-split,bh);              // partner = slate benchmark fill
+  ctx.restore();
+  if(stale){drawStaleHatch(ctx,x0,yb,split-x0,bh);drawStaleHatch(ctx,split,yb,x1-split,bh);}
+  // YOU focal: accent outline ring (the stroke voice), thicker than the partner keyline
+  ctx.save(); if(stale)ctx.globalAlpha=.6;
+  ctx.strokeStyle=ACCENT;ctx.lineWidth=3.5;ctx.strokeRect(x0+1.75,yb+1.75,(split-x0)-3.5,bh-3.5);
+  ctx.restore();
+  // ink keylines (cut-paper) + the divider rule
+  ctx.strokeStyle=INK;ctx.lineWidth=2.5;
+  ctx.strokeRect(x0+.5,yb+.5,(split-x0)-1,bh-1);
+  ctx.strokeRect(split+.5,yb+.5,(x1-split)-1,bh-1);
+  ctx.strokeStyle=INK;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(split,yb-3);ctx.lineTo(split,yb+bh+3);ctx.stroke();
+  // labels: YOU reads ink on the neutral fill; PARTNER cream on slate. Percentages
+  // also live in the DOM tags (cb-split-tags) so they are never width-dropped.
+  ctx.font="700 11px 'Space Mono'";ctx.textBaseline='middle';
+  ctx.textAlign='left';
+  if(split-x0>44){ctx.fillStyle=INK;ctx.fillText(fmtPct1.format(yf),x0+8,yb+bh/2);}
+  ctx.textAlign='right';
+  if(x1-split>44){ctx.fillStyle=CREAM2;ctx.fillText(fmtPct1.format(pf),x1-7,yb+bh/2);}
+  ctx.textBaseline='alphabetic';
+}
+
+/* ====================================================================
+   EXPANDED METRIC DUEL — YOU vs PARTNER side-by-side bars + the GAP.
+   Two horizontal bars on a shared domain (you top / partner bottom), ink-
+   stamped; the leader carries the violet accent outline + chevron; the GAP is
+   annotated below. Picture and numbers share one source (METRIC).
+   ==================================================================== */
+let EXP_METRIC=null;
+function drawExpDuel(c,big){
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const m=EXP_METRIC; if(!m){return;}
+  const padL=84,padR=70,padT=34,padB=46;
+  const x0=padL,x1=W-padR,y0=padT,y1=H-padB;
+  // STATE BRANCH on the expand viz's own silhouette
+  function expMsg(tag,msg,col,withRetry){
+    ctx.setLineDash([7,6]);ctx.lineWidth=2;ctx.strokeStyle=col||RULE;
+    ctx.strokeRect(x0+.5,y0+.5,(x1-x0)-1,(y1-y0)-1);ctx.setLineDash([]);
+    ctx.fillStyle=INK;ctx.font="700 20px 'Anton'";ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(tag,(x0+x1)/2,(y0+y1)/2-14);
+    ctx.fillStyle=col||TICKTXT;ctx.font="700 12px 'Space Mono'";
+    ctx.fillText(msg,(x0+x1)/2,(y0+y1)/2+12);
+    ctx.textBaseline='alphabetic';
+  }
+  if(STATE==='empty'){ expMsg('NO DUEL YET','Load a shared snapshot to compare');
+    c.setAttribute('role','img');c.setAttribute('aria-label','No duel yet. Load a shared snapshot to compare.');return; }
+  if(STATE==='error'){ expMsg('SNAPSHOT FAILED',ERROR_CAUSE,LOSS);
+    c.setAttribute('role','img');c.setAttribute('aria-label','Snapshot failed to load: '+ERROR_CAUSE);return; }
+  if(STATE==='loading'){
+    const n2=2,slot2=((y1-y0))/n2,bh2=slot2*0.44;
+    for(let i=0;i<n2;i++){const yy=y0+i*slot2+(slot2-bh2)/2;drawSkeletonBar(ctx,x0,yy,(x1-x0)*0.6,bh2);}
+    ctx.strokeStyle=WATER;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x0,y0-6);ctx.lineTo(x0,y1+6);ctx.stroke();
+    c.setAttribute('role','img');c.setAttribute('aria-label','Loading duel data.');return;
+  }
+  const dom=m.domain;
+  const Xv=v=>x0+(x1-x0)*Math.max(0,Math.min(1,Math.abs(v)/dom));
+  const rows=[{who:YOU.name,v:m.youV,side:'you'},{who:PARTNER.name,v:m.partnerV,side:'partner'}];
+  const n=rows.length, slot=(y1-y0)/n, bh=slot*0.44;
+  // baseline (zero / left anchor) — heaviest rule
+  ctx.strokeStyle=WATER;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x0,y0-6);ctx.lineTo(x0,y1+6);ctx.stroke();
+  // domain max tick + label at the right
+  ctx.strokeStyle=RULE;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x1,y0-2);ctx.lineTo(x1,y0-12);ctx.stroke();
+  ctx.fillStyle=TICKTXT;ctx.font="12px 'Space Mono'";ctx.textAlign='right';
+  ctx.fillText(m.fmt(dom).replace('+',''),x1,y0-16);
+  rows.forEach((r,i)=>{
+    const yy=y0+i*slot+(slot-bh)/2;
+    const xv=Xv(r.v);
+    const isLeader=(m.leader===r.side);
+    let fill, fillSoft;
+    if(m.kind==='plsigned'){const up=r.v>=0;fill=up?GAIN:LOSS;fillSoft=up?'rgba(47,181,168,.30)':'rgba(200,64,47,.28)';}
+    else{fill=PURPLE;fillSoft='rgba(93,90,134,.34)';}
+    const bw=xv-x0;
+    const stale=isStale();
+    ctx.fillStyle=INKSHADOW;ctx.fillRect(x0+4,yy+4,bw,bh);
+    ctx.save(); if(stale)ctx.globalAlpha=.5;
+    ctx.fillStyle=fillSoft;ctx.fillRect(x0,yy,bw,bh);
+    ctx.fillStyle=fill;ctx.fillRect(x0,yy,bw,bh);
+    ctx.restore();
+    if(stale)drawStaleHatch(ctx,x0,yy,bw,bh);
+    ctx.strokeStyle=INK;ctx.lineWidth=2.5;ctx.strokeRect(x0+.5,yy+.5,Math.max(1,bw-1),bh-1);
+    // who label (left, outside the baseline)
+    ctx.fillStyle=INK;ctx.font="700 17px 'Oswald'";ctx.textAlign='right';
+    ctx.fillText(r.who,x0-14,yy+bh*0.64);
+    // value label (right of bar tip)
+    ctx.fillStyle=INK;ctx.font="700 17px 'Space Mono'";ctx.textAlign='left';
+    ctx.fillText(m.fmt(r.v),xv+12,yy+bh*0.64);
+    if(isLeader){
+      ctx.save(); if(stale)ctx.globalAlpha=.6;
+      ctx.strokeStyle=ACCENT;ctx.lineWidth=3.5;ctx.strokeRect(x0-3,yy-3,Math.max(2,bw+6),bh+6);
+      ctx.fillStyle=INK;ctx.fillRect(xv-6,yy+bh/2-6,12,12);
+      ctx.fillStyle=ACCENT;ctx.fillRect(xv-4,yy+bh/2-4,8,8);
+      chevCanvas(ctx,x0-52,yy+bh*0.5,7,true,ACCENT);   // violet 'leader' chevron at far left
+      ctx.restore();
+    }
+  });
+  // STALE flag inside the viz (Intl age), so the picture itself reads as old
+  if(isStale()){
+    ctx.fillStyle=ORANGE;ctx.font="700 12px 'Space Mono'";ctx.textAlign='right';
+    ctx.fillText('STALE · '+staleAgeLabel(nowRef()),x1,y1+30-18);
+  }
+  // GAP annotation between the two bars
+  const gapStr=m.fmt(Math.abs(m.gap)).replace('+','').replace(MINUS,'');
+  const leadName=m.leader==='you'?YOU.name:(m.leader==='partner'?PARTNER.name:'TIE');
+  ctx.fillStyle=ACCENT_DK;ctx.font="700 14px 'Space Mono'";ctx.textAlign='center';
+  ctx.fillText('GAP '+gapStr+'  ·  '+leadName+' AHEAD',(x0+x1)/2,y1+30);
+  c.setAttribute('role','img');
+  c.setAttribute('aria-label',m.label+' duel: '+YOU.name+' '+m.fmt(m.youV)+' versus '+PARTNER.name+' '+m.fmt(m.partnerV)+'; '+leadName+' ahead by '+gapStr);
+}
+
+/* ====================================================================
+   BUILD THE DUEL BOARD (mirrored metric rows, click-to-expand)
+   ==================================================================== */
+function valClass(m,side){
+  if(m.kind!=='plsigned')return '';
+  const v=side==='you'?m.youV:m.partnerV;
+  return v>=0?'up':'dn';
+}
+function valGlyph(m,side){
+  if(m.kind!=='plsigned')return '';
+  const v=side==='you'?m.youV:m.partnerV;
+  return '<span class="tri">'+(v>=0?TRI_UP:TRI_DN)+'</span>';
+}
+function buildBoard(){
+  const root=document.getElementById('boardRows');root.innerHTML='';
+  METRICS.forEach(m=>{
+    const youCls=valClass(m,'you'), pCls=valClass(m,'partner');
+    const youWin=m.leader==='you', pWin=m.leader==='partner';
+    const row=document.createElement('div');
+    row.className='mrow';row.tabIndex=0;row.setAttribute('role','button');
+    row.setAttribute('aria-label',m.label+': '+YOU.name+' '+m.fmt(m.youV)+', '+PARTNER.name+' '+m.fmt(m.partnerV)
+      +', '+(m.leader==='you'?YOU.name:m.leader==='partner'?PARTNER.name:'tie')+(m.leader==='tie'?'':' ahead')+'. Activate to expand.');
+    const youBarId='ybar-'+m.key, pBarId='pbar-'+m.key;
+    row.innerHTML=
+      '<div class="mr-val you '+youCls+'">'+valGlyph(m,'you')+m.fmt(m.youV)+'</div>'
+      +'<div class="mr-bar"><canvas id="'+youBarId+'"></canvas></div>'
+      +'<div class="mr-spine">'
+        +(youWin?'<span class="win l"></span>':'')
+        +'<span class="lbl">'+m.label+'</span><span class="unit">'+m.unit+'</span>'
+        +(pWin?'<span class="win r"></span>':'')
+      +'</div>'
+      +'<div class="mr-bar"><canvas id="'+pBarId+'"></canvas></div>'
+      +'<div class="mr-val partner '+pCls+'">'+m.fmt(m.partnerV)+valGlyph(m,'partner')+'</div>';
+    row.addEventListener('click',()=>{LAST_TRIGGER=row;openExpand(m.key);});
+    row.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();LAST_TRIGGER=row;openExpand(m.key);}});
+    root.appendChild(row);
+  });
+  METRICS.forEach(m=>{
+    const yb=document.getElementById('ybar-'+m.key), pb=document.getElementById('pbar-'+m.key);
+    if(yb)drawHalfBar(yb,m,'you');
+    if(pb)drawHalfBar(pb,m,'partner');
+  });
+}
+
+/* ====================================================================
+   EXPAND CONFIG — per-metric duel; YOU vs PARTNER + the gap
+   ==================================================================== */
+function metricRows(m){
+  const leadName=m.leader==='you'?YOU.name:(m.leader==='partner'?PARTNER.name:'TIE');
+  const youCls=m.kind==='plsigned'?(m.youV>=0?'gain':'loss'):'plain';
+  const pCls=m.kind==='plsigned'?(m.partnerV>=0?'gain':'loss'):'plain';
+  const gapStr=m.fmt(Math.abs(m.gap)).replace('+','').replace(MINUS,'');
+  const combVal = m.key==='value'?fmtMoney0.format(COMB.value)
+        :m.key==='pl'?money(COMB.pl,0)
+        :m.key==='growth'?pctSigned1(COMB.growth)
+        :m.key==='xirr'?pctPlain1(COMB.xirr)
+        :pctPlain1(COMB.winRate);
+  return [
+    ['hero','Gap · '+leadName+' ahead', gapStr, 'plain'],
+    [YOU.name, m.fmt(m.youV), m.leader==='you'?'accent':youCls],
+    [PARTNER.name, m.fmt(m.partnerV), m.leader==='partner'?'accent':pCls],
+    ['Leader', leadName, 'plain'],
+    ['Combined', combVal, 'plain'],
+    ['Metric', m.label, 'plain'],
+  ];
+}
+
+let CURRENT_EXP=null;
+let LAST_TRIGGER=null;
+function openExpand(key){
+  if(!hasBars()||isLoading())return;      // no expand from empty/error/loading
+  const m=METRICS.find(x=>x.key===key); if(!m)return;
+  EXP_METRIC=m;
+  const drawFn=drawExpDuel;
+  const head=m.label+' · DUEL';
+  const sub=YOU.name+' vs '+PARTNER.name+' · as of '+AS_OF;
+  const tag='METRIC DUEL';
+  const rows=metricRows(m);
+  CURRENT_EXP={draw:drawFn};
+  document.getElementById('expVizHead').textContent=head;
+  document.getElementById('expVizSub').textContent=sub;
+  document.getElementById('expDataHead').textContent=m.label.toUpperCase()+' · NUMBERS';
+  document.querySelector('#expTag .txt').textContent=tag;
+  const rowsEl=document.getElementById('expRows');rowsEl.innerHTML='';
+  rows.forEach(r=>{
+    const hero=r[0]==='hero';
+    const lbl=hero?r[1]:r[0], val=hero?r[2]:r[1], kind=hero?r[3]:r[2];
+    const d=document.createElement('div');d.className='edrow'+(hero?' hero':'');
+    const vcls=kind==='gain'?'gain':kind==='loss'?'loss':kind==='accent'?'accent':'';
+    d.innerHTML='<div class="lbl">'+lbl+'</div><div class="val '+vcls+'">'+val+'</div>';
+    rowsEl.appendChild(d);
+  });
+  document.getElementById('expand').classList.add('on');
+  try{const u=new URL(location);u.searchParams.set('expand',key);history.replaceState(null,'',u);}catch(e){}
+  requestAnimationFrame(()=>drawFn(document.getElementById('cv-exp'),true));
+  setTimeout(()=>{const cb=document.querySelector('.exp-close');if(cb)cb.focus();},0);
+}
+function closeExpand(){
+  CURRENT_EXP=null;EXP_METRIC=null;
+  document.getElementById('expand').classList.remove('on');
+  try{const u=new URL(location);u.searchParams.delete('expand');history.replaceState(null,'',u);}catch(e){}
+  if(LAST_TRIGGER&&LAST_TRIGGER.focus)LAST_TRIGGER.focus();
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('expand').classList.contains('on'))closeExpand();});
+/* REAL focus trap — cycle through every focusable node in the dialog (close
+   button + any focusable data/viz elements), not pinned to a single control.
+   Focus return to LAST_TRIGGER is handled in closeExpand(). */
+function expFocusables(){
+  const frame=document.querySelector('.exp-frame');if(!frame)return [];
+  const sel='a[href],button:not([disabled]),input:not([disabled]),select,textarea,'
+    +'[tabindex]:not([tabindex="-1"]),canvas[tabindex]';
+  return Array.from(frame.querySelectorAll(sel))
+    .filter(el=>el.offsetWidth||el.offsetHeight||el.getClientRects().length);
+}
+document.getElementById('expand').addEventListener('keydown',e=>{
+  if(e.key!=='Tab')return;
+  const nodes=expFocusables();if(!nodes.length)return;
+  const first=nodes[0], last=nodes[nodes.length-1], cur=document.activeElement;
+  if(e.shiftKey){
+    if(cur===first||!nodes.includes(cur)){e.preventDefault();last.focus();}
+  }else{
+    if(cur===last||!nodes.includes(cur)){e.preventDefault();first.focus();}
+  }
+});
+
+/* ---------- render + responsive redraw ---------- */
+function drawAllBars(){
+  METRICS.forEach(m=>{
+    const yb=document.getElementById('ybar-'+m.key), pb=document.getElementById('pbar-'+m.key);
+    if(yb)drawHalfBar(yb,m,'you');
+    if(pb)drawHalfBar(pb,m,'partner');
+  });
+  const sp=document.getElementById('cbSplitBar');if(sp)drawSplitBar(sp);
+  if(isLoading())startSweep();        // one hard-edged translateX sweep loop
+}
+function renderAll(){
+  fillChrome();
+  buildBoard();
+  drawAllBars();
+  fillVhTable();
+  drawDotCluster(document.getElementById('dotcl'),(x,y)=>Math.max(0,1-Math.hypot(x,1-y)*0.95));
+  drawDotCluster(document.getElementById('dotcl2'),(x,y)=>Math.max(0,1-Math.hypot(1-x,y)*1.05));
+}
+
+if('ResizeObserver' in window){
+  const ro=new ResizeObserver(()=>{drawAllBars();
+    if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))
+      CURRENT_EXP.draw(document.getElementById('cv-exp'),true);});
+  const board=document.getElementById('boardRows');if(board)ro.observe(board);
+  const comb=document.querySelector('.combined');if(comb)ro.observe(comb);
+  const expBody=document.querySelector('.exp-viz .evbody');
+  if(expBody){ro.observe(expBody);}
+}
+let rzT=null;
+function onResize(){clearTimeout(rzT);rzT=setTimeout(()=>{drawAllBars();
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))
+    CURRENT_EXP.draw(document.getElementById('cv-exp'),true);},80);}
+window.addEventListener('resize',onResize);
+
+/* ---------- demo state driver: ?state=empty|loading|error|stale|populated,
+   the bottom-bar VIEW pill cycles states, and keys 1–5 jump to a state. The
+   state machine itself is production-shaped; this is only how the mock exercises
+   all five in-frame states on the real canvases. ---------- */
+const STATE_CYCLE=['populated','stale','loading','empty','error'];
+function applyInitialState(){
+  const q=(location.search.match(/[?&]state=([^&]+)/)||[])[1];
+  const s=q?decodeURIComponent(q):'populated';
+  if(STATE_CYCLE.includes(s))STATE=s;
+}
+function cycleState(){
+  const i=STATE_CYCLE.indexOf(STATE);
+  setState(STATE_CYCLE[(i+1)%STATE_CYCLE.length]);
+}
+function wireStateDemo(){
+  const pill=document.querySelector('.bb-pill.t');
+  if(pill){pill.style.cursor='pointer';pill.setAttribute('role','button');pill.tabIndex=0;
+    pill.setAttribute('aria-label','Cycle data state (demo)');
+    pill.addEventListener('click',cycleState);
+    pill.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();cycleState();}});}
+  document.addEventListener('keydown',e=>{
+    if(e.target&&/^(INPUT|TEXTAREA)$/.test(e.target.tagName))return;
+    const map={'1':'populated','2':'stale','3':'loading','4':'empty','5':'error'};
+    if(map[e.key]){setState(map[e.key]);}
+  });
+}
+
+function go(){
+  applyInitialState();
+  renderAll();
+  setState(STATE);          // apply classes + draw the chosen state once
+  wireStateDemo();
+  const m=location.search.match(/[?&]expand=([^&]+)/);
+  if(m){openExpand(decodeURIComponent(m[1]));}
+}
+if(document.fonts&&document.fonts.ready){
+  document.fonts.ready.then(()=>{go();
+    requestAnimationFrame(()=>{drawAllBars();if(CURRENT_EXP)CURRENT_EXP.draw(document.getElementById('cv-exp'),true);});
+    setTimeout(()=>{drawAllBars();if(CURRENT_EXP)CURRENT_EXP.draw(document.getElementById('cv-exp'),true);},240);
+  });
+}else{window.addEventListener('load',go);}
+window.addEventListener('load',()=>{setTimeout(()=>{drawAllBars();
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))
+    CURRENT_EXP.draw(document.getElementById('cv-exp'),true);},380);});
+
+/* ---------- prefers-reduced-motion: pause marble SMIL (shipped) ---------- */
+(function(){
+  const mq=window.matchMedia('(prefers-reduced-motion: reduce)');
+  function apply(){
+    document.querySelectorAll('.nt-marble svg, svg use').forEach(el=>{
+      const svg=el.ownerSVGElement||el.closest('svg');if(!svg)return;
+      try{if(mq.matches){svg.pauseAnimations();}else{svg.unpauseAnimations();}}catch(e){}
+    });
+    document.querySelectorAll('svg').forEach(svg=>{try{if(mq.matches){svg.pauseAnimations();}}catch(e){}});
+  }
+  apply();if(mq.addEventListener)mq.addEventListener('change',apply);
+})();
+</script>
+</body>
+</html>

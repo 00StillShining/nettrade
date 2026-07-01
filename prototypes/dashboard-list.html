@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NETTRADE // trading station</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800;900&family=Chakra+Petch:wght@500;600;700&family=Space+Mono:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --orange:#FF7A18; --orange-deep:#FF5500;
+    --teal:#2FD0C5; --peri:#8A7FD0; --rust:#C9683C;
+    --ink:#161616;
+    --metal-1:#e9e6e2; --metal-2:#cfcbc6; --metal-3:#b6b1ab;
+    --glow: 0 0 4px #ff7a18, 0 0 12px #ff5500, 0 0 24px rgba(255,85,0,.55);
+    --glow-strong: 0 0 5px #ffae6a, 0 0 16px #ff7a18, 0 0 34px rgba(255,85,0,.7);
+    --dropglow: drop-shadow(0 0 6px rgba(255,90,0,.6));
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1512px;height:982px;overflow:hidden;background:#08070a}
+  body{font-family:'Space Mono',monospace;color:var(--ink);position:relative;-webkit-font-smoothing:antialiased}
+  .stage{position:absolute;inset:0;width:1512px;height:982px;overflow:hidden}
+
+  /* ===== SMOKE BG ===== */
+  #smoke{position:absolute;inset:-6%;width:112%;height:112%;z-index:0;filter:saturate(1.15) contrast(1.05)}
+  .smoke-veil{position:absolute;inset:0;z-index:1;
+    background:
+      radial-gradient(120% 90% at 78% 20%, rgba(255,85,0,.10), transparent 55%),
+      radial-gradient(120% 120% at 10% 95%, rgba(20,12,26,.62), transparent 60%),
+      linear-gradient(180deg, rgba(8,6,12,.40), rgba(8,6,12,.14) 30%, rgba(8,6,12,.28) 75%, rgba(8,6,12,.60));
+    pointer-events:none}
+  .grain{position:absolute;inset:0;z-index:2;opacity:.05;mix-blend-mode:overlay;pointer-events:none}
+
+  /* ===== METAL ===== */
+  .metal{
+    position:relative;isolation:isolate;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,0) 14%),
+      linear-gradient(90deg, var(--metal-2), var(--metal-1) 22%, var(--metal-3) 55%, var(--metal-1) 78%, var(--metal-2)),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, rgba(0,0,0,.045) 2px 4px),
+      radial-gradient(140% 120% at 20% -20%, rgba(255,255,255,.4), transparent 45%),
+      radial-gradient(120% 140% at 95% 120%, rgba(0,0,0,.22), transparent 50%);
+    background-blend-mode:normal,normal,overlay,screen,multiply;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.9),
+      inset 0 -2px 6px rgba(0,0,0,.28),
+      inset 2px 0 5px rgba(0,0,0,.14),
+      inset -2px 0 5px rgba(0,0,0,.14),
+      0 18px 40px rgba(0,0,0,.5);
+    border:1px solid rgba(60,55,50,.45);
+  }
+  .metal>.wear{position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:inherit;overflow:hidden}
+  .metal>.wear .nz{position:absolute;inset:0;mix-blend-mode:overlay;opacity:.55}
+  .metal>.wear .nz2{position:absolute;inset:0;mix-blend-mode:multiply;opacity:.22}
+  .metal>.scratch-layer{position:absolute;inset:0;z-index:1;pointer-events:none;border-radius:inherit;overflow:hidden}
+  .metal>*{position:relative}
+
+  .dark-slab{
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 20%),
+      linear-gradient(180deg, #1b1a20, #100f14 60%, #0b0a0e);
+    border:1px solid rgba(0,0,0,.7);
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.06),inset 0 0 22px rgba(0,0,0,.9),0 14px 30px rgba(0,0,0,.55);
+    border-radius:8px;position:relative;overflow:hidden;
+  }
+
+  /* ===== LAYOUT ===== */
+  .frame{position:absolute;inset:0;z-index:5;padding:34px 38px}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start}
+
+  .brand{display:flex;align-items:center;gap:18px}
+  .mark{width:64px;height:64px;filter:var(--dropglow)}
+  .wordwrap{display:flex;flex-direction:column;gap:5px}
+  .wordmark{font-family:'Unbounded',sans-serif;font-weight:900;font-size:40px;letter-spacing:1px;line-height:.9;color:#f4f1ec;text-shadow:0 2px 0 rgba(0,0,0,.5)}
+  .wordmark .acc{color:var(--orange);text-shadow:var(--glow)}
+  .subtag{font-family:'Space Mono',monospace;font-size:12.5px;letter-spacing:2px;color:#bbb5ad;text-transform:lowercase}
+  .subtag b{color:var(--orange);text-shadow:0 0 6px rgba(255,90,0,.7);font-weight:700}
+
+  .readout{width:430px;border-radius:10px;padding:16px 20px 18px}
+  .readout .rline1{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .mode-tag{font-family:'Share Tech Mono',monospace;font-size:13px;letter-spacing:3px;color:#8f8a84}
+  .mode-tag b{color:var(--orange);text-shadow:0 0 8px rgba(255,90,0,.7)}
+  .live{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;color:#cfcac3;display:flex;align-items:center;gap:7px}
+  .live .dot{width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 8px #ff5500,0 0 16px rgba(255,85,0,.7);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  .balance{font-family:'Share Tech Mono',monospace;font-size:58px;line-height:1;color:#ffe9d4;letter-spacing:1px;text-shadow:0 0 6px rgba(255,140,60,.55),0 0 20px rgba(255,85,0,.45);display:flex;align-items:baseline;gap:6px}
+  .balance .cur{font-size:34px;color:#ffb27a}
+  .readout .rline3{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+  .delta{font-family:'Share Tech Mono',monospace;font-size:15px;color:var(--teal);text-shadow:0 0 8px rgba(47,208,197,.55);letter-spacing:1px}
+  .sync{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:1.5px;color:#8a857f}
+  .scan{position:absolute;left:0;right:0;height:46%;top:0;background:linear-gradient(180deg,rgba(255,255,255,.05),transparent);pointer-events:none}
+
+  .toggle-row{margin-top:16px;display:flex;border-radius:8px;overflow:hidden;width:430px}
+  .seg{flex:1;text-align:center;padding:11px 0;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:13px;letter-spacing:2px;color:#3a3631;position:relative;border-right:1px solid rgba(0,0,0,.25)}
+  .seg:last-child{border-right:none}
+  .seg.active{color:#fff3e6;background:linear-gradient(180deg,#ff8a2e,#ff5500);text-shadow:0 0 6px rgba(255,120,40,.9),0 1px 0 rgba(120,30,0,.6);box-shadow:inset 0 1px 0 rgba(255,210,160,.8),inset 0 -3px 8px rgba(140,40,0,.5),0 0 20px rgba(255,85,0,.55)}
+
+  .main{position:absolute;left:38px;right:38px;top:228px;bottom:34px;display:grid;grid-template-columns:1fr 340px;gap:30px;z-index:5}
+
+  .liststack{display:flex;flex-direction:column;gap:13px;position:relative}
+  .list-head{display:flex;align-items:baseline;gap:14px;margin:-2px 0 4px 4px}
+  .list-head .kick{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:4px;color:#9a948c}
+  .list-head .kick b{color:var(--orange);text-shadow:0 0 8px rgba(255,90,0,.6)}
+  .list-head .rule{flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.25),rgba(255,255,255,0))}
+
+  .station{position:relative;border-radius:9px;padding:14px 22px;display:flex;align-items:center;gap:20px;min-height:62px;transform:skewX(-7deg);transform-origin:left center}
+  .station>*{transform:skewX(7deg)}
+  .st-idx{font-family:'Share Tech Mono',monospace;font-size:13px;color:#7c766f;letter-spacing:1px;width:30px;flex:none}
+  .st-body{display:flex;flex-direction:column;gap:2px;flex:1}
+  .st-name{font-family:'Unbounded',sans-serif;font-weight:800;font-size:26px;letter-spacing:.5px;color:#26221e;line-height:1;text-shadow:0 1px 0 rgba(255,255,255,.45)}
+  .st-tag{font-family:'Space Mono',monospace;font-size:12.5px;letter-spacing:1px;color:#544f49}
+  .chev{flex:none;width:26px;height:26px;filter:var(--dropglow);opacity:.5}
+  .station .icon{flex:none;width:30px;height:30px;opacity:.62}
+  .station.idle .st-name{font-size:23px}
+
+  .station.active{
+    padding:20px 26px;min-height:80px;transform:skewX(-9deg) translateX(-6px);
+    background:
+      linear-gradient(180deg, rgba(255,210,160,.35), rgba(255,255,255,0) 22%),
+      linear-gradient(96deg, #ff8a2e, #ff6a12 45%, #ff5500 100%),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 2px, rgba(120,40,0,.06) 2px 4px);
+    background-blend-mode:screen,normal,overlay;
+    border:1px solid rgba(255,180,120,.6);
+    box-shadow:inset 0 2px 0 rgba(255,225,190,.85),inset 0 -5px 14px rgba(150,45,0,.55),0 0 26px rgba(255,85,0,.6),0 22px 46px rgba(0,0,0,.55);
+  }
+  .station.active .st-name{font-size:32px;color:#1a0d04;text-shadow:0 1px 0 rgba(255,200,150,.7),0 0 12px rgba(255,160,90,.5)}
+  .station.active .st-idx{color:#3a1500}
+  .station.active .st-tag{color:#3d1c08;font-weight:700}
+  .station.active .icon{opacity:1;filter:drop-shadow(0 1px 1px rgba(120,30,0,.5))}
+  .station.active .chev{opacity:1;filter:drop-shadow(0 0 4px rgba(120,30,0,.6))}
+  .station.active .marker{position:absolute;left:-26px;top:50%;transform:translateY(-50%) skewX(7deg);width:14px;height:34px;background:linear-gradient(180deg,#ffb060,#ff5500);border-radius:3px;box-shadow:0 0 18px rgba(255,85,0,.9),0 0 36px rgba(255,85,0,.5)}
+
+  .rightcol{position:relative;border-radius:12px;overflow:hidden}
+  .artpanel{position:absolute;inset:0;border-radius:12px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),inset 0 0 60px rgba(0,0,0,.7),0 18px 50px rgba(0,0,0,.55)}
+  .artpanel .glass{position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.06),transparent 24%);pointer-events:none}
+  .art-label{position:absolute;left:18px;top:16px;z-index:4;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:3px;color:#cdc7bf}
+  .art-label b{color:var(--orange);text-shadow:0 0 8px rgba(255,90,0,.7)}
+  .sculpt{position:absolute;inset:0;z-index:3}
+  .art-foot{position:absolute;left:18px;right:18px;bottom:16px;z-index:4;display:flex;justify-content:space-between;align-items:flex-end}
+  .art-foot .big{font-family:'Unbounded',sans-serif;font-weight:800;font-size:34px;color:#ffe9d4;text-shadow:0 0 6px rgba(255,140,60,.6),0 0 20px rgba(255,85,0,.5);line-height:.9}
+  .art-foot .small{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;color:#a39ce6;text-align:right;text-shadow:0 0 8px rgba(138,127,208,.5)}
+  .art-foot .small .up{color:var(--teal);text-shadow:0 0 8px rgba(47,208,197,.5)}
+
+  .footstrip{margin-top:6px;display:flex;align-items:center;gap:18px;padding:9px 16px;border-radius:7px}
+  .footstrip .k{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:2px;color:#5c5750}
+  .footstrip .k b{color:var(--orange);text-shadow:0 0 6px rgba(255,90,0,.6)}
+  .footstrip .sep{width:1px;height:14px;background:rgba(0,0,0,.25)}
+  .bolt{position:absolute;width:11px;height:11px;z-index:3;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- ANIMATED MARBLED SMOKE -->
+  <svg id="smoke" viewBox="0 0 1512 982" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="b1" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ff7a18"/><stop offset="55%" stop-color="#d4452a"/><stop offset="100%" stop-color="#3a1230" stop-opacity="0"/></radialGradient>
+      <radialGradient id="b2" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#b56cf0"/><stop offset="55%" stop-color="#7d4fd0"/><stop offset="100%" stop-color="#2a1840" stop-opacity="0"/></radialGradient>
+      <radialGradient id="b3" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ff4f8b"/><stop offset="55%" stop-color="#c52f74"/><stop offset="100%" stop-color="#2a0f2e" stop-opacity="0"/></radialGradient>
+      <radialGradient id="b4" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ffb05a"/><stop offset="60%" stop-color="#ff5500"/><stop offset="100%" stop-color="#1a0820" stop-opacity="0"/></radialGradient>
+      <radialGradient id="b5" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#5a3d9c"/><stop offset="60%" stop-color="#34215e"/><stop offset="100%" stop-color="#0c0814" stop-opacity="0"/></radialGradient>
+      <linearGradient id="basebg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1a0c22"/><stop offset="50%" stop-color="#160a1c"/><stop offset="100%" stop-color="#0a0610"/></linearGradient>
+      <filter id="marble" x="-20%" y="-20%" width="140%" height="140%">
+        <feTurbulence id="turb" type="fractalNoise" baseFrequency="0.009 0.014" numOctaves="5" seed="7" stitchTiles="stitch" result="noise"/>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="46" xChannelSelector="R" yChannelSelector="G" result="disp"/>
+        <feGaussianBlur in="disp" stdDeviation="2.2" result="soft"/>
+        <feColorMatrix in="soft" type="saturate" values="1.25"/>
+      </filter>
+      <filter id="marble2" x="-20%" y="-20%" width="140%" height="140%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014 0.02" numOctaves="4" seed="22" stitchTiles="stitch" result="n2"/>
+        <feDisplacementMap in="SourceGraphic" in2="n2" scale="38" xChannelSelector="R" yChannelSelector="B"/>
+        <feGaussianBlur stdDeviation="1.6"/>
+      </filter>
+    </defs>
+    <rect x="0" y="0" width="1512" height="982" fill="url(#basebg)"/>
+    <g filter="url(#marble)">
+      <rect x="0" y="0" width="1512" height="982" fill="url(#basebg)"/>
+      <ellipse cx="1090" cy="300" rx="520" ry="430" fill="url(#b2)" opacity="0.95"/>
+      <ellipse cx="1240" cy="640" rx="430" ry="500" fill="url(#b3)" opacity="0.85"/>
+      <ellipse cx="980" cy="760" rx="480" ry="360" fill="url(#b5)" opacity="0.9"/>
+      <ellipse cx="1320" cy="160" rx="360" ry="320" fill="url(#b4)" opacity="0.8"/>
+      <ellipse cx="760" cy="120" rx="420" ry="300" fill="url(#b2)" opacity="0.6"/>
+      <ellipse cx="300" cy="780" rx="430" ry="360" fill="url(#b5)" opacity="0.7"/>
+      <ellipse cx="1180" cy="450" rx="300" ry="280" fill="url(#b1)" opacity="0.85"/>
+      <ellipse cx="560" cy="520" rx="360" ry="320" fill="url(#b2)" opacity="0.45"/>
+    </g>
+    <g filter="url(#marble2)" opacity="0.8" style="mix-blend-mode:screen">
+      <ellipse cx="1230" cy="380" rx="260" ry="320" fill="url(#b4)" opacity="0.85"/>
+      <ellipse cx="1080" cy="700" rx="240" ry="260" fill="url(#b3)" opacity="0.7"/>
+      <ellipse cx="1340" cy="560" rx="200" ry="240" fill="url(#b1)" opacity="0.7"/>
+      <ellipse cx="700" cy="300" rx="240" ry="200" fill="url(#b2)" opacity="0.4"/>
+    </g>
+  </svg>
+  <div class="smoke-veil"></div>
+
+  <svg class="grain" viewBox="0 0 1512 982" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <filter id="gr"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/></filter>
+    <rect width="1512" height="982" filter="url(#gr)"/>
+  </svg>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <filter id="wearNoise"><feTurbulence type="fractalNoise" baseFrequency="0.62" numOctaves="4" seed="11" stitchTiles="stitch" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.7 0.7 0.7 0 0"/></filter>
+    <filter id="wearStreak"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.5" numOctaves="3" seed="4" stitchTiles="stitch" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.85 0.85 0.85 0 0"/></filter>
+  </defs></svg>
+
+  <div class="frame">
+    <div class="topbar">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-label="NETTRADE signal mark">
+          <g fill="none" stroke="#ff6a12" stroke-width="3.4" stroke-linecap="round">
+            <path d="M32 50 L32 30" stroke="#ffd9b0"/>
+            <circle cx="32" cy="24" r="5.5" fill="#ff5500" stroke="#ffb070"/>
+            <path d="M18 38 A20 20 0 0 1 46 38" opacity="0.9"/>
+            <path d="M12 44 A28 28 0 0 1 52 44" opacity="0.55"/>
+            <path d="M24 33 A11 11 0 0 1 40 33"/>
+          </g>
+          <path d="M26 50 L38 50 L35 58 L29 58 Z" fill="#ff5500" stroke="#ffb070" stroke-width="1.6"/>
+        </svg>
+        <div class="wordwrap">
+          <div class="wordmark">NET<span class="acc">TRADE</span></div>
+          <div class="subtag">// trading station — <b>main menu</b></div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:flex-end">
+        <div class="readout dark-slab">
+          <div class="scan"></div>
+          <div class="rline1">
+            <div class="mode-tag">ACCOUNT // <b>COMBINED</b></div>
+            <div class="live"><span class="dot"></span>* LIVE</div>
+          </div>
+          <div class="balance"><span class="cur">£</span>14,240</div>
+          <div class="rline3">
+            <div class="delta">&#9650; +£1,140 &nbsp;·&nbsp; +8.7%</div>
+            <div class="sync">last synced 14:32</div>
+          </div>
+        </div>
+        <div class="toggle-row metal">
+          <span class="wear"><svg width="100%" height="100%" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#wearNoise)" class="nz"/><rect width="100%" height="100%" filter="url(#wearStreak)" class="nz2"/></svg></span>
+          <span class="scratch-layer"></span>
+          <div class="seg">YOU</div>
+          <div class="seg">PARTNER</div>
+          <div class="seg active">COMBINED</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="liststack">
+        <div class="list-head">
+          <span class="kick">// SELECT STATION &nbsp;·&nbsp; <b>07 FUNCTIONS</b></span>
+          <span class="rule"></span>
+        </div>
+
+        <div class="station active metal">
+          <span class="wear"><svg width="100%" height="100%" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#wearStreak)" class="nz" style="opacity:.3;mix-blend-mode:overlay"/></svg></span>
+          <span class="scratch-layer"></span>
+          <span class="marker"></span>
+          <span class="st-idx">01</span>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#2a1000" stroke-width="2.1" stroke-linecap="round"><path d="M3 13h6v8H3zM10 7h5v14h-5zM16 3h5v18h-5z"/></svg>
+          <div class="st-body"><div class="st-name">DASHBOARD</div><div class="st-tag">the truth at a glance</div></div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="#2a1000" stroke-width="2.6" stroke-linecap="round"><path d="M8 5l8 7-8 7"/></svg>
+        </div>
+
+        <div class="station idle metal">
+          <span class="wear"><svg width="100%" height="100%" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#wearNoise)" class="nz"/><rect width="100%" height="100%" filter="url(#wearStreak)" class="nz2"/></svg></span>
+          <span class="scratch-layer"></span>
+          <span class="st-idx">02</span>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#3a352f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l8-4 8 4v10l-8 4-8-4z"/><path d="M4 7l8 4 8-4M12 11v10"/></svg>
+          <div class="st-body"><div class="st-name">POSITIONS</div><div class="st-tag">what you hold</div></div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="#ff6a12" stroke-width="2.6" stroke-linecap="round"><path d="M8 5l8 7-8 7"/></svg>
+        </div>
+
+        <div class="station idle metal">
+          <span class="wear"><svg width="100%" height="100%" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#wearNoise)" class="nz"/><rect width="100%" height="100%" filter="url(#wearStreak)" class="nz2"/></svg></span>
+          <span class="scratch-layer"></span>
+          <span class="st-idx">03</span>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#3a352f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/></svg>
+          <div class="st-body"><div class="st-name">WATCHLIST</div><div class="st-tag">on the radar · delayed</div></div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="#ff6a12" stroke-width="2.6" stroke-linecap="round"><path d="M8 5l8 7-8 7"/></svg>
+        </div>
+
+        <div class="station idle metal">
+          <span class="wear"><svg width="100%" height="100%" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#wearNoise)" class="nz"/><rect width="100%" height="100%" filter="url(#wearStreak)" class="nz2"/></svg></span>
+          <span class="scratch-layer"></span>
+          <span class="st-idx">04</span>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#3a352f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 6-8"/><path d="M18 6h3v3"/></svg>
+          <div class="st-body"><div class="st-name">PERFORMANCE</div><div class="st-tag">realised vs paper, over time</div></div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="#ff6a12" stroke-width="2.6" stroke-linecap="round"><path d="M8 5l8 7-8 7"/></svg>
+        </div>
+
+        <div class="station idle metal">
+          <span class="wear"><svg width="100%" height="100%" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#wearNoise)" class="nz"/><rect width="100%" height="100%" filter="url(#wearStreak)" class="nz2"/></svg></span>
+          <span class="scratch-layer"></span>
+          <span class="st-idx">05</span>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#3a352f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M3 20a5 5 0 0 1 10 0M11 20a5 5 0 0 1 10 0"/></svg>
+          <div class="st-body"><div class="st-name">COMPARE</div><div class="st-tag">you vs partner</div></div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="#ff6a12" stroke-width="2.6" stroke-linecap="round"><path d="M8 5l8 7-8 7"/></svg>
+        </div>
+
+        <div class="station idle metal">
+          <span class="wear"><svg width="100%" height="100%" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#wearNoise)" class="nz"/><rect width="100%" height="100%" filter="url(#wearStreak)" class="nz2"/></svg></span>
+          <span class="scratch-layer"></span>
+          <span class="st-idx">06</span>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#3a352f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v15H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
+          <div class="st-body"><div class="st-name">JOURNAL</div><div class="st-tag">did the move pay off</div></div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="#ff6a12" stroke-width="2.6" stroke-linecap="round"><path d="M8 5l8 7-8 7"/></svg>
+        </div>
+
+        <div class="station idle metal">
+          <span class="wear"><svg width="100%" height="100%" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#wearNoise)" class="nz"/><rect width="100%" height="100%" filter="url(#wearStreak)" class="nz2"/></svg></span>
+          <span class="scratch-layer"></span>
+          <span class="st-idx">07</span>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#3a352f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>
+          <div class="st-body"><div class="st-name">SETTINGS</div><div class="st-tag">keys · sync · sound</div></div>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="#ff6a12" stroke-width="2.6" stroke-linecap="round"><path d="M8 5l8 7-8 7"/></svg>
+        </div>
+
+        <div class="footstrip metal">
+          <span class="wear"><svg width="100%" height="100%" preserveAspectRatio="none"><rect width="100%" height="100%" filter="url(#wearNoise)" class="nz"/></svg></span>
+          <span class="scratch-layer"></span>
+          <span class="k"><b>&#9166;</b> ENTER STATION</span><span class="sep"></span>
+          <span class="k"><b>&#8593;&#8595;</b> NAVIGATE</span><span class="sep"></span>
+          <span class="k">2 SEATS · YOU + PARTNER</span><span class="sep"></span>
+          <span class="k">READ-ONLY · T212</span>
+        </div>
+      </div>
+
+      <div class="rightcol">
+        <div class="artpanel">
+          <div class="glass"></div>
+          <div class="art-label">// LIVING LOGO &nbsp; <b>NET.SIGNAL</b></div>
+          <svg class="sculpt" viewBox="0 0 340 720" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="pbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#241036"/><stop offset="45%" stop-color="#3a164a"/><stop offset="100%" stop-color="#160a1c"/></linearGradient>
+              <radialGradient id="pblob1" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#c46cf0" stop-opacity="0.95"/><stop offset="60%" stop-color="#7d4fd0" stop-opacity="0.5"/><stop offset="100%" stop-color="#7d4fd0" stop-opacity="0"/></radialGradient>
+              <radialGradient id="pblob2" cx="50%" cy="60%" r="60%"><stop offset="0%" stop-color="#ff5f95" stop-opacity="0.9"/><stop offset="60%" stop-color="#c52f74" stop-opacity="0.4"/><stop offset="100%" stop-color="#c52f74" stop-opacity="0"/></radialGradient>
+              <radialGradient id="pblob3" cx="50%" cy="50%" r="55%"><stop offset="0%" stop-color="#ff8a2e" stop-opacity="0.95"/><stop offset="55%" stop-color="#ff5500" stop-opacity="0.45"/><stop offset="100%" stop-color="#ff5500" stop-opacity="0"/></radialGradient>
+              <filter id="pmarble" x="-30%" y="-30%" width="160%" height="160%">
+                <feTurbulence id="pturb" type="fractalNoise" baseFrequency="0.011 0.017" numOctaves="5" seed="14" stitchTiles="stitch" result="n"/>
+                <feDisplacementMap in="SourceGraphic" in2="n" scale="44" xChannelSelector="R" yChannelSelector="G"/>
+                <feGaussianBlur stdDeviation="1.4"/>
+              </filter>
+              <filter id="ctglow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <rect x="0" y="0" width="340" height="720" fill="url(#pbg)"/>
+            <g filter="url(#pmarble)">
+              <ellipse cx="150" cy="200" rx="220" ry="200" fill="url(#pblob1)"/>
+              <ellipse cx="200" cy="470" rx="210" ry="220" fill="url(#pblob2)"/>
+              <ellipse cx="150" cy="560" rx="190" ry="200" fill="url(#pblob3)"/>
+              <ellipse cx="90" cy="360" rx="150" ry="170" fill="url(#pblob1)" opacity="0.6"/>
+            </g>
+            <g stroke="#ff6a12" fill="none" stroke-width="2" filter="url(#ctglow)" opacity="0.95">
+              <path d="M-10 560 C 50 540, 90 470, 130 420 S 220 320, 300 250 S 360 150, 380 120" stroke="#ffb070" stroke-width="2.6"/>
+              <path d="M-10 600 C 60 584, 100 520, 140 470 S 230 372, 310 300 S 366 200, 390 170" opacity="0.85"/>
+              <path d="M-10 520 C 45 498, 84 426, 122 374 S 212 274, 292 204 S 352 104, 372 74" opacity="0.8"/>
+              <path d="M-10 640 C 70 626, 112 566, 152 518 S 244 420, 322 350 S 372 252, 398 222" opacity="0.6" stroke-dasharray="1 6"/>
+              <path d="M-10 480 C 40 456, 78 384, 116 330 S 206 230, 286 160 S 344 62, 364 34" opacity="0.55" stroke-dasharray="1 6"/>
+            </g>
+            <g filter="url(#ctglow)"><circle cx="300" cy="250" r="6.5" fill="#ff5500"/><circle cx="300" cy="250" r="11" fill="none" stroke="#ffb070" stroke-width="1.6" opacity="0.8"/><circle cx="130" cy="420" r="4.5" fill="#ffb070"/></g>
+            <g fill="#ffe9d4" filter="url(#ctglow)"><circle cx="50" cy="540" r="2.6"/><circle cx="130" cy="420" r="2.6"/><circle cx="210" cy="328" r="2.6"/><circle cx="260" cy="290" r="2.6"/><circle cx="300" cy="250" r="3"/></g>
+          </svg>
+          <div class="art-foot">
+            <div class="big">+58%<br><span style="font-size:13px;font-family:'Space Mono',monospace;color:#cbc4ea;text-shadow:none">since open</span></div>
+            <div class="small">9.0 &#8594; 14.2 K<br><span class="up">&#9650; 8-WEEK SERIES</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function animateTurb(id, baseX, baseY, ampX, ampY, period){
+    var node = document.getElementById(id);
+    if(!node) return;
+    var t0 = performance.now();
+    function step(now){
+      var p = ((now - t0)/1000) % period / period * Math.PI * 2;
+      var bx = (baseX + ampX*Math.sin(p)).toFixed(5);
+      var by = (baseY + ampY*Math.cos(p*0.85)).toFixed(5);
+      node.setAttribute('baseFrequency', bx + ' ' + by);
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  animateTurb('turb', 0.0090, 0.0140, 0.0026, 0.0030, 58);
+  animateTurb('pturb', 0.0110, 0.0170, 0.0030, 0.0034, 64);
+
+  var NS='http://www.w3.org/2000/svg';
+  function rnd(a,b){return a + Math.random()*(b-a);}
+  document.querySelectorAll('.scratch-layer').forEach(function(layer){
+    var p = layer.parentElement;
+    var w = p.clientWidth || 300, h = p.clientHeight || 60;
+    var svg = document.createElementNS(NS,'svg');
+    svg.setAttribute('width','100%'); svg.setAttribute('height','100%');
+    svg.setAttribute('viewBox','0 0 '+w+' '+h); svg.setAttribute('preserveAspectRatio','none');
+    svg.style.position='absolute'; svg.style.inset='0';
+    var active = p.classList.contains('active');
+    var nS = Math.max(10, Math.round(w*h/2600));
+    for(var i=0;i<nS;i++){
+      var x=rnd(0,w), y=rnd(0,h), len=rnd(8,Math.min(120,w*0.4)), ang=rnd(-0.5,0.5);
+      var x2=x+Math.cos(ang)*len, y2=y+Math.sin(ang)*len*0.5;
+      var ln=document.createElementNS(NS,'line');
+      ln.setAttribute('x1',x.toFixed(1));ln.setAttribute('y1',y.toFixed(1));
+      ln.setAttribute('x2',x2.toFixed(1));ln.setAttribute('y2',y2.toFixed(1));
+      var dark = Math.random()<0.5;
+      ln.setAttribute('stroke', active ? (dark?'rgba(110,30,0,.30)':'rgba(255,210,170,.30)') : (dark?'rgba(40,36,30,.22)':'rgba(255,255,255,.32)'));
+      ln.setAttribute('stroke-width', rnd(0.4,1.1).toFixed(2));
+      svg.appendChild(ln);
+    }
+    var nC = Math.max(2, Math.round(w*h/14000));
+    for(var c=0;c<nC;c++){
+      var cx=rnd(4,w-4), cy=rnd(3,h-3), r=rnd(0.8,2.6);
+      var ch=document.createElementNS(NS,'circle');
+      ch.setAttribute('cx',cx.toFixed(1));ch.setAttribute('cy',cy.toFixed(1));ch.setAttribute('r',r.toFixed(1));
+      ch.setAttribute('fill', active ? 'rgba(120,40,0,.22)' : 'rgba(30,26,22,.20)');
+      svg.appendChild(ch);
+    }
+    layer.appendChild(svg);
+  });
+
+  function addBolt(parent, left, top){
+    var b=document.createElement('div'); b.className='bolt'; b.style.left=left; b.style.top=top;
+    b.innerHTML='<svg viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg"><polygon points="6,1 10.5,3.5 10.5,8.5 6,11 1.5,8.5 1.5,3.5" fill="#6a655e" stroke="#2a2723" stroke-width="0.8"/><polygon points="6,2.6 9,4.3 9,7.7 6,9.4 3,7.7 3,4.3" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="0.5"/></svg>';
+    parent.appendChild(b);
+  }
+  var act = document.querySelector('.station.active');
+  if(act){ addBolt(act,'10px','10px'); addBolt(act,'10px','calc(100% - 21px)'); }
+  document.querySelectorAll('.footstrip').forEach(function(f){ addBolt(f,'calc(100% - 20px)','calc(50% - 5px)'); });
+})();
+</script>
+</body>
+</html>

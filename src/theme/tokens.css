@@ -1,0 +1,50 @@
+/* Actuality design tokens — CSS custom properties, global.
+   Source of truth: docs/VISUAL_DIRECTION.md §1 (exact hexes; do not drift). */
+
+:root {
+  /* ---- Dark cinematic frame (everywhere) ---- */
+  --ink-void: #0d1117;
+  --ink-base: #161b26;
+  --ink-raise: #242938; /* raised panels; use with alpha e.g. #24293899 */
+  --ink-bezel-a: #0d1a1a;
+  --ink-bezel-b: #141f1f;
+  --ink-trace: #1f4a44;
+  --ink-line: rgba(255, 255, 255, 0.08); /* hairline strokes */
+  --ghost-title: #39435a;
+
+  /* ---- Animus (menu / dark accent — used sparingly in Phase 1) ---- */
+  --animus-field: #e8e6e2;
+  --animus-wafer: #dcdad4;
+  --animus-red: #b01f1f;
+  --animus-red-2: #c0332b;
+  --animus-red-hot: #e0453a;
+
+  /* ---- SDN paper (data world) ---- */
+  --paper: #ece2ce;
+  --paper-2: #d8cbb0;
+  --ink: #2b241c;
+  --ink-body: #3a3128;
+  --amber: #e8842a;
+  --amber-deep: #c96a1c;
+  --teal: #2a9d9d;
+  --panel-red: #c0332b;
+
+  /* ---- P/L semantics ---- */
+  --gain: #5a8a5a; /* restrained green, never neon */
+  --loss: #c0332b;
+  /* cash-flow uses neutral --ink-body */
+
+  /* ---- Type ---- */
+  --font-display: "Oswald", sans-serif; /* condensed display, ALL-CAPS chrome/titles */
+  --font-mono: "Space Mono", monospace; /* ALL telemetry/status/timestamps/numbers (tabular) */
+  --font-body: "Public Sans", system-ui, sans-serif; /* humanist body */
+
+  /* ---- Space scale (8px rhythm) ---- */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+}

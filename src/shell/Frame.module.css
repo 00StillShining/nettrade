@@ -1,0 +1,76 @@
+/* Dark cinematic frame — the base every screen sits in.
+   Real depth via gradient + vignette + static grain. NEVER a live filter.
+   NO backdrop-filter. NO mix-blend-mode on any full-screen layer. */
+
+.frame {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--ink-base) 0%, var(--ink-void) 70%);
+}
+
+/* Soft top-left light pool — subtle radial glow, gives the field depth. */
+.lightPool {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 60% 50% at 14% 8%,
+    rgba(57, 67, 90, 0.35) 0%,
+    rgba(57, 67, 90, 0.12) 35%,
+    rgba(13, 17, 23, 0) 70%
+  );
+}
+
+/* Faint facet lines — a single static repeating-linear-gradient, low opacity.
+   NOT stacked live gradients; this is one inert layer. */
+.facets {
+  position: absolute;
+  inset: -10%;
+  pointer-events: none;
+  opacity: 0.05;
+  background: repeating-linear-gradient(
+    18deg,
+    rgba(255, 255, 255, 0.5) 0px,
+    rgba(255, 255, 255, 0.5) 1px,
+    rgba(255, 255, 255, 0) 1px,
+    rgba(255, 255, 255, 0) 140px
+  );
+}
+
+/* Vignette — dark edges, radial, static. Kept lighter than before: the
+   BakedCrt overlay now owns the heavier curved edge/corner darkening (its own
+   inert layer, above this one), so this only needs to seed the field's depth
+   without stacking into a double-dark corner. */
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 78% 78% at 50% 50%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.22) 88%,
+    rgba(0, 0, 0, 0.4) 100%
+  );
+}
+
+/* Static grain — baked SVG feTurbulence noise as a data-URI. Never animates.
+   No mix-blend-mode: composited as a plain low-opacity layer to stay inert
+   and match the "static + inert" anti-brick rule (§7 of actuality-ui skill). */
+.grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-repeat: repeat;
+}
+
+/* Content well — everything real (interactive) renders above the inert layers. */
+.content {
+  position: relative;
+  z-index: 1;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+}

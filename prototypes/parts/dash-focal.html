@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NET TRADE — Dashboard (Performance Truth)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;600;700&family=Unbounded:wght@600;700;800;900&family=Bungee&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#EDE6D2; --cream2:#F2ECE0; --ink:#14110D;
+    --orange:#FF5A1F;
+    --teal:#19E5E5; --teal2:#2FB5A8; --tealdk:#0E7E78;
+    --gain:#2FB5A8; --loss:#C8402F;
+    --purple:#5D5A86;
+    --inkw:7px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;border-radius:0;}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);}
+  body{font-family:'Oswald',sans-serif;color:var(--ink);}
+
+  /* ============ COVER SCALER ============ */
+  #screen{position:fixed;inset:0;overflow:hidden;background:var(--ink);
+    display:flex;align-items:center;justify-content:center;}
+  #stage{position:relative;width:1512px;height:982px;flex:0 0 auto;
+    background:var(--cream);transform:scale(var(--cover,1));transform-origin:center center;}
+  @media (min-aspect-ratio:1512/982){ :root{--cover:1;} }
+
+  .stage-bg{position:absolute;inset:0;background:
+    linear-gradient(135deg,#F2ECE0 0%, #EDE6D2 55%, #E6DEC8 100%);}
+  .halftone{position:absolute;inset:0;
+    background-image:radial-gradient(var(--ink) 1.3px, transparent 1.5px);
+    background-size:16px 16px;opacity:.045;mix-blend-mode:multiply;}
+  /* teal halftone drift behind the focal hub */
+  .halftone-teal{position:absolute;left:430px;top:200px;width:640px;height:560px;
+    background-image:radial-gradient(var(--tealdk) 2.1px, transparent 2.3px);
+    background-size:20px 20px;opacity:.12;mix-blend-mode:multiply;
+    clip-path:polygon(18% 0,100% 8%,86% 100%,0 90%);}
+
+  .mono{font-family:'Space Mono',monospace;}
+  .osw{font-family:'Oswald',sans-serif;}
+
+  /* ============ TOP STATUS BAR ============ */
+  .topbar{position:absolute;left:26px;top:20px;width:1460px;height:74px;z-index:20;
+    background:var(--ink);clip-path:polygon(0 0,100% 0,99.2% 100%,0.6% 100%);
+    box-shadow:0 9px 0 rgba(20,17,13,.22);
+    display:flex;align-items:center;gap:0;padding:0 6px;}
+  .topbar .seg{display:flex;flex-direction:column;justify-content:center;
+    padding:0 22px;height:100%;}
+  .topbar .seg + .seg{border-left:2px solid #3a352a;}
+  .topbar .k{font-family:'Oswald';font-weight:700;font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:#9a917c;line-height:1;margin-bottom:5px;}
+  .topbar .v{font-family:'Space Mono';font-weight:700;font-size:21px;color:var(--cream2);
+    line-height:1;letter-spacing:.01em;}
+  .topbar .v.teal{color:var(--teal);}
+  .topbar .v.gain{color:var(--gain);}
+  /* NT logo block */
+  .logo{display:flex;align-items:center;height:100%;padding:0 22px 0 16px;}
+  .logo .mark{font-family:'Anton';font-size:34px;letter-spacing:.02em;color:var(--cream2);
+    background:var(--teal);color:var(--ink);padding:4px 12px 2px;
+    transform:skewX(-9deg);box-shadow:5px 5px 0 var(--teal2);}
+  .logo .mark span{display:inline-block;transform:skewX(9deg);}
+  .topbar .spacer{flex:1;}
+  .live{display:flex;align-items:center;gap:9px;padding:0 22px;height:100%;}
+  .live .dot{width:13px;height:13px;background:var(--teal);
+    box-shadow:0 0 0 3px var(--ink),0 0 14px 2px var(--teal);
+    animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .live .lbl{font-family:'Anton';font-size:20px;letter-spacing:.12em;color:var(--teal);}
+  .live .sync{font-family:'Space Mono';font-size:12px;color:#9a917c;letter-spacing:.04em;}
+
+  /* ============ BOTTOM STATUS BAR ============ */
+  .botbar{position:absolute;left:26px;bottom:18px;width:1460px;height:46px;z-index:20;
+    background:var(--ink);clip-path:polygon(0.5% 0,99.4% 0,100% 100%,0 100%);
+    display:flex;align-items:center;padding:0 26px;gap:0;}
+  .botbar .bseg{font-family:'Oswald';font-weight:600;font-size:13px;letter-spacing:.18em;
+    text-transform:uppercase;color:#b8af98;padding:0 20px;}
+  .botbar .bseg + .bseg{border-left:2px solid #3a352a;}
+  .botbar .bseg b{color:var(--teal);font-weight:700;}
+  .botbar .bspacer{flex:1;}
+  .botbar .badge{font-family:'Anton';font-size:15px;letter-spacing:.14em;color:var(--ink);
+    background:var(--teal);padding:5px 16px 3px;transform:skewX(-9deg);}
+  .botbar .badge span{display:inline-block;transform:skewX(9deg);}
+  .botbar .delayed{color:var(--orange);font-weight:700;}
+
+  /* ============ SECTION TITLE ============ */
+  .scrn-title{position:absolute;left:30px;top:108px;z-index:9;transform:rotate(-3deg);}
+  .scrn-title .big{font-family:'Anton';font-size:52px;line-height:.84;
+    color:var(--cream2);-webkit-text-stroke:4px var(--ink);paint-order:stroke fill;
+    text-transform:uppercase;letter-spacing:.005em;
+    filter:drop-shadow(6px 6px 0 var(--teal2));display:block;}
+  .scrn-title .sub{font-family:'Anton';font-size:52px;line-height:.84;
+    color:var(--teal);-webkit-text-stroke:4px var(--ink);paint-order:stroke fill;
+    text-transform:uppercase;letter-spacing:.005em;
+    filter:drop-shadow(6px 6px 0 var(--ink));display:block;margin-left:14px;}
+
+  /* generic tile */
+  .tile{position:absolute;z-index:10;background:var(--cream2);
+    border:6px solid var(--ink);box-shadow:9px 9px 0 var(--ink);
+    cursor:pointer;overflow:hidden;
+    transition:transform .14s cubic-bezier(.2,.9,.2,1),box-shadow .14s;}
+  .tile:hover{transform:translate(-3px,-3px);box-shadow:14px 14px 0 var(--ink);}
+  .tile .cap{position:absolute;left:0;top:0;z-index:4;
+    background:var(--ink);color:var(--cream2);
+    font-family:'Oswald';font-weight:700;font-size:12.5px;letter-spacing:.16em;
+    text-transform:uppercase;padding:6px 16px 5px 12px;
+    clip-path:polygon(0 0,100% 0,90% 100%,0 100%);}
+  .tile .cap b{color:var(--teal);}
+  .tile .hint{position:absolute;right:8px;bottom:6px;z-index:4;
+    font-family:'Oswald';font-weight:700;font-size:10px;letter-spacing:.18em;
+    color:var(--tealdk);text-transform:uppercase;opacity:.85;}
+  .tile .kpi{position:absolute;right:12px;top:8px;z-index:4;font-family:'Space Mono';
+    font-weight:700;font-size:15px;}
+  .tile .kpi.gain{color:var(--gain);} .tile .kpi.loss{color:var(--loss);}
+  .tile svg, .tile canvas{display:block;}
+  .tile .htdots{position:absolute;inset:0;z-index:0;
+    background-image:radial-gradient(var(--ink) 1px,transparent 1.2px);
+    background-size:11px 11px;opacity:.05;}
+
+  /* ===== FOCAL HUB — central gauge ===== */
+  #focal{left:486px;top:248px;width:540px;height:474px;
+    border:8px solid var(--ink);box-shadow:13px 13px 0 var(--ink);
+    background:radial-gradient(120% 120% at 50% 36%, #F6F1E6 0%, #EBE3CE 78%);
+    transform:rotate(-1.4deg);}
+  #focal:hover{transform:rotate(-1.4deg) translate(-3px,-3px);box-shadow:18px 18px 0 var(--ink);}
+  #focal .cap{font-size:14px;padding:8px 22px 7px 14px;}
+  #focal .frameteal{position:absolute;inset:7px;z-index:3;pointer-events:none;
+    border:3px solid var(--teal2);clip-path:polygon(3% 0,100% 2%,98% 100%,0 97%);}
+  /* corner teal notches on focal */
+  #focal .notch{position:absolute;width:30px;height:30px;background:var(--teal);
+    z-index:5;box-shadow:3px 3px 0 var(--ink);}
+
+  /* ===== EXPAND OVERLAY ===== */
+  #expand{position:absolute;inset:0;z-index:50;display:none;}
+  #expand.on{display:block;}
+  #expand .scrim{position:absolute;inset:0;background:rgba(14,11,8,.66);
+    backdrop-filter:saturate(.7);}
+  #expand .panel{position:absolute;left:74px;top:96px;width:1364px;height:790px;
+    background:var(--cream2);border:10px solid var(--ink);
+    box-shadow:18px 18px 0 var(--ink);overflow:hidden;}
+  /* decorative TEAL frame — all decoration lives here */
+  #expand .deco{position:absolute;inset:0;z-index:1;pointer-events:none;}
+  #expand .deco .ring{position:absolute;inset:14px;border:5px solid var(--teal2);
+    clip-path:polygon(1.5% 0,100% 1%,99% 100%,0 99%);}
+  #expand .deco .ring2{position:absolute;inset:24px;border:2px solid var(--teal);
+    opacity:.6;}
+  #expand .deco .htband{position:absolute;left:24px;right:24px;bottom:24px;height:46px;
+    background-image:radial-gradient(var(--tealdk) 2px,transparent 2.2px);
+    background-size:16px 16px;opacity:.3;}
+  #expand .deco .corner{position:absolute;width:54px;height:54px;background:var(--teal);
+    box-shadow:5px 5px 0 var(--ink);}
+  #expand .deco .c1{left:-2px;top:-2px;clip-path:polygon(0 0,100% 0,0 100%);}
+  #expand .deco .c2{right:-2px;top:-2px;clip-path:polygon(0 0,100% 0,100% 100%);}
+  #expand .deco .c3{left:-2px;bottom:-2px;clip-path:polygon(0 0,0 100%,100% 100%);}
+  #expand .deco .c4{right:-2px;bottom:-2px;clip-path:polygon(100% 0,100% 100%,0 100%);}
+  #expand .ehead{position:absolute;left:46px;top:34px;z-index:4;}
+  #expand .ehead .et{font-family:'Anton';font-size:40px;line-height:.9;
+    color:var(--ink);text-transform:uppercase;letter-spacing:.01em;}
+  #expand .ehead .et em{font-style:normal;color:var(--tealdk);}
+  #expand .ehead .es{font-family:'Oswald';font-weight:600;font-size:14px;
+    letter-spacing:.2em;text-transform:uppercase;color:#7a715c;margin-top:4px;}
+  /* left viz area / right numbers */
+  #expand .eviz{position:absolute;left:46px;top:118px;width:700px;height:600px;z-index:3;
+    display:flex;align-items:center;justify-content:center;}
+  #expand .enums{position:absolute;right:54px;top:124px;width:520px;height:600px;z-index:3;}
+  #expand .nrow{display:flex;align-items:baseline;justify-content:space-between;
+    border-bottom:2px solid #d8cfb6;padding:13px 4px 11px;}
+  #expand .nrow .nk{font-family:'Oswald';font-weight:600;font-size:16px;
+    letter-spacing:.08em;text-transform:uppercase;color:#3a352a;}
+  #expand .nrow .nv{font-family:'Space Mono';font-weight:700;font-size:23px;color:var(--ink);}
+  #expand .nrow .nv.gain{color:var(--gain);} #expand .nrow .nv.loss{color:var(--loss);}
+  #expand .nrow.head{border-bottom:4px solid var(--ink);}
+  #expand .nrow.head .nk{font-family:'Anton';font-size:20px;letter-spacing:.04em;color:var(--ink);}
+  #expand .nbig{margin-bottom:14px;padding:16px 18px;background:var(--ink);
+    color:var(--cream2);clip-path:polygon(0 0,100% 0,98% 100%,0 100%);}
+  #expand .nbig .nbk{font-family:'Oswald';font-weight:600;font-size:13px;
+    letter-spacing:.2em;text-transform:uppercase;color:#9a917c;}
+  #expand .nbig .nbv{font-family:'Space Mono';font-weight:700;font-size:40px;color:var(--teal);
+    line-height:1;margin-top:4px;}
+  #expand .close{position:absolute;right:30px;top:28px;z-index:6;cursor:pointer;
+    font-family:'Anton';font-size:18px;letter-spacing:.1em;color:var(--ink);
+    background:var(--teal);padding:10px 18px 8px;transform:skewX(-9deg);
+    box-shadow:5px 5px 0 var(--ink);border:3px solid var(--ink);}
+  #expand .close span{display:inline-block;transform:skewX(9deg);}
+  #expand .close:hover{box-shadow:8px 8px 0 var(--ink);transform:skewX(-9deg) translate(-2px,-2px);}
+
+  /* ===== HOLDINGS ROSTER ===== */
+  .roster{position:absolute;left:30px;bottom:78px;width:1452px;height:108px;z-index:12;
+    display:flex;gap:13px;align-items:stretch;}
+  .holding{flex:1;background:var(--cream2);border:5px solid var(--ink);
+    box-shadow:6px 6px 0 var(--ink);position:relative;overflow:hidden;
+    transform:skewX(-7deg);transition:transform .12s,box-shadow .12s;cursor:default;}
+  .holding:hover{transform:skewX(-7deg) translateY(-4px);box-shadow:9px 9px 0 var(--ink);}
+  .holding .inner{transform:skewX(7deg);padding:9px 12px 8px 14px;height:100%;
+    display:flex;flex-direction:column;justify-content:space-between;}
+  .holding .tk{font-family:'Anton';font-size:21px;letter-spacing:.01em;color:var(--ink);line-height:.9;}
+  .holding .pl{font-family:'Space Mono';font-weight:700;font-size:16px;line-height:1;}
+  .holding .pl.gain{color:var(--gain);} .holding .pl.loss{color:var(--loss);}
+  .holding .badge{position:absolute;right:8px;top:7px;font-family:'Anton';font-size:13px;
+    padding:2px 7px 1px;letter-spacing:.04em;}
+  .holding .badge.up{background:var(--teal);color:var(--ink);}
+  .holding .badge.dn{background:var(--loss);color:var(--cream2);}
+  .holding .wt{font-family:'Oswald';font-weight:600;font-size:10.5px;letter-spacing:.12em;
+    color:#8a8169;text-transform:uppercase;}
+  .holding .spark{position:absolute;left:0;right:0;bottom:0;height:26px;opacity:.7;}
+
+  /* tri glyph */
+  .tri-u{display:inline-block;width:0;height:0;border-left:5px solid transparent;
+    border-right:5px solid transparent;border-bottom:8px solid currentColor;
+    vertical-align:middle;margin-right:3px;}
+  .tri-d{display:inline-block;width:0;height:0;border-left:5px solid transparent;
+    border-right:5px solid transparent;border-top:8px solid currentColor;
+    vertical-align:middle;margin-right:3px;}
+
+  /* ============ CRT ============ */
+  #crt{position:fixed;inset:0;z-index:90;pointer-events:none;overflow:hidden;}
+  #crt .scan{position:absolute;inset:0;mix-blend-mode:multiply;opacity:.15;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.55) 0 1px,transparent 1px 3px);}
+  #crt .vig{position:absolute;inset:0;
+    background:radial-gradient(125% 135% at 50% 50%,transparent 62%,
+      rgba(20,17,13,.13) 87%,rgba(20,17,13,.34) 100%);}
+  #crt .sheen{position:absolute;inset:0;mix-blend-mode:screen;opacity:.05;
+    background:radial-gradient(80% 50% at 30% 0%,#fff 0%,transparent 60%);}
+  #crt .frame{position:absolute;inset:0;border-radius:24px;
+    box-shadow:inset 0 0 0 3px rgba(20,17,13,.5),inset 0 0 60px 12px rgba(20,17,13,.24);}
+
+  @media (prefers-reduced-motion:reduce){
+    .live .dot{animation:none;}
+    .tile,.holding{transition:none;}
+  }
+</style>
+</head>
+<body>
+<div id="screen">
+  <div id="stage">
+    <div class="stage-bg"></div>
+    <div class="halftone"></div>
+    <div class="halftone-teal"></div>
+
+    <!-- ===== TOP STATUS BAR ===== -->
+    <div class="topbar">
+      <div class="logo"><div class="mark"><span>NT</span></div></div>
+      <div class="seg"><div class="k">True Bal</div><div class="v teal">£14,240</div></div>
+      <div class="seg"><div class="k">Day</div><div class="v gain"><span class="tri-u"></span>+£84</div></div>
+      <div class="seg"><div class="k">XIRR</div><div class="v teal">13.4%</div></div>
+      <div class="seg"><div class="k">True Growth</div><div class="v gain">+9.5%</div></div>
+      <div class="spacer"></div>
+      <div class="live">
+        <div class="dot"></div><div class="lbl">LIVE</div>
+        <div class="sync">SYNCED&nbsp;14:32</div>
+      </div>
+    </div>
+
+    <!-- ===== SECTION TITLE ===== -->
+    <div class="scrn-title">
+      <span class="big">PERFORMANCE</span>
+      <span class="sub">TRUTH</span>
+    </div>
+
+    <!-- ===== FOCAL HUB: TRUE-GROWTH GAUGE ===== -->
+    <div class="tile" id="focal" data-viz="truth">
+      <div class="htdots"></div>
+      <div class="cap">TRUE-GROWTH GAUGE&nbsp;·&nbsp;<b>VS NET DEPOSITS</b></div>
+      <div class="notch" style="right:-2px;top:-2px;clip-path:polygon(0 0,100% 0,100% 100%);"></div>
+      <div class="notch" style="left:-2px;bottom:-2px;clip-path:polygon(0 0,0 100%,100% 100%);"></div>
+      <div class="frameteal"></div>
+      <canvas id="gaugeC" width="1040" height="900" style="position:absolute;left:10px;top:34px;width:520px;height:450px;"></canvas>
+      <div class="hint">CLICK TO EXPAND ▸</div>
+    </div>
+
+    <!-- ===== RING TILE: VALUE OVER TIME (top-left) ===== -->
+    <div class="tile" id="t-value" data-viz="value"
+         style="left:34px;top:200px;width:430px;height:222px;transform:rotate(1.2deg);">
+      <div class="htdots"></div>
+      <div class="cap">VALUE / TIME&nbsp;·&nbsp;<b>+£ DEPOSITS</b></div>
+      <div class="kpi gain">£14.2k</div>
+      <canvas id="valueC" width="836" height="408" style="position:absolute;left:6px;top:30px;width:418px;height:204px;"></canvas>
+      <div class="hint">CLICK ▸</div>
+    </div>
+
+    <!-- ===== RING TILE: ALLOCATION DONUT (top-right) ===== -->
+    <div class="tile" id="t-alloc" data-viz="alloc"
+         style="left:1048px;top:188px;width:440px;height:248px;transform:rotate(-1.6deg);">
+      <div class="htdots"></div>
+      <div class="cap">ALLOCATION&nbsp;·&nbsp;<b>7 HOLDINGS</b></div>
+      <canvas id="allocC" width="430" height="430" style="position:absolute;left:6px;top:24px;width:215px;height:215px;"></canvas>
+      <div id="allocLegend" style="position:absolute;right:14px;top:46px;z-index:4;"></div>
+      <div class="hint">CLICK ▸</div>
+    </div>
+
+    <!-- ===== RING TILE: PER-STOCK P/L BAR (bottom-left) ===== -->
+    <div class="tile" id="t-pl" data-viz="pl"
+         style="left:34px;top:444px;width:430px;height:278px;transform:rotate(-1.2deg);">
+      <div class="htdots"></div>
+      <div class="cap">PER-STOCK&nbsp;<b>P / L</b></div>
+      <div class="kpi gain">+£1,240</div>
+      <canvas id="plC" width="836" height="500" style="position:absolute;left:6px;top:34px;width:418px;height:240px;"></canvas>
+      <div class="hint">CLICK ▸</div>
+    </div>
+
+    <!-- ===== RING TILE: DRAWDOWN (right mid) ===== -->
+    <div class="tile" id="t-dd" data-viz="dd"
+         style="left:1048px;top:452px;width:440px;height:128px;transform:rotate(1.4deg);">
+      <div class="htdots"></div>
+      <div class="cap">DRAWDOWN&nbsp;·&nbsp;<b>MAX −8.2%</b></div>
+      <div class="kpi loss"><span class="tri-d"></span>−8.2%</div>
+      <canvas id="ddC" width="852" height="180" style="position:absolute;left:6px;top:30px;width:426px;height:90px;"></canvas>
+      <div class="hint">CLICK ▸</div>
+    </div>
+
+    <!-- ===== RING TILE: REALISED vs PAPER (right lower) ===== -->
+    <div class="tile" id="t-rp" data-viz="rp"
+         style="left:1048px;top:594px;width:440px;height:128px;transform:rotate(-1.1deg);">
+      <div class="htdots"></div>
+      <div class="cap">REALISED&nbsp;<b>VS</b>&nbsp;PAPER</div>
+      <div class="kpi gain">£1,240</div>
+      <canvas id="rpC" width="852" height="150" style="position:absolute;left:6px;top:54px;width:426px;height:42px;"></canvas>
+      <div id="rpLabels" style="position:absolute;left:10px;top:30px;right:10px;z-index:4;display:flex;justify-content:space-between;font-family:'Oswald';font-weight:700;font-size:12px;letter-spacing:.1em;text-transform:uppercase;"></div>
+      <div class="hint">CLICK ▸</div>
+    </div>
+
+    <!-- ===== HOLDINGS ROSTER ===== -->
+    <div class="roster" id="roster"></div>
+
+    <!-- ===== BOTTOM STATUS BAR ===== -->
+    <div class="botbar">
+      <div class="bseg"><b>7 / 7</b>&nbsp;HOLDINGS</div>
+      <div class="bseg">BROKER&nbsp;·&nbsp;<b>TRADING 212</b></div>
+      <div class="bseg">FEED&nbsp;·&nbsp;<span class="delayed">DELAYED</span></div>
+      <div class="bspacer"></div>
+      <div class="badge"><span>COMBINED</span></div>
+    </div>
+
+    <!-- ===== EXPAND OVERLAY ===== -->
+    <div id="expand">
+      <div class="scrim" data-close="1"></div>
+      <div class="panel">
+        <div class="deco">
+          <div class="ring"></div><div class="ring2"></div><div class="htband"></div>
+          <div class="corner c1"></div><div class="corner c2"></div>
+          <div class="corner c3"></div><div class="corner c4"></div>
+        </div>
+        <div class="close" data-close="1"><span>ESC&nbsp;·&nbsp;CLOSE ✕</span></div>
+        <div class="ehead"><div class="et" id="eTitle"></div><div class="es" id="eSub"></div></div>
+        <div class="eviz" id="eViz"></div>
+        <div class="enums" id="eNums"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== CRT ===== -->
+<div id="crt"><div class="scan"></div><div class="sheen"></div><div class="vig"></div><div class="frame"></div></div>
+
+<script>
+/* ---------- cover scaler ---------- */
+(function(){var W=1512,H=982,st=document.getElementById('stage');
+ function fit(){st.style.setProperty('--cover',Math.max(innerWidth/W,innerHeight/H));}
+ fit();addEventListener('resize',fit);})();
+
+const INK='#14110D',CREAM='#EDE6D2',CREAM2='#F2ECE0',TEAL='#19E5E5',TEAL2='#2FB5A8',
+      TEALDK='#0E7E78',GAIN='#2FB5A8',LOSS='#C8402F',ORANGE='#FF5A1F';
+
+/* ---------- DATA ---------- */
+const D={
+  value:[9.0,9.6,10.1,9.7,11.2,12.4,13.1,14.2],
+  deposits:[8.0,8.7,9.4,10.1,10.8,11.5,12.3,13.0],
+  months:['NOV','DEC','JAN','FEB','MAR','APR','MAY','JUN'],
+  alloc:[['NVDA',24],['AAPL',19],['VUSA',17],['TSLA',14],['MSFT',12],['VOD.L',8],['AMD',6]],
+  pl:[['NVDA',540],['AAPL',210],['VUSA',180],['TSLA',-160],['MSFT',260],['VOD.L',-70],['AMD',280]],
+  dd:[0,-1.4,-3.1,-2.0,-5.6,-8.2,-6.1,-4.0,-2.2,-1.0,-2.4,-0.6],
+  rp:{realised:820,paper:420},
+  holdings:[
+    {tk:'NVDA',pl:540,up:true,wt:24,spark:[3,4,3.5,5,4.5,6,7,8]},
+    {tk:'AAPL',pl:210,up:true,wt:19,spark:[4,4.2,3.9,4.6,4.4,5,5.3,5.6]},
+    {tk:'VUSA',pl:180,up:true,wt:17,spark:[4,4.1,4.3,4.2,4.6,4.9,5.1,5.4]},
+    {tk:'TSLA',pl:-160,up:false,wt:14,spark:[6,5.6,5.9,5,5.3,4.6,4.2,4.4]},
+    {tk:'MSFT',pl:260,up:true,wt:12,spark:[4,4.4,4.2,4.8,5.1,5.4,5.6,6]},
+    {tk:'VOD.L',pl:-70,up:false,wt:8,spark:[5,4.8,5,4.6,4.4,4.5,4.2,4.3]},
+    {tk:'AMD',pl:280,up:true,wt:6,spark:[3.5,4,3.8,4.6,5,5.4,6,6.6]},
+  ]
+};
+const ALLOC_COL=[TEAL2,'#3E7C8C',TEALDK,ORANGE,'#5D5A86','#9a8f72','#46436B'];
+
+const fmt=n=>(n>=0?'+':'−')+'£'+Math.abs(n).toLocaleString();
+const pct=n=>(n>=0?'+':'−')+Math.abs(n).toFixed(1)+'%';
+
+/* ---------- helpers ---------- */
+function dpr(c){const x=c.getContext('2d');return x;}
+function inkRect(x,X,Y,W,H,lw){x.strokeStyle=INK;x.lineWidth=lw;x.strokeRect(X,Y,W,H);}
+
+/* ===== GAUGE (true growth vs deposits) — semicircle gauge ===== */
+function drawGauge(canvas,big){
+  const x=dpr(canvas),W=canvas.width,H=canvas.height;
+  x.clearRect(0,0,W,H);
+  const cx=W/2, cy=H*0.66, R=Math.min(W,H)*0.40;
+  const A0=Math.PI*0.82, A1=Math.PI*2.18; // sweep
+  // value 9.5% on a -10..+25 scale
+  const lo=-10, hi=25, val=9.5;
+  const tval=(val-lo)/(hi-lo), tzero=(0-lo)/(hi-lo);
+  // track
+  x.lineWidth=R*0.30;x.lineCap='butt';
+  x.strokeStyle='#DFD7C0';
+  x.beginPath();x.arc(cx,cy,R,A0,A1);x.stroke();
+  // zero->val teal arc
+  const aZero=A0+(A1-A0)*tzero, aVal=A0+(A1-A0)*tval;
+  x.strokeStyle=TEAL2;x.beginPath();x.arc(cx,cy,R,aZero,aVal);x.stroke();
+  // bright teal inner edge (kept inside the band)
+  x.lineWidth=R*0.09;x.strokeStyle=TEAL;x.beginPath();x.arc(cx,cy,R+R*0.105,aZero,aVal);x.stroke();
+  // negative zone hatch (loss color faint)
+  x.lineWidth=R*0.30;x.strokeStyle='rgba(200,64,47,.18)';
+  x.beginPath();x.arc(cx,cy,R,A0,aZero);x.stroke();
+  // ink outline of track band
+  x.lineWidth=big?7:5;x.strokeStyle=INK;
+  for(const rr of [R-R*0.15,R+R*0.15]){x.beginPath();x.arc(cx,cy,rr,A0,A1);x.stroke();}
+  // ticks
+  x.lineWidth=big?5:3;x.strokeStyle=INK;
+  for(let i=0;i<=7;i++){const t=i/7,a=A0+(A1-A0)*t;
+    const r1=R+R*0.15,r2=R+R*0.24;
+    x.beginPath();x.moveTo(cx+Math.cos(a)*r1,cy+Math.sin(a)*r1);
+    x.lineTo(cx+Math.cos(a)*r2,cy+Math.sin(a)*r2);x.stroke();}
+  // needle to val
+  x.save();x.translate(cx,cy);x.rotate(aVal);
+  x.fillStyle=INK;x.beginPath();
+  x.moveTo(0,-R*0.045);x.lineTo(R*1.16,0);x.lineTo(0,R*0.045);x.closePath();x.fill();
+  x.restore();
+  // hub
+  x.fillStyle=INK;x.beginPath();x.arc(cx,cy,R*0.12,0,7);x.fill();
+  x.fillStyle=TEAL;x.beginPath();x.arc(cx,cy,R*0.07,0,7);x.fill();
+  // center readout
+  x.textAlign='center';
+  x.fillStyle=INK;x.font='900 '+(big?86:64)+'px Anton, sans-serif';
+  x.fillText('+9.5%',cx,cy-R*0.42);
+  x.fillStyle=TEALDK;x.font='700 '+(big?26:20)+'px Oswald, sans-serif';
+  x.fillText('TRUE GROWTH',cx,cy-R*0.42+(big?30:24));
+  // delta under hub
+  x.fillStyle=GAIN;x.font='700 '+(big?40:30)+'px Space Mono, monospace';
+  x.fillText('+£1,240',cx,cy+R*0.55);
+  // end labels
+  x.fillStyle='#7a715c';x.font='700 '+(big?20:14)+'px Oswald, sans-serif';
+  x.textAlign='left';x.fillText('−10%',cx-R*1.18,cy+R*0.30);
+  x.textAlign='right';x.fillText('+25%',cx+R*1.18,cy+R*0.30);
+}
+
+/* ===== VALUE OVER TIME (line + deposits overlay) ===== */
+function drawValue(canvas,big){
+  const x=dpr(canvas),W=canvas.width,H=canvas.height;x.clearRect(0,0,W,H);
+  const padL=big?64:30,padR=big?30:14,padT=big?30:14,padB=big?44:26;
+  const gw=W-padL-padR, gh=H-padT-padB;
+  const all=D.value.concat(D.deposits);const mn=Math.min(...all)*0.96, mx=Math.max(...all)*1.03;
+  const X=i=>padL+gw*i/(D.value.length-1);
+  const Y=v=>padT+gh*(1-(v-mn)/(mx-mn));
+  // gridlines
+  x.strokeStyle='#DBD2BA';x.lineWidth=big?2:1;
+  for(let g=0;g<=4;g++){const yy=padT+gh*g/4;x.beginPath();x.moveTo(padL,yy);x.lineTo(W-padR,yy);x.stroke();}
+  // deposits overlay (dashed ink)
+  x.setLineDash(big?[10,8]:[6,5]);x.strokeStyle='#8a8169';x.lineWidth=big?4:2.5;
+  x.beginPath();D.deposits.forEach((v,i)=>{i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v));});x.stroke();
+  x.setLineDash([]);
+  // value area fill teal
+  const grd=x.createLinearGradient(0,padT,0,padT+gh);
+  grd.addColorStop(0,'rgba(47,181,168,.42)');grd.addColorStop(1,'rgba(47,181,168,.04)');
+  x.beginPath();D.value.forEach((v,i)=>{i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v));});
+  x.lineTo(X(D.value.length-1),padT+gh);x.lineTo(X(0),padT+gh);x.closePath();
+  x.fillStyle=grd;x.fill();
+  // value line
+  x.strokeStyle=INK;x.lineWidth=big?7:4.5;x.lineJoin='round';
+  x.beginPath();D.value.forEach((v,i)=>{i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v));});x.stroke();
+  x.strokeStyle=TEAL;x.lineWidth=big?3.5:2.2;
+  x.beginPath();D.value.forEach((v,i)=>{i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v));});x.stroke();
+  // points
+  D.value.forEach((v,i)=>{x.fillStyle=INK;x.beginPath();x.arc(X(i),Y(v),big?7:4,0,7);x.fill();
+    x.fillStyle=TEAL;x.beginPath();x.arc(X(i),Y(v),big?3.5:2,0,7);x.fill();});
+  // month labels
+  if(big){x.fillStyle='#7a715c';x.font='700 16px Oswald';x.textAlign='center';
+    D.months.forEach((m,i)=>x.fillText(m,X(i),H-14));
+    // y labels
+    x.textAlign='right';for(let g=0;g<=4;g++){const v=mn+(mx-mn)*(1-g/4);
+      x.fillText('£'+v.toFixed(1)+'k',padL-10,padT+gh*g/4+5);}
+    // legend
+    x.textAlign='left';x.fillStyle=INK;x.font='700 15px Oswald';
+    x.fillText('● VALUE',W-padR-150,padT+8);x.fillStyle='#8a8169';x.fillText('-- DEPOSITS',W-padR-150,padT+30);
+  }
+}
+
+/* ===== ALLOCATION DONUT ===== */
+function drawAlloc(canvas,big){
+  const x=dpr(canvas),W=canvas.width,H=canvas.height;x.clearRect(0,0,W,H);
+  const cx=W/2,cy=H/2,R=Math.min(W,H)*0.44,r=R*0.54;
+  let a=-Math.PI/2;const tot=D.alloc.reduce((s,d)=>s+d[1],0);
+  D.alloc.forEach((d,i)=>{const ang=d[1]/tot*Math.PI*2;
+    x.beginPath();x.moveTo(cx,cy);x.arc(cx,cy,R,a,a+ang);x.closePath();
+    x.fillStyle=ALLOC_COL[i];x.fill();
+    x.lineWidth=big?6:4;x.strokeStyle=INK;x.stroke();a+=ang;});
+  // hole
+  x.beginPath();x.arc(cx,cy,r,0,7);x.fillStyle=CREAM2;x.fill();
+  x.lineWidth=big?6:4;x.strokeStyle=INK;x.stroke();
+  x.textAlign='center';x.fillStyle=INK;x.font='900 '+(big?40:24)+'px Anton';
+  x.fillText('7',cx,cy-2);
+  x.fillStyle=TEALDK;x.font='700 '+(big?15:9)+'px Oswald';x.fillText('HOLDINGS',cx,cy+(big?20:13));
+}
+
+/* ===== PER-STOCK P/L BARS ===== */
+function drawPL(canvas,big){
+  const x=dpr(canvas),W=canvas.width,H=canvas.height;x.clearRect(0,0,W,H);
+  const padL=big?70:48,padR=big?80:14,padT=big?20:8,padB=big?34:18;
+  const gw=W-padL-padR,gh=H-padT-padB;
+  const mx=Math.max(...D.pl.map(d=>Math.abs(d[1])))*1.12;
+  const zx=padL+gw*0.5;
+  const bh=gh/D.pl.length;
+  D.pl.forEach((d,i)=>{const yy=padT+bh*i+bh*0.16,h=bh*0.68;
+    const w=gw*0.5*Math.abs(d[1])/mx;const pos=d[1]>=0;
+    const bx=pos?zx:zx-w;
+    x.fillStyle=pos?TEAL2:LOSS;x.fillRect(bx,yy,w,h);
+    x.lineWidth=big?4:2.5;x.strokeStyle=INK;x.strokeRect(bx,yy,w,h);
+    if(pos){x.fillStyle=TEAL;x.fillRect(bx,yy,w,Math.max(2,h*0.22));}
+    // ticker
+    x.fillStyle=INK;x.font='700 '+(big?20:11)+'px Oswald';x.textAlign='right';
+    x.fillText(d[0],padL-(big?14:6),yy+h*0.74);
+    // value
+    x.font='700 '+(big?20:11)+'px Space Mono';x.textAlign=pos?'left':'right';
+    x.fillStyle=pos?TEALDK:LOSS;
+    x.fillText((pos?'+':'−')+'£'+Math.abs(d[1]),pos?bx+w+(big?10:5):bx-(big?10:5),yy+h*0.74);
+  });
+  // zero axis
+  x.strokeStyle=INK;x.lineWidth=big?5:3;x.beginPath();x.moveTo(zx,padT-2);x.lineTo(zx,H-padB+2);x.stroke();
+}
+
+/* ===== DRAWDOWN LINE ===== */
+function drawDD(canvas,big){
+  const x=dpr(canvas),W=canvas.width,H=canvas.height;x.clearRect(0,0,W,H);
+  const padL=big?64:8,padR=big?20:8,padT=big?20:6,padB=big?34:6;
+  const gw=W-padL-padR,gh=H-padT-padB;
+  const mn=Math.min(...D.dd)*1.12, mx=0;
+  const X=i=>padL+gw*i/(D.dd.length-1);
+  const Y=v=>padT+gh*(1-(v-mn)/(mx-mn));
+  // zero line
+  x.strokeStyle='#C9BFA6';x.lineWidth=big?2:1.5;x.beginPath();x.moveTo(padL,Y(0));x.lineTo(W-padR,Y(0));x.stroke();
+  // area
+  const grd=x.createLinearGradient(0,Y(0),0,padT+gh);
+  grd.addColorStop(0,'rgba(200,64,47,.06)');grd.addColorStop(1,'rgba(200,64,47,.38)');
+  x.beginPath();x.moveTo(X(0),Y(0));D.dd.forEach((v,i)=>x.lineTo(X(i),Y(v)));
+  x.lineTo(X(D.dd.length-1),Y(0));x.closePath();x.fillStyle=grd;x.fill();
+  // line
+  x.strokeStyle=LOSS;x.lineWidth=big?6:3;x.lineJoin='round';
+  x.beginPath();D.dd.forEach((v,i)=>{i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v));});x.stroke();
+  // max dd marker
+  const mi=D.dd.indexOf(Math.min(...D.dd));
+  x.fillStyle=INK;x.beginPath();x.arc(X(mi),Y(D.dd[mi]),big?8:4,0,7);x.fill();
+  x.fillStyle=LOSS;x.beginPath();x.arc(X(mi),Y(D.dd[mi]),big?4:2,0,7);x.fill();
+  if(big){x.fillStyle=LOSS;x.font='700 22px Space Mono';x.textAlign='center';
+    x.fillText('−8.2%',X(mi),Y(D.dd[mi])+44);
+    x.fillStyle='#7a715c';x.font='700 14px Oswald';x.textAlign='right';
+    x.fillText('0%',padL-8,Y(0)+5);x.fillText(mn.toFixed(1)+'%',padL-8,padT+gh+0);}
+}
+
+/* ===== REALISED vs PAPER split bar ===== */
+function drawRP(canvas,big){
+  const x=dpr(canvas),W=canvas.width,H=canvas.height;x.clearRect(0,0,W,H);
+  const tot=D.rp.realised+D.rp.paper;const pad=big?2:0;
+  const y=big?H*0.3:2,h=big?H*0.4:H-4;
+  const wR=(W-4)*D.rp.realised/tot;
+  x.fillStyle=TEAL2;x.fillRect(2,y,wR,h);
+  x.fillStyle=TEAL;x.fillRect(2,y,wR,Math.max(2,h*(big?0.2:0.34)));
+  x.fillStyle='#9a8f72';x.fillRect(2+wR,y,(W-4)-wR,h);
+  x.fillStyle='#7a715c';x.fillRect(2+wR,y,(W-4)-wR,Math.max(2,h*(big?0.2:0.34)));
+  x.lineWidth=big?6:3;x.strokeStyle=INK;x.strokeRect(2,y,W-4,h);
+  x.beginPath();x.moveTo(2+wR,y);x.lineTo(2+wR,y+h);x.stroke();
+  if(big){x.fillStyle=CREAM2;x.font='900 30px Anton';x.textAlign='center';
+    x.fillText('£820',2+wR/2,y+h*0.62);
+    x.fillStyle=INK;x.fillText('£420',2+wR+((W-4)-wR)/2,y+h*0.62);
+    x.fillStyle=INK;x.font='700 16px Oswald';x.textAlign='left';x.fillText('REALISED',2,y-14);
+    x.textAlign='right';x.fillText('PAPER',W-2,y-14);}
+}
+
+/* ---------- INITIAL TILE RENDER ---------- */
+drawGauge(document.getElementById('gaugeC'),false);
+drawValue(document.getElementById('valueC'),false);
+drawAlloc(document.getElementById('allocC'),false);
+drawPL(document.getElementById('plC'),false);
+drawDD(document.getElementById('ddC'),false);
+drawRP(document.getElementById('rpC'),false);
+
+/* alloc legend (collapsed) */
+(function(){const L=document.getElementById('allocLegend');
+  L.innerHTML=D.alloc.map((d,i)=>`<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
+    <span style="width:13px;height:13px;background:${ALLOC_COL[i]};box-shadow:2px 2px 0 ${INK};border:1.5px solid ${INK};"></span>
+    <span style="font-family:'Oswald';font-weight:700;font-size:13px;letter-spacing:.04em;">${d[0]}</span>
+    <span style="font-family:'Space Mono';font-weight:700;font-size:12px;color:${TEALDK};margin-left:auto;">${d[1]}%</span>
+  </div>`).join('');})();
+
+/* rp labels collapsed */
+document.getElementById('rpLabels').innerHTML=
+  `<span style="color:${TEALDK};">REALISED £820</span><span style="color:#8a8169;">PAPER £420</span>`;
+
+/* ---------- ROSTER ---------- */
+(function(){const R=document.getElementById('roster');
+  R.innerHTML=D.holdings.map(h=>{
+    const cls=h.up?'up':'dn',plc=h.pl>=0?'gain':'loss',tri=h.up?'tri-u':'tri-d';
+    const arrow=h.up?'▲':'▼';
+    // sparkline svg
+    const mn=Math.min(...h.spark),mx=Math.max(...h.spark);
+    const pts=h.spark.map((v,i)=>`${(i/(h.spark.length-1))*100},${28-((v-mn)/((mx-mn)||1))*24-2}`).join(' ');
+    const col=h.up?TEAL2:LOSS;
+    return `<div class="holding">
+      <div class="badge ${cls}">${arrow}</div>
+      <svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none">
+        <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2.4"/></svg>
+      <div class="inner">
+        <div class="tk">${h.tk}</div>
+        <div class="wt">${h.wt}% WT</div>
+        <div class="pl ${plc}"><span class="${tri}"></span>${fmt(h.pl)}</div>
+      </div>
+    </div>`;}).join('');
+})();
+
+/* ---------- EXPAND SYSTEM ---------- */
+const expand=document.getElementById('expand');
+const eTitle=document.getElementById('eTitle'),eSub=document.getElementById('eSub'),
+      eViz=document.getElementById('eViz'),eNums=document.getElementById('eNums');
+
+const VIZ={
+  truth:{title:'TRUE-GROWTH <em>GAUGE</em>',sub:'True growth vs net deposits',
+    draw:(c)=>drawGauge(c,true),w:700,h:560,
+    nums:()=>`
+      <div class="nbig"><div class="nbk">TRUE GROWTH (NET OF DEPOSITS)</div><div class="nbv">+9.5%</div></div>
+      <div class="nrow head"><span class="nk">Measure</span><span class="nk">Value</span></div>
+      <div class="nrow"><span class="nk">Money-weighted gain</span><span class="nv gain">+£1,240</span></div>
+      <div class="nrow"><span class="nk">Net deposits</span><span class="nv">£13,000</span></div>
+      <div class="nrow"><span class="nk">True balance</span><span class="nv">£14,240</span></div>
+      <div class="nrow"><span class="nk">XIRR (annualised)</span><span class="nv teal" style="color:${TEALDK}">13.4%</span></div>
+      <div class="nrow"><span class="nk">Day change</span><span class="nv gain">+£84</span></div>
+      <div class="nrow"><span class="nk">Gauge range</span><span class="nv">−10% … +25%</span></div>`},
+  value:{title:'VALUE <em>OVER TIME</em>',sub:'Portfolio value vs net deposits · 8 months',
+    draw:(c)=>drawValue(c,true),w:680,h:520,
+    nums:()=>{let r=`<div class="nrow head"><span class="nk">Month</span><span class="nk">Value / Deposits</span></div>`;
+      D.months.forEach((m,i)=>{r+=`<div class="nrow"><span class="nk">${m}</span>
+        <span class="nv">£${D.value[i].toFixed(1)}k <span style="color:#8a8169;font-size:16px">/ £${D.deposits[i].toFixed(1)}k</span></span></div>`;});
+      return r;}},
+  alloc:{title:'ALLOCATION <em>DONUT</em>',sub:'Weight by holding · 7 positions',
+    draw:(c)=>drawAlloc(c,true),w:520,h:520,
+    nums:()=>{let r=`<div class="nrow head"><span class="nk">Ticker</span><span class="nk">Weight</span></div>`;
+      D.alloc.forEach((d,i)=>{r+=`<div class="nrow"><span class="nk"><span style="display:inline-block;width:14px;height:14px;background:${ALLOC_COL[i]};border:1.5px solid ${INK};margin-right:9px;vertical-align:-1px;"></span>${d[0]}</span><span class="nv">${d[1]}%</span></div>`;});
+      return r;}},
+  pl:{title:'PER-STOCK <em>P / L</em>',sub:'Realised + paper by position',
+    draw:(c)=>drawPL(c,true),w:700,h:520,
+    nums:()=>{let r=`<div class="nrow head"><span class="nk">Ticker</span><span class="nk">P / L</span></div>`;
+      D.pl.forEach(d=>{const g=d[1]>=0;r+=`<div class="nrow"><span class="nk">${d[0]}</span>
+        <span class="nv ${g?'gain':'loss'}">${fmt(d[1])}</span></div>`;});
+      r+=`<div class="nrow head"><span class="nk">TOTAL</span><span class="nv gain">+£1,240</span></div>`;return r;}},
+  dd:{title:'DRAWDOWN <em>CURVE</em>',sub:'Peak-to-trough decline over period',
+    draw:(c)=>drawDD(c,true),w:700,h:480,
+    nums:()=>`
+      <div class="nbig"><div class="nbk">MAX DRAWDOWN</div><div class="nbv" style="color:${LOSS}">−8.2%</div></div>
+      <div class="nrow head"><span class="nk">Measure</span><span class="nk">Value</span></div>
+      <div class="nrow"><span class="nk">Max drawdown</span><span class="nv loss">−8.2%</span></div>
+      <div class="nrow"><span class="nk">Current drawdown</span><span class="nv loss">−0.6%</span></div>
+      <div class="nrow"><span class="nk">Recovery</span><span class="nv gain">+7.6% off low</span></div>
+      <div class="nrow"><span class="nk">Worst month</span><span class="nv">MAR</span></div>
+      <div class="nrow"><span class="nk">Avg drawdown</span><span class="nv loss">−3.1%</span></div>`},
+  rp:{title:'REALISED <em>vs</em> PAPER',sub:'Locked-in gains vs open profit',
+    draw:(c)=>drawRP(c,true),w:680,h:240,
+    nums:()=>`
+      <div class="nbig"><div class="nbk">TOTAL GAIN</div><div class="nbv">+£1,240</div></div>
+      <div class="nrow head"><span class="nk">Type</span><span class="nk">Amount</span></div>
+      <div class="nrow"><span class="nk">Realised (closed)</span><span class="nv gain">£820</span></div>
+      <div class="nrow"><span class="nk">Paper (open)</span><span class="nv">£420</span></div>
+      <div class="nrow"><span class="nk">Realised share</span><span class="nv teal" style="color:${TEALDK}">66%</span></div>
+      <div class="nrow"><span class="nk">Paper share</span><span class="nv">34%</span></div>`},
+};
+
+function openViz(key){
+  const v=VIZ[key];if(!v)return;
+  eTitle.innerHTML=v.title;eSub.textContent=v.sub;
+  // build canvas sized to viz
+  eViz.innerHTML='';
+  const c=document.createElement('canvas');
+  c.width=v.w*2;c.height=v.h*2;c.style.width=v.w+'px';c.style.height=v.h+'px';
+  eViz.appendChild(c);
+  v.draw(c);
+  eNums.innerHTML=v.nums();
+  expand.classList.add('on');
+}
+function closeViz(){expand.classList.remove('on');}
+
+document.querySelectorAll('.tile').forEach(t=>{
+  t.addEventListener('click',()=>openViz(t.dataset.viz));
+});
+expand.addEventListener('click',e=>{if(e.target.dataset.close)closeViz();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeViz();});
+
+/* auto-open via query param */
+if(location.search.includes('expand=truth')){openViz('truth');}
+</script>
+</body>
+</html>

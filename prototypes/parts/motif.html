@@ -1,0 +1,318 @@
+<!doctype html>
+<html>
+<head>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;600;700&family=Permanent+Marker&family=Bungee&display=swap');
+
+:root{
+  --ink:#0D0D0D; --ink2:#1A1A17; --paper:#F2ECE0; --cream:#EDE6D2; --bone:#FFFFFF;
+  --orange:#FF5A1F; --orange2:#FF7A18; --teal:#2FD0C5; --purple:#8A7FD0;
+  --red:#E60012; --shout:#FFE100;
+}
+
+#nt-motif *{ box-sizing:border-box; border-radius:0; }
+
+#nt-motif .concept{
+  position:absolute;
+  width:330px; height:430px;
+  background:var(--ink2);
+  clip-path:polygon(3% 0,100% 2%,97% 100%,0 97%);
+  box-shadow:14px 14px 0 #000;
+  overflow:hidden;
+}
+#nt-motif .label{
+  position:absolute; left:50%; transform:translateX(-50%) rotate(-4deg);
+  bottom:14px;
+  font-family:"Anton"; font-size:23px; letter-spacing:.01em; text-transform:uppercase;
+  color:var(--ink); background:var(--shout);
+  padding:4px 16px 3px;
+  clip-path:polygon(6% 0,100% 0,94% 100%,0 100%);
+  box-shadow:5px 5px 0 #000;
+  -webkit-text-stroke:0;
+  white-space:nowrap;
+  z-index:30;
+}
+#nt-motif .label small{ font-family:"Oswald"; font-weight:700; font-size:13px; display:block; text-align:center; letter-spacing:.04em; margin-top:1px; -webkit-text-stroke:0; }
+
+/* concept positions, tilted off-grid */
+#nt-motif #cA{ left:36px;  top:54px;  transform:rotate(-4deg); }
+#nt-motif #cB{ left:404px; top:90px;  transform:rotate(3deg); }
+#nt-motif #cC{ left:768px; top:48px;  transform:rotate(-3deg); }
+#nt-motif #cD{ left:1132px;top:96px;  transform:rotate(4deg); }
+
+/* shared halftone field */
+#nt-motif .ht{
+  position:absolute; inset:0;
+  background-image:radial-gradient(var(--ink) 1.6px, transparent 1.8px);
+  background-size:8px 8px; opacity:.18; mix-blend-mode:multiply; z-index:5;
+}
+/* corner halftone burst — denser toward corner */
+#nt-motif .htc{
+  position:absolute; width:170px; height:170px; z-index:7; pointer-events:none;
+  background-image:radial-gradient(var(--ink) 2.4px, transparent 2.6px);
+  background-size:10px 10px; mix-blend-mode:multiply; opacity:.45;
+  -webkit-mask-image:radial-gradient(circle at 0 0, #000 10%, transparent 72%);
+          mask-image:radial-gradient(circle at 0 0, #000 10%, transparent 72%);
+}
+/* grit overlay */
+#nt-motif .grit{ position:absolute; inset:0; z-index:8; mix-blend-mode:multiply; opacity:.2;
+  filter:url(#grain); pointer-events:none; background:transparent; }
+/* little scrawl marks */
+#nt-motif .scrawl{ position:absolute; z-index:31; font-family:"Permanent Marker";
+  color:var(--ink); white-space:nowrap; }
+/* tiny stamp */
+#nt-motif .stamp{ position:absolute; z-index:31; font-family:"Oswald"; font-weight:700;
+  text-transform:uppercase; letter-spacing:.06em; font-size:11px; color:var(--bone);
+  background:var(--ink); padding:2px 8px; clip-path:polygon(8% 0,100% 0,92% 100%,0 100%);
+  box-shadow:3px 3px 0 rgba(0,0,0,.5); }
+</style>
+</head>
+<body style="margin:0;background:var(--ink)">
+
+<!-- hidden SVG filters -->
+<svg width="0" height="0" style="position:absolute">
+  <filter id="rough"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.04" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="5"/></filter>
+  <filter id="marble"><feTurbulence type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="3" seed="11" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="40"/></filter>
+  <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope="0.06"/></feComponentTransfer><feComposite operator="over" in2="SourceGraphic"/></filter>
+</svg>
+
+<div id="nt-motif" style="position:absolute;inset:0;width:1512px;height:982px;overflow:visible">
+
+<!-- ============ CONCEPT A — SNARLING BULL/BEAR SPLIT MASK ============ -->
+<div class="concept" id="cA">
+  <!-- liquid marble field (teal/purple split bg) -->
+  <svg viewBox="0 0 330 430" width="330" height="430" style="position:absolute;inset:0">
+    <defs>
+      <clipPath id="aClip"><rect width="330" height="430"/></clipPath>
+    </defs>
+    <g clip-path="url(#aClip)">
+      <rect width="165" height="430" fill="var(--teal)"/>
+      <rect x="165" width="165" height="430" fill="var(--orange)"/>
+      <g filter="url(#marble)" opacity="0.55">
+        <path d="M-20 60 Q90 10 200 70 T380 50 L380 150 Q250 110 120 160 T-20 150Z" fill="var(--cream)"/>
+        <path d="M-20 300 Q120 250 250 310 T380 290 L380 380 Q220 340 90 390 T-20 370Z" fill="var(--ink)" opacity="0.4"/>
+      </g>
+    </g>
+  </svg>
+  <div class="ht"></div>
+  <!-- speed lines -->
+  <div style="position:absolute;inset:0;z-index:6;opacity:.35;mix-blend-mode:multiply;background:repeating-linear-gradient(108deg,var(--ink) 0 2px,transparent 2px 26px)"></div>
+
+  <!-- the split mask: bull (left) / bear (right), bold flat white with hard outline -->
+  <svg viewBox="0 0 330 400" width="330" height="400" style="position:absolute;left:0;top:6px;z-index:10" filter="url(#rough)">
+    <!-- white face base -->
+    <g stroke="var(--ink)" stroke-width="6" stroke-linejoin="round">
+      <!-- snout / face shape -->
+      <path d="M165 70 C110 70 80 100 78 150 C76 200 95 245 120 280 C140 308 160 330 165 348 C170 330 190 308 210 280 C235 245 254 200 252 150 C250 100 220 70 165 70Z" fill="var(--bone)"/>
+      <!-- BULL horn left (orange) curling up -->
+      <path d="M88 120 C58 96 44 62 58 40 C66 64 86 78 104 96 C96 104 90 112 88 120Z" fill="var(--orange)"/>
+      <!-- BEAR ear right (purple) round but cut as polygon -->
+      <path d="M244 116 L286 70 L300 120 L262 140 Z" fill="var(--purple)"/>
+      <!-- nostrils -->
+      <path d="M135 270 q-14 6 -8 18 q12 6 14 -6 Z" fill="var(--ink)"/>
+      <path d="M195 270 q14 6 8 18 q-12 6 -14 -6 Z" fill="var(--ink)"/>
+    </g>
+    <!-- center divide slash (red, explosive) -->
+    <path d="M168 60 L150 210 L182 230 L156 360 L196 200 L168 180 Z" fill="var(--red)" stroke="var(--ink)" stroke-width="3"/>
+    <!-- BULL eye (angry, orange) -->
+    <g stroke="var(--ink)" stroke-width="5">
+      <path d="M96 168 L142 150 L150 184 L104 200 Z" fill="var(--bone)"/>
+      <path d="M112 168 l18 -6 l4 16 l-18 6 Z" fill="var(--orange)"/>
+    </g>
+    <!-- BEAR eye (cold, teal) -->
+    <g stroke="var(--ink)" stroke-width="5">
+      <path d="M188 150 L234 168 L226 200 L182 184 Z" fill="var(--bone)"/>
+      <path d="M196 166 l18 6 l-4 16 l-18 -6 Z" fill="var(--teal)"/>
+    </g>
+    <!-- up arrow (bull) + down arrow (bear) tiny stamps -->
+    <path d="M60 250 l18 -22 l18 22 l-10 0 l0 24 l-16 0 l0 -24 Z" fill="var(--orange)" stroke="var(--ink)" stroke-width="4"/>
+    <path d="M252 250 l18 22 l18 -22 l-10 0 l0 -24 l-16 0 l0 24 Z" fill="var(--teal)" stroke="var(--ink)" stroke-width="4"/>
+  </svg>
+
+  <div class="htc" style="right:0;bottom:60px;transform:scaleX(-1)"></div>
+  <div class="grit"></div>
+  <div class="stamp" style="left:14px;top:120px;transform:rotate(-8deg);background:var(--ink)">BUY</div>
+  <div class="stamp" style="right:18px;top:96px;transform:rotate(7deg);background:var(--red)">SELL</div>
+  <div class="scrawl" style="right:10px;top:200px;transform:rotate(6deg);font-size:18px;color:var(--cream)">vs.</div>
+  <div class="label">BULL / BEAR <small>SPLIT MASK</small></div>
+  <div style="position:absolute;left:8px;top:8px;z-index:32;font-family:'Anton';font-size:60px;color:var(--bone);-webkit-text-stroke:3px var(--ink);text-shadow:4px 4px 0 var(--red);transform:rotate(-6deg);opacity:.9">A</div>
+</div>
+
+<!-- ============ CONCEPT B — GLOVED HAND FANNING TICKER CARDS ============ -->
+<div class="concept" id="cB">
+  <svg viewBox="0 0 330 430" width="330" height="430" style="position:absolute;inset:0">
+    <g>
+      <rect width="330" height="430" fill="var(--purple)"/>
+      <g filter="url(#marble)" opacity="0.6">
+        <path d="M-20 40 Q90 0 200 50 T380 30 L380 140 Q250 100 120 150 T-20 140Z" fill="var(--cream)"/>
+        <path d="M-30 250 Q120 210 260 270 T390 250 L390 440 L-30 440Z" fill="var(--teal)" opacity="0.7"/>
+      </g>
+    </g>
+  </svg>
+  <div class="ht"></div>
+  <div style="position:absolute;inset:0;z-index:6;opacity:.3;mix-blend-mode:multiply;background:repeating-linear-gradient(72deg,var(--ink) 0 2px,transparent 2px 24px)"></div>
+
+  <!-- fanned ticker cards behind the hand -->
+  <g>
+  <svg viewBox="0 0 330 430" width="330" height="430" style="position:absolute;inset:0;z-index:9" filter="url(#rough)">
+    <!-- card 1 -->
+    <g transform="rotate(-26 165 330)">
+      <rect x="118" y="120" width="94" height="150" fill="var(--cream)" stroke="var(--ink)" stroke-width="5"/>
+      <text x="165" y="150" font-family="Anton" font-size="26" fill="var(--red)" text-anchor="middle">▼</text>
+      <text x="165" y="185" font-family="Oswald" font-weight="700" font-size="20" fill="var(--ink)" text-anchor="middle">AAPL</text>
+      <path d="M128 220 l18 -16 l16 10 l24 -26" stroke="var(--red)" stroke-width="4" fill="none"/>
+    </g>
+    <!-- card 2 -->
+    <g transform="rotate(-9 165 330)">
+      <rect x="118" y="110" width="94" height="150" fill="var(--bone)" stroke="var(--ink)" stroke-width="5"/>
+      <text x="165" y="140" font-family="Anton" font-size="26" fill="var(--teal)" text-anchor="middle">▲</text>
+      <text x="165" y="175" font-family="Oswald" font-weight="700" font-size="20" fill="var(--ink)" text-anchor="middle">TSLA</text>
+      <path d="M128 230 l18 16 l16 -10 l24 22" stroke="var(--teal)" stroke-width="4" fill="none"/>
+    </g>
+    <!-- card 3 (orange hero) -->
+    <g transform="rotate(8 165 330)">
+      <rect x="118" y="104" width="94" height="150" fill="var(--orange)" stroke="var(--ink)" stroke-width="5"/>
+      <text x="165" y="136" font-family="Anton" font-size="26" fill="var(--ink)" text-anchor="middle">▲</text>
+      <text x="165" y="170" font-family="Oswald" font-weight="700" font-size="20" fill="var(--ink)" text-anchor="middle">£GBP</text>
+      <path d="M128 224 l18 -14 l16 12 l24 -20" stroke="var(--ink)" stroke-width="4" fill="none"/>
+    </g>
+  </svg>
+  </g>
+
+  <!-- the gloved hand (flat white, red glove cuff) -->
+  <svg viewBox="0 0 330 430" width="330" height="430" style="position:absolute;inset:0;z-index:14" filter="url(#rough)">
+    <g stroke="var(--ink)" stroke-width="6" stroke-linejoin="round">
+      <!-- glove cuff -->
+      <path d="M120 360 L92 410 L250 432 L240 372 Z" fill="var(--red)"/>
+      <!-- palm -->
+      <path d="M118 300 C108 330 120 372 170 380 C220 386 244 360 240 330 C236 300 210 286 180 290 C150 294 130 290 118 300Z" fill="var(--bone)"/>
+      <!-- thumb -->
+      <path d="M120 300 C96 296 80 312 86 332 C92 348 116 344 128 330 Z" fill="var(--bone)"/>
+      <!-- fingers fanning -->
+      <path d="M150 300 L138 250 L160 246 L168 298 Z" fill="var(--bone)"/>
+      <path d="M180 296 L182 240 L204 244 L200 300 Z" fill="var(--bone)"/>
+      <path d="M210 304 L232 258 L250 270 L228 314 Z" fill="var(--bone)"/>
+    </g>
+    <!-- knuckle dots -->
+    <circle cx="158" cy="306" r="4" fill="var(--ink)"/>
+    <circle cx="188" cy="304" r="4" fill="var(--ink)"/>
+    <circle cx="216" cy="312" r="4" fill="var(--ink)"/>
+  </svg>
+
+  <div class="htc" style="left:0;bottom:50px"></div>
+  <div class="grit"></div>
+  <div class="stamp" style="left:16px;top:130px;transform:rotate(-7deg);background:var(--teal);color:var(--ink)">DEAL</div>
+  <div class="scrawl" style="right:16px;top:120px;transform:rotate(8deg);font-size:20px;color:var(--orange)">hot!</div>
+  <div class="label">DEALER'S HAND <small>FAN OF TICKERS</small></div>
+  <div style="position:absolute;left:8px;top:8px;z-index:32;font-family:'Anton';font-size:60px;color:var(--bone);-webkit-text-stroke:3px var(--ink);text-shadow:4px 4px 0 var(--orange);transform:rotate(5deg);opacity:.9">B</div>
+</div>
+
+<!-- ============ CONCEPT C — EXPLODING CANDLESTICK BURST ============ -->
+<div class="concept" id="cC">
+  <svg viewBox="0 0 330 430" width="330" height="430" style="position:absolute;inset:0">
+    <rect width="330" height="430" fill="var(--ink)"/>
+    <g filter="url(#marble)" opacity="0.7">
+      <path d="M-30 200 Q120 140 260 210 T390 190 L390 460 L-30 460Z" fill="var(--teal)" opacity="0.5"/>
+      <path d="M-30 60 Q120 20 240 70 T390 50 L390 150 Q240 120 120 160 T-30 150Z" fill="var(--orange)" opacity="0.4"/>
+    </g>
+  </svg>
+  <div class="ht"></div>
+  <!-- explosive speed burst from center -->
+  <svg viewBox="0 0 330 430" width="330" height="430" style="position:absolute;inset:0;z-index:8">
+    <g transform="translate(165 220)">
+      <g stroke="var(--shout)" stroke-width="3" opacity="0.7">
+        <line x1="0" y1="0" x2="0" y2="-200"/><line x1="0" y1="0" x2="160" y2="-130"/>
+        <line x1="0" y1="0" x2="200" y2="0"/><line x1="0" y1="0" x2="150" y2="140"/>
+        <line x1="0" y1="0" x2="0" y2="200"/><line x1="0" y1="0" x2="-150" y2="140"/>
+        <line x1="0" y1="0" x2="-200" y2="0"/><line x1="0" y1="0" x2="-160" y2="-130"/>
+      </g>
+    </g>
+  </svg>
+  <!-- candlesticks bursting outward -->
+  <svg viewBox="0 0 330 430" width="330" height="430" style="position:absolute;inset:0;z-index:12" filter="url(#rough)">
+    <!-- green winners -->
+    <g stroke="var(--ink)" stroke-width="5">
+      <line x1="84" y1="120" x2="84" y2="300" stroke="var(--ink)" stroke-width="4"/>
+      <rect x="68" y="160" width="32" height="110" fill="var(--teal)"/>
+      <line x1="130" y1="90" x2="130" y2="320" stroke="var(--ink)" stroke-width="4"/>
+      <rect x="114" y="130" width="32" height="150" fill="var(--teal)"/>
+      <!-- red loser explosive -->
+      <line x1="200" y1="100" x2="200" y2="330" stroke="var(--ink)" stroke-width="4"/>
+      <rect x="184" y="150" width="32" height="140" fill="var(--red)"/>
+      <!-- orange hero candle, biggest, center -->
+      <line x1="248" y1="70" x2="248" y2="340" stroke="var(--ink)" stroke-width="4"/>
+      <rect x="228" y="110" width="40" height="180" fill="var(--orange)"/>
+    </g>
+    <!-- shards/debris flying out -->
+    <g stroke="var(--ink)" stroke-width="3">
+      <path d="M40 80 l20 6 l-8 18 Z" fill="var(--teal)"/>
+      <path d="M290 110 l22 -4 l4 22 Z" fill="var(--orange)"/>
+      <path d="M60 350 l18 8 l-12 16 Z" fill="var(--red)"/>
+      <path d="M280 340 l20 -2 l2 20 Z" fill="var(--shout)"/>
+    </g>
+    <!-- POW burst star -->
+    <path d="M165 56 l10 26 l27 -8 l-16 23 l20 19 l-28 2 l4 28 l-21 -19 l-21 19 l4 -28 l-28 -2 l20 -19 l-16 -23 l27 8 Z" fill="var(--shout)" stroke="var(--ink)" stroke-width="4" transform="translate(0 -10) scale(0.85)" transform-origin="165 80"/>
+  </svg>
+  <div class="htc" style="right:0;top:30px;transform:scaleX(-1)"></div>
+  <div class="grit"></div>
+  <div class="scrawl" style="left:14px;top:300px;transform:rotate(-7deg);font-size:22px;color:var(--shout)">POW!</div>
+  <div class="stamp" style="right:16px;top:300px;transform:rotate(6deg);background:var(--teal);color:var(--ink)">+5.2%</div>
+  <div class="label">CANDLE BURST <small>GREEN VS RED POP</small></div>
+  <div style="position:absolute;left:8px;top:8px;z-index:32;font-family:'Anton';font-size:60px;color:var(--bone);-webkit-text-stroke:3px var(--ink);text-shadow:4px 4px 0 var(--teal);transform:rotate(-5deg);opacity:.9">C</div>
+</div>
+
+<!-- ============ CONCEPT D — POUND SIGIL EMBLEM ============ -->
+<div class="concept" id="cD">
+  <svg viewBox="0 0 330 430" width="330" height="430" style="position:absolute;inset:0">
+    <rect width="330" height="430" fill="var(--orange)"/>
+    <g filter="url(#marble)" opacity="0.55">
+      <path d="M-30 120 Q120 60 260 130 T390 110 L390 300 Q240 250 120 310 T-30 290Z" fill="var(--purple)" opacity="0.6"/>
+      <path d="M-30 280 Q120 240 260 300 T390 280 L390 460 L-30 460Z" fill="var(--cream)" opacity="0.55"/>
+    </g>
+  </svg>
+  <div class="ht"></div>
+  <!-- radiating coin streaks -->
+  <svg viewBox="0 0 330 430" width="330" height="430" style="position:absolute;inset:0;z-index:8">
+    <g transform="translate(165 200)" stroke="var(--ink)" stroke-width="3" opacity="0.35">
+      <line x1="0" y1="0" x2="0" y2="-220"/><line x1="0" y1="0" x2="190" y2="-110"/><line x1="0" y1="0" x2="190" y2="110"/>
+      <line x1="0" y1="0" x2="0" y2="220"/><line x1="0" y1="0" x2="-190" y2="110"/><line x1="0" y1="0" x2="-190" y2="-110"/>
+    </g>
+  </svg>
+  <!-- torn plate behind coin, off-grid -->
+  <svg viewBox="0 0 330 430" width="330" height="430" style="position:absolute;inset:0;z-index:11" filter="url(#rough)">
+    <path d="M20 250 L300 210 L286 360 L34 380 Z" fill="var(--ink)" transform="rotate(-5 165 300)"/>
+  </svg>
+  <!-- coin emblem: stacked sticker layers, pushed up-left off center -->
+  <svg viewBox="0 0 330 430" width="330" height="430" style="position:absolute;inset:0;z-index:12" filter="url(#rough)">
+    <!-- back offset coin (ink) -->
+    <circle cx="158" cy="188" r="106" fill="var(--ink)"/>
+    <!-- main coin face -->
+    <circle cx="145" cy="176" r="106" fill="var(--shout)" stroke="var(--ink)" stroke-width="7"/>
+    <!-- inner ring -->
+    <circle cx="145" cy="176" r="86" fill="none" stroke="var(--ink)" stroke-width="4" stroke-dasharray="10 8"/>
+    <!-- notched coin edges -->
+    <g stroke="var(--ink)" stroke-width="5">
+      <line x1="145" y1="76" x2="145" y2="92"/><line x1="145" y1="260" x2="145" y2="276"/>
+      <line x1="45" y1="176" x2="61" y2="176"/><line x1="229" y1="176" x2="245" y2="176"/>
+      <line x1="74" y1="105" x2="86" y2="117"/><line x1="204" y1="235" x2="216" y2="247"/>
+      <line x1="216" y1="105" x2="204" y2="117"/><line x1="86" y1="235" x2="74" y2="247"/>
+    </g>
+    <!-- the £ sigil, fat -->
+    <text x="145" y="226" font-family="Anton" font-size="142" fill="var(--ink)" text-anchor="middle" stroke="var(--ink)" stroke-width="2">£</text>
+    <!-- orange slash accent through it -->
+    <path d="M48 132 L244 210 L238 228 L42 150 Z" fill="var(--orange)" opacity="0.9" stroke="var(--ink)" stroke-width="2"/>
+  </svg>
+  <div class="htc" style="left:0;top:30px"></div>
+  <div class="grit"></div>
+  <div class="stamp" style="right:26px;top:60px;transform:rotate(8deg);background:var(--teal);color:var(--ink)">GBP</div>
+  <div class="scrawl" style="right:30px;top:250px;transform:rotate(-6deg);font-size:20px;color:var(--purple)">cha-ching</div>
+  <div class="label">£ SIGIL EMBLEM <small>STAMPED COIN</small></div>
+  <div style="position:absolute;left:8px;top:8px;z-index:32;font-family:'Anton';font-size:60px;color:var(--bone);-webkit-text-stroke:3px var(--ink);text-shadow:4px 4px 0 var(--purple);transform:rotate(5deg);opacity:.9">D</div>
+</div>
+
+<!-- header tag -->
+<div style="position:absolute;left:40px;top:6px;z-index:40;font-family:'Bungee';font-size:20px;color:var(--cream);background:var(--ink);padding:6px 18px;transform:rotate(-4deg);box-shadow:6px 6px 0 var(--orange);clip-path:polygon(4% 0,100% 0,96% 100%,0 100%)">MOTIF // CONCEPTS — PICK ONE</div>
+
+</div>
+</body>
+</html>

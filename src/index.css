@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   NET TRADE — NABLA TITLE PALETTE (used by the CREAM & PIGMENT main menu)
+   Nabla is a chromatic COLRv1 variable font. Force a custom palette so the
+   letter faces read ORANGE (#FF5A1F) and the 3D depth/edges read INK (#14110D).
+   Kept GLOBAL because Vite's CSS-modules pass strips the dashed-ident from
+   `font-palette:`. Copied verbatim from prototypes/menu-locked.html.
+   ========================================================================== */
+@font-palette-values --nt-orange-ink {
+  font-family: "Nabla";
+  base-palette: 0;
+  override-colors:
+    0 #FF5A1F, 1 #14110D, 2 #14110D, 3 #14110D, 4 #FF5A1F,
+    5 #FF7A3C, 6 #FF5A1F, 7 #FF7A3C, 8 #FF8A4F, 9 #FFB07A;
+}
+
+/* ============================================================================
+   GLOBAL RESET — minimal. All screen styling lives in each screen's scoped
+   CSS module (CREAM & PIGMENT). Nothing from the old neon-metal build remains.
+   ========================================================================== */
+@layer base {
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body, #root {
+    width: 100%;
+    height: 100%;
+    background: #14110D;            /* ink — only shows behind the full-bleed screen */
+    color: #F2ECE0;
+    font-family: "Oswald", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  ::selection { background: #FF5A1F; color: #14110D; }
+}

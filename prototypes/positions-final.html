@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NET TRADE — Positions (FINAL · Holdings Deck)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;600;700&family=Space+Mono:wght@400;700&family=Bungee&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================================
+     NETTRADE — POSITIONS SCREEN
+     Carries the shipped Dashboard scaffolding VERBATIM (CRT overlay, #ntMarble
+     liquid-marble symbol, fitCanvas/line helpers, the EXP[]=… click-to-expand
+     machinery + z100 overlay, .screen token block, clip-path parallelogram chrome,
+     top/bottom status bars, halftone). The ONLY re-skin is TEAL -> MAGENTA, applied
+     by overriding --accent / --accent-dk / --area-accent-* and the six --mrb-* marble
+     vars on .screen. Everything else is structurally identical so this reads as the
+     same app. The locked semantic pair (--gain teal / --loss red), --purple, the
+     creams, --ink and --orange (warning only) are NEVER recoloured.
+     ============================================================================ */
+  :root{
+    --cream:#EDE6D2; --cream2:#F2ECE0; --ink:#14110D; --orange:#FF5A1F;
+    /* fixed semantic pair — NEVER recoloured per screen */
+    --gain:#2FB5A8; --loss:#C8402F;
+    --purple:#5D5A86;
+    --inkw:14px;
+    /* shared parallelogram system (shipped tokens — clip-path, never skewX) */
+    --slant:16px; --slant-sm:9px; --vslant:14px;
+    --skew:0deg; --unskew:0deg;                /* neutralised no-ops */
+    --pad:clamp(5px,0.7vw,11px);
+    --gap:clamp(4px,0.45vw,7px);
+    /* viz-layer named tokens (so no inline literal leaks into states/hover) */
+    --grid:rgba(20,17,13,.12);
+    --rule:rgba(20,17,13,.18);
+    --waterline:rgba(20,17,13,.22);
+    --tick-text:rgba(20,17,13,.66);
+    --axis-faint:rgba(20,17,13,.5);
+    --ink-shadow-line:rgba(20,17,13,.25);
+    --ink-tint-085:rgba(20,17,13,.085);
+    --area-deposits:rgba(93,90,134,.16);
+  }
+  /* ===== .screen — per-screen pigment binding. POSITIONS = MAGENTA. =====
+     This is the ONLY block a new screen overrides. */
+  .screen{
+    /* APPROVED magenta accent tokens */
+    --accent:#FF2E88; --accent-dk:#A8124F;
+    --area-accent-top:rgba(255,46,136,.40);
+    --area-accent-bot:rgba(255,46,136,.03);
+    /* MAGENTA-family marble (same lightness structure as the teal original:
+       deep plum base -> vivid magenta core -> hot-pink bright highlight) */
+    --mrb-base:#6b1547;    /* deepest field — deep plum */
+    --mrb-deep:#3d0a28;    /* darkest plum-ink shadow blobs */
+    --mrb-veil:#8a1f5c;    /* deep magenta mass */
+    --mrb-mid:#d12e88;     /* mid magenta */
+    --mrb-core:#A8124F;    /* magenta core */
+    --mrb-bright:#ff5fb0;  /* hot-pink bright highlight */
+  }
+  *{margin:0;padding:0;box-sizing:border-box;border-radius:0;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0a0908;}
+  body{font-family:'Oswald',sans-serif;color:var(--ink);}
+
+  /* ============ FLUID FULL-VIEWPORT ROOT (shipped) ============ */
+  #screen{position:fixed;inset:0;overflow:hidden;background:var(--mrb-deep);
+    --bezel:clamp(14px,1.9vw,30px);}
+  #screen > .screenmarble{position:absolute;inset:0;z-index:0;}
+  #screen > .screenmarble > svg{position:absolute;top:-6%;left:-6%;width:112%;height:112%;}
+  #stage{position:absolute;inset:var(--bezel);z-index:1;overflow:hidden;
+    background:var(--cream);
+    border:6px solid var(--ink);box-shadow:0 0 0 3px var(--mrb-deep), 16px 16px 0 var(--ink);
+    display:flex;flex-direction:column;
+    gap:var(--gap);
+    padding:var(--pad);
+    padding-top:calc(var(--pad) + 2px);}
+
+  .stage-bg{position:absolute;inset:0;background:var(--cream);z-index:0;}
+  .halftone{position:absolute;inset:0;z-index:0;
+    background-image:radial-gradient(var(--ink) 1.35px, transparent 1.55px);
+    background-size:15px 15px;opacity:.07;mix-blend-mode:multiply;pointer-events:none;}
+  .dotcluster{position:absolute;left:-70px;bottom:-60px;width:560px;height:420px;z-index:0;
+    opacity:.16;pointer-events:none;}
+  .dotcluster2{position:absolute;right:-40px;top:80px;width:340px;height:300px;z-index:0;
+    opacity:.10;pointer-events:none;}
+  .bgslash{position:absolute;left:-60px;bottom:-40px;width:520px;height:360px;z-index:0;
+    clip-path:polygon(0 38%,100% 100%,0 100%);background:var(--ink);opacity:.05;pointer-events:none;}
+
+  /* ================= TOP STATUS BAR — CLEAN, NO SKEW (shipped) ================= */
+  .topbar{position:relative;z-index:20;flex:0 0 auto;
+    height:clamp(56px,6.4vh,74px);
+    background:var(--ink);box-shadow:9px 9px 0 var(--ink);
+    display:flex;align-items:stretch;}
+  .tb-inner{display:flex;align-items:center;width:100%;height:100%;padding:0 clamp(12px,1.5vw,22px);gap:0;}
+  .tb-logo{font-family:'Bungee',sans-serif;font-size:clamp(24px,2.4vw,34px);color:var(--accent);
+    letter-spacing:.02em;line-height:1;text-shadow:3px 3px 0 #000;padding-right:clamp(10px,1.2vw,18px);}
+  .tb-seg{display:flex;flex-direction:column;justify-content:center;
+    padding:0 clamp(12px,1.5vw,22px);height:46px;border-left:3px solid rgba(242,236,224,.16);}
+  .tb-seg .k{font-family:'Oswald';font-weight:700;font-size:11px;letter-spacing:.22em;
+    color:rgba(242,236,224,.55);text-transform:uppercase;}
+  .tb-seg .v{font-family:'Space Mono',monospace;font-weight:700;font-size:clamp(15px,1.45vw,21px);
+    color:var(--cream2);line-height:1.05;margin-top:2px;font-variant-numeric:tabular-nums;}
+  .tb-seg .v.accent{color:var(--accent);}
+  .tb-seg .v.gain{color:var(--gain);}
+  .tb-seg .v.loss{color:var(--loss);}
+  .tb-spacer{flex:1;}
+  .tb-live{display:flex;align-items:center;gap:10px;padding:0 clamp(8px,1vw,16px);}
+  .tb-live .dot{width:13px;height:13px;background:var(--accent);
+    animation:pulse 1.6s ease-in-out infinite;}
+  /* single sanctioned 'live' beat — animates OPACITY only (transform/opacity primitive), never geometry */
+  @keyframes pulse{0%{opacity:1;}50%{opacity:.35;}100%{opacity:1;}}
+  .tb-live .lv{font-family:'Anton';font-size:clamp(16px,1.4vw,20px);letter-spacing:.06em;color:var(--ink);
+    background:var(--accent);padding:3px 18px;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);}
+  .tb-live .lv span.txt{display:inline-block;transform:skewX(var(--unskew));}
+  .tb-live .sy{font-family:'Space Mono';font-size:12px;color:rgba(242,236,224,.6);letter-spacing:.04em;
+    font-variant-numeric:tabular-nums;}
+
+  /* ================= MAIN REGION — HERO DECK + RAIL ================= */
+  .main{position:relative;z-index:10;flex:1 1 auto;min-height:0;
+    display:flex;gap:var(--gap);align-items:stretch;}
+
+  /* ===== HERO = THE HOLDINGS DECK (the star) ===== */
+  .deck{position:relative;flex:2.05 1 0;min-width:0;min-height:0;
+    background:var(--cream2);border:6px solid var(--ink);box-shadow:10px 10px 0 var(--ink);
+    clip-path:polygon(var(--slant) 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
+    display:flex;flex-direction:column;overflow:hidden;}
+  /* deck head bar — ink, with the marble-filled "HOLDINGS DECK" tag + count */
+  .deck-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    background:var(--ink);padding:9px 24px;}
+  .deck-head .dh-tag{position:relative;overflow:hidden;display:inline-flex;align-items:center;
+    background:var(--mrb-deep);padding:5px 16px;border:3px solid var(--cream2);
+    transform:skewX(var(--unskew));
+    clip-path:polygon(var(--slant-sm) 0,100% 0,calc(100% - var(--slant-sm)) 100%,0 100%);}
+  .deck-head .dh-tag .nt-marble{z-index:0;}
+  .deck-head .dh-tag::after{content:'';position:absolute;inset:0;z-index:1;background:rgba(20,17,13,.42);}
+  .deck-head .dh-tag .nm{position:relative;z-index:2;font-family:'Anton';
+    font-size:clamp(15px,1.5vw,21px);letter-spacing:.05em;color:var(--cream2);text-transform:uppercase;
+    line-height:1;text-shadow:2px 2px 0 var(--ink);white-space:nowrap;}
+  .deck-head .dh-meta{font-family:'Space Mono';font-weight:700;font-size:clamp(11px,1vw,14px);
+    color:var(--cream2);letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .deck-head .dh-meta b{color:var(--accent);}
+
+  /* the sortable table — flat cream2 data plane, ink keylines */
+  .deck-scroll{flex:1 1 auto;min-height:0;overflow:auto;position:relative;}
+  table.deck-table{width:100%;height:100%;border-collapse:collapse;table-layout:fixed;}
+  table.deck-table thead th{position:sticky;top:0;z-index:5;background:var(--cream);
+    border-bottom:4px solid var(--ink);padding:0;}
+  /* ONE unified clip-path skew on the header tags; content counter-skewed level */
+  .th-tag{display:flex;align-items:center;gap:6px;width:100%;height:100%;
+    padding:9px 12px;cursor:pointer;background:none;border:0;font:inherit;color:inherit;
+    font-family:'Oswald';font-weight:700;font-size:clamp(9px,.78vw,11.5px);letter-spacing:.13em;
+    text-transform:uppercase;color:rgba(20,17,13,.78);text-align:left;
+    transition:background .12s,color .12s;}
+  th.num .th-tag{justify-content:flex-end;}
+  .th-tag:hover{background:var(--accent);color:var(--ink);}
+  .th-tag .caret{font-family:'Space Mono';font-size:11px;line-height:1;color:var(--accent-dk);
+    width:10px;display:inline-block;text-align:center;}
+  .th-tag:hover .caret{color:var(--ink);}
+  th[aria-sort="ascending"] .th-tag,th[aria-sort="descending"] .th-tag{color:var(--ink);}
+  th[aria-sort="ascending"] .th-tag .caret,th[aria-sort="descending"] .th-tag .caret{color:var(--accent-dk);}
+
+  table.deck-table tbody tr{cursor:pointer;border-bottom:2px solid rgba(20,17,13,.16);
+    transition:background .1s,transform .1s;}
+  table.deck-table tbody tr:nth-child(even){background:var(--ink-tint-085);}
+  table.deck-table tbody tr:hover{background:rgba(255,46,136,.10);}
+  table.deck-table tbody tr:focus-visible{outline:3px solid var(--ink);outline-offset:-3px;}
+  table.deck-table td{padding:0 12px;height:clamp(52px,7.4vh,66px);vertical-align:middle;
+    font-variant-numeric:tabular-nums;}
+  /* ticker + name */
+  .c-tkr{display:flex;flex-direction:column;gap:1px;}
+  .c-tkr .tk{font-family:'Oswald';font-weight:700;font-size:clamp(15px,1.45vw,20px);letter-spacing:.05em;line-height:1;color:var(--ink);text-transform:uppercase;}
+  .c-tkr .nm{font-family:'Oswald';font-weight:600;font-size:clamp(9px,.78vw,11px);letter-spacing:.04em;
+    text-transform:uppercase;color:rgba(20,17,13,.52);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .c-tkr .lse{display:inline-block;font-family:'Space Mono';font-weight:700;font-size:8.5px;
+    color:var(--accent-dk);border:1.5px solid var(--accent-dk);padding:0 3px;margin-left:5px;vertical-align:middle;}
+  /* generic numeric cell */
+  td.num{text-align:right;font-family:'Space Mono';font-weight:700;font-size:clamp(11px,1.05vw,14px);color:var(--ink);}
+  td.num .mut{color:rgba(20,17,13,.5);}
+  /* day % cell */
+  .c-day{display:inline-flex;align-items:center;justify-content:flex-end;gap:5px;
+    font-family:'Space Mono';font-weight:700;font-size:clamp(11px,1.05vw,14px);}
+  .c-day .tri{font-size:10px;line-height:1;}
+  .c-day.up{color:var(--gain);} .c-day.dn{color:var(--loss);}
+  /* total P/L cell: magenta-OUTLINE diverging bar + signed mono number + tri */
+  .c-pl{display:flex;align-items:center;justify-content:flex-end;gap:10px;}
+  .c-pl .plbar{flex:0 0 auto;display:block;width:92px;height:46px;}
+  .c-pl .plnum{display:inline-flex;align-items:center;gap:5px;
+    font-family:'Space Mono';font-weight:700;font-size:clamp(11px,1.05vw,14px);min-width:74px;justify-content:flex-end;}
+  .c-pl .plnum .tri{font-size:10px;line-height:1;}
+  .c-pl .plnum.up{color:var(--gain);} .c-pl .plnum.dn{color:var(--loss);}
+  /* inline sparkline */
+  .c-spark{width:clamp(70px,9vw,128px);}
+  .c-spark canvas{display:block;width:100%;height:46px;}
+
+  /* ===== RIGHT RAIL — <=3 click-to-expand viz tiles ===== */
+  .rail{position:relative;flex:1 1 0;min-width:0;min-height:0;
+    display:grid;grid-template-rows:1.18fr 1fr 1fr;gap:var(--gap);}
+
+  .tile{position:relative;background:var(--cream2);border:6px solid var(--ink);
+    box-shadow:10px 10px 0 var(--ink);cursor:pointer;overflow:hidden;
+    min-width:0;min-height:0;display:flex;flex-direction:column;
+    clip-path:polygon(var(--slant) 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
+    transition:transform .14s cubic-bezier(.2,1.3,.3,1),box-shadow .14s;}
+  .tile:hover{transform:translate(-3px,-3px);box-shadow:15px 15px 0 var(--accent-dk);}
+  .tile:focus-visible{outline:3px solid var(--ink);outline-offset:3px;}
+  .tile:hover .tl-head{background:var(--accent);}
+  .tile .tl-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    background:var(--ink);padding:8px 20px;transition:background .14s;}
+  .tile .tl-head .nm{font-family:'Anton';font-size:clamp(12px,1.1vw,16px);letter-spacing:.04em;
+    color:var(--cream2);text-transform:uppercase;line-height:1;
+    transform:skewX(var(--unskew));transform-origin:left center;white-space:nowrap;}
+  .tile:hover .tl-head .nm{color:var(--ink);}
+  .tile .tl-head .ex{font-family:'Oswald';font-weight:700;font-size:10px;letter-spacing:.16em;
+    color:var(--accent);text-transform:uppercase;border:2px solid var(--accent);padding:2px 11px;
+    transform:skewX(var(--unskew));transform-origin:right center;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);}
+  .tile:hover .tl-head .ex{color:var(--ink);border-color:var(--ink);}
+  .tile .tl-head .ex svg{width:11px;height:11px;display:block;}
+  .tile .tl-body{position:relative;flex:1 1 auto;min-height:0;}
+  .tile .tl-body > canvas{position:absolute;inset:0;width:100%;height:100%;
+    transform:skewX(var(--unskew));transform-origin:center center;}
+  /* transparent scrub layer — instant hard ink focus ring, carries the tooltip */
+  .tile .tl-body .scrub{position:absolute;inset:0;z-index:3;outline:0;cursor:crosshair;}
+  .tile .tl-body .scrub:focus-visible{outline:3px solid var(--ink);outline-offset:-3px;}
+  /* square ink-outlined tooltip — zero radius, 2.5px ink border, 3px hard ink offset */
+  .scrubtip{position:absolute;z-index:6;pointer-events:none;display:none;
+    background:var(--cream);color:var(--ink);border:2.5px solid var(--ink);
+    box-shadow:3px 3px 0 var(--ink);padding:3px 9px;white-space:nowrap;
+    font-family:'Space Mono',monospace;font-weight:700;font-size:12px;font-variant-numeric:tabular-nums;
+    letter-spacing:-.01em;transform:translate(-50%,-130%);}
+  .scrubtip.on{display:block;}
+  .scrubtip .st-k{color:rgba(20,17,13,.55);margin-right:6px;}
+  .scrubtip .st-up{color:var(--gain);} .scrubtip .st-dn{color:var(--loss);}
+  /* collapsed-gauge DOM readout — true-growth as real selectable text */
+  .gauge-body{}
+  .greadout{position:absolute;left:50%;top:14%;z-index:4;transform:translateX(-50%);
+    display:flex;flex-direction:column;align-items:center;gap:1px;pointer-events:none;text-align:center;}
+  .greadout .gr-num{font-family:'Anton';font-size:clamp(20px,2.2vw,30px);letter-spacing:.02em;line-height:1;
+    color:var(--ink);font-variant-numeric:tabular-nums;}
+  .greadout .gr-num.up{color:var(--gain);} .greadout .gr-num.dn{color:var(--loss);}
+  .greadout .gr-lbl{font-family:'Oswald';font-weight:700;font-size:clamp(8px,.7vw,10px);letter-spacing:.16em;
+    text-transform:uppercase;color:rgba(20,17,13,.55);}
+
+  /* ================= BOTTOM STATUS BAR — CLEAN, NO SKEW (shipped) ================= */
+  .botbar{position:relative;z-index:20;flex:0 0 auto;
+    height:clamp(44px,5.4vh,54px);
+    background:var(--cream2);border:5px solid var(--ink);box-shadow:8px 8px 0 var(--ink);
+    display:flex;align-items:center;}
+  .bb-inner{display:flex;align-items:center;width:100%;height:100%;padding:0 clamp(12px,1.5vw,22px);}
+  .bb-seg{font-family:'Oswald';font-weight:700;font-size:clamp(11px,1vw,13px);letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink);padding:0 clamp(12px,1.4vw,20px);display:flex;align-items:center;gap:8px;
+    border-right:3px solid rgba(20,17,13,.18);white-space:nowrap;}
+  .bb-seg:last-child{border-right:0;}
+  .bb-seg b{color:var(--accent-dk);font-variant-numeric:tabular-nums;}
+  .bb-seg.warn b{color:var(--orange);}
+  .bb-spacer{flex:1;}
+  .bb-pill{font-family:'Anton';font-size:clamp(13px,1.2vw,15px);letter-spacing:.1em;color:var(--cream2);
+    background:var(--ink);padding:6px 22px;
+    clip-path:polygon(var(--slant-sm) 0, 100% 0, calc(100% - var(--slant-sm)) 100%, 0 100%);}
+  .bb-pill span.txt{display:inline-block;transform:skewX(var(--unskew));}
+  .bb-pill.t{background:var(--accent-dk);}
+
+  /* ================= EXPANDED OVERLAY — VIEWPORT-LEVEL, NEVER CLIPPED (shipped) ================= */
+  #expand{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+    padding:clamp(58px,8vh,84px) clamp(16px,3vw,40px) clamp(34px,5vh,52px);}
+  #expand.on{display:flex;}
+  #expand .scrim{position:absolute;inset:0;background:rgba(10,9,7,.66);}
+  .exp-frame{position:relative;z-index:2;
+    width:min(1300px,92vw);max-height:min(80vh,720px);height:auto;
+    display:flex;flex-direction:column;
+    background:var(--accent-dk);padding:16px;box-shadow:0 0 0 6px var(--ink),26px 26px 0 rgba(20,17,13,.5);
+    overflow:visible;}
+
+  /* ===== ANIMATED MAGENTA LIQUID-MARBLE — REUSABLE .nt-marble (shipped technique) ===== */
+  .nt-marble{position:absolute;inset:0;overflow:hidden;pointer-events:none;
+    background:var(--mrb-base);}
+  .nt-marble > svg{position:absolute;top:-8%;left:-8%;width:116%;height:116%;}
+  .nt-marble .marble-drift{transform-origin:52% 46%;
+    animation:frdrift 34s ease-in-out infinite alternate;}
+  @keyframes frdrift{
+    0%{transform:translate(0,0) scale(1.08) rotate(0deg);}
+    100%{transform:translate(-22px,-34px) scale(1.18) rotate(3deg);}}
+
+  .exp-frame .frmarble{z-index:1;}
+  .exp-frame .frhalf{position:absolute;inset:0;z-index:2;
+    background-image:radial-gradient(var(--ink) 2px, transparent 2.2px);
+    background-size:14px 14px;opacity:.20;pointer-events:none;}
+  .exp-frame .frhatch{position:absolute;left:0;right:0;height:16px;z-index:2;pointer-events:none;opacity:.5;
+    background-image:repeating-linear-gradient(90deg,var(--ink) 0 4px,transparent 4px 13px);}
+  .exp-frame .frhatch.t{top:0;} .exp-frame .frhatch.b{bottom:0;}
+  .exp-frame .frtag{position:absolute;left:30px;top:-22px;z-index:5;overflow:hidden;
+    background:var(--mrb-deep);color:var(--accent);font-family:'Bungee';font-size:clamp(14px,1.5vw,19px);
+    letter-spacing:.05em;padding:8px 20px;border:3px solid var(--ink);
+    box-shadow:6px 6px 0 rgba(20,17,13,.4);white-space:nowrap;}
+  .exp-frame .frtag .nt-marble{z-index:0;}
+  .exp-frame .frtag::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+    background:rgba(20,17,13,.5);}
+  .exp-frame .frtag .txt{position:relative;z-index:2;
+    text-shadow:2px 2px 0 var(--ink),0 0 6px rgba(20,17,13,.85);}
+  .exp-close{position:absolute;right:26px;top:-22px;z-index:6;cursor:pointer;
+    background:var(--ink);color:var(--cream2);font-family:'Anton';font-size:clamp(14px,1.4vw,18px);letter-spacing:.1em;
+    padding:9px 18px;border:0;box-shadow:6px 6px 0 rgba(20,17,13,.4);white-space:nowrap;
+    transition:background .12s,color .12s;}
+  .exp-close:hover{background:var(--loss);color:var(--cream2);}
+  .exp-close:focus-visible{outline:3px solid var(--cream2);outline-offset:2px;}
+
+  .exp-inner{position:relative;z-index:3;width:100%;flex:1 1 auto;min-height:0;background:var(--cream2);
+    border:5px solid var(--ink);display:grid;grid-template-columns:1fr minmax(360px,470px);}
+  .exp-viz{position:relative;padding:clamp(18px,3vh,30px) clamp(18px,2vw,26px);border-right:5px solid var(--ink);
+    display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+  .exp-viz::before{content:'';position:absolute;inset:0;z-index:0;
+    background-image:radial-gradient(var(--ink) 1.35px,transparent 1.55px);
+    background-size:15px 15px;opacity:.05;mix-blend-mode:multiply;pointer-events:none;}
+  .exp-viz > *{position:relative;z-index:1;}
+  .exp-viz .evh{font-family:'Anton';font-size:clamp(22px,2.4vw,30px);letter-spacing:.03em;text-transform:uppercase;color:var(--ink);}
+  .exp-viz .evs{font-family:'Oswald';font-weight:600;font-size:clamp(11px,1vw,13px);letter-spacing:.12em;
+    text-transform:uppercase;color:rgba(20,17,13,.55);margin-top:2px;}
+  .exp-viz .evbody{flex:1 1 auto;position:relative;margin-top:14px;min-height:0;}
+  .exp-viz .evbody > canvas{position:absolute;inset:0;width:100%;height:100%;}
+
+  /* DATA PANEL — boxed value tags, alternating bands, one ink hero row */
+  .exp-data{padding:clamp(18px,3vh,28px) clamp(18px,2vw,26px);display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+  .exp-data .edh{font-family:'Anton';font-size:clamp(14px,1.4vw,18px);letter-spacing:.1em;color:var(--ink);
+    background:var(--accent);display:inline-block;padding:6px 12px;align-self:flex-start;
+    border:3px solid var(--ink);box-shadow:5px 5px 0 var(--ink);text-transform:uppercase;}
+  .edlist{margin-top:16px;display:flex;flex-direction:column;gap:0;border:3px solid var(--ink);
+    box-shadow:6px 6px 0 var(--ink);overflow:auto;min-height:0;}
+  .edrow{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:clamp(6px,1vh,9px) 12px;border-bottom:2px solid var(--ink);position:relative;}
+  .edrow:last-child{border-bottom:0;}
+  .edrow:nth-child(odd){background:var(--cream2);}
+  .edrow:nth-child(even){background:var(--ink-tint-085);}
+  .edrow .lbl{font-family:'Oswald';font-weight:700;font-size:clamp(12px,1.1vw,14px);letter-spacing:.05em;
+    text-transform:uppercase;color:rgba(20,17,13,.82);}
+  .edrow .val{font-family:'Space Mono';font-weight:700;font-size:clamp(13px,1.25vw,16px);color:var(--ink);
+    letter-spacing:-.01em;background:var(--cream);border:2.5px solid var(--ink);
+    padding:3px 10px;box-shadow:3px 3px 0 var(--ink);min-width:96px;text-align:right;white-space:nowrap;
+    font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;justify-content:flex-end;gap:5px;}
+  .edrow .val .tri{font-size:10px;line-height:1;}
+  .edrow .val.gain{background:var(--gain);color:var(--ink);}
+  .edrow .val.loss{background:var(--loss);color:var(--cream2);}
+  .edrow .val.confirm{background:var(--ink-tint-085);color:rgba(20,17,13,.6);font-style:normal;}
+  .edrow.hero{background:var(--ink);padding:clamp(9px,1.4vh,13px) 12px;}
+  .edrow.hero .lbl{font-size:clamp(13px,1.2vw,15px);color:var(--cream2);font-weight:700;letter-spacing:.08em;}
+  .edrow.hero .val{font-family:'Anton';font-size:clamp(20px,2.2vw,26px);padding:2px 12px;letter-spacing:.02em;
+    background:var(--accent);color:var(--ink);box-shadow:4px 4px 0 rgba(242,236,224,.25);}
+  .edrow.hero .val.gain{background:var(--gain);color:var(--ink);}
+  .edrow.hero .val.loss{background:var(--loss);color:var(--cream2);}
+  .ed-foot{margin-top:14px;font-family:'Oswald';font-weight:600;font-size:clamp(10px,.9vw,11px);letter-spacing:.14em;
+    text-transform:uppercase;color:rgba(20,17,13,.45);padding-top:4px;flex:0 0 auto;}
+
+  /* visually-hidden table mirror (a11y) */
+  .vh{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0 0 0 0);white-space:nowrap;border:0;}
+
+  /* ================= CRT — FULL VIEWPORT (shipped verbatim) ================= */
+  #crt{position:fixed;inset:0;z-index:90;pointer-events:none;overflow:hidden;}
+  #crt .bulge{position:absolute;inset:0;mix-blend-mode:soft-light;opacity:.9;
+    background:radial-gradient(120% 130% at 50% 46%,
+      rgba(255,255,255,.30) 0%, rgba(255,255,255,.06) 32%,
+      transparent 52%, rgba(20,17,13,.28) 80%, rgba(20,17,13,.55) 100%);}
+  #crt .scan{position:absolute;inset:0;mix-blend-mode:multiply;opacity:.26;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.62) 0 1px, transparent 1px 3px);}
+  #crt .grille{position:absolute;inset:0;mix-blend-mode:multiply;opacity:.06;
+    background:repeating-linear-gradient(90deg,rgba(0,0,0,.5) 0 1px, transparent 1px 3px);}
+  #crt .vig{position:absolute;inset:0;
+    background:radial-gradient(125% 135% at 50% 50%,
+      transparent 52%, rgba(20,17,13,.18) 75%, rgba(20,17,13,.44) 92%, rgba(20,17,13,.72) 100%);}
+  #crt .corners{position:absolute;inset:0;
+    background:
+      radial-gradient(42% 42% at 0% 0%,   rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 100% 0%, rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 0% 100%, rgba(20,17,13,.46) 0%, transparent 62%),
+      radial-gradient(42% 42% at 100% 100%,rgba(20,17,13,.46) 0%, transparent 62%);}
+  #crt .sheen{position:absolute;inset:0;mix-blend-mode:screen;opacity:.10;
+    background:radial-gradient(70% 42% at 28% -4%, #fff 0%, transparent 58%);}
+  #crt .bezel{position:absolute;inset:0;border-radius:46px;
+    box-shadow:
+      inset 0 0 0 4px rgba(20,17,13,.85),
+      inset 0 0 0 16px rgba(20,17,13,.42),
+      inset 0 0 90px 26px rgba(20,17,13,.40),
+      inset 0 0 4px 2px rgba(255,255,255,.10);}
+  #crt .glassmask{position:absolute;inset:10px;border-radius:38px;
+    box-shadow:inset 0 0 0 2px rgba(242,236,224,.10), inset 0 0 40px 8px rgba(20,17,13,.28);}
+
+  @media (prefers-reduced-motion: reduce){
+    .tb-live .dot{animation:none;}
+    .tile,.tile:hover{transition:none;}
+    table.deck-table tbody tr{transition:none;}
+    .nt-marble .marble-drift{animation-duration:180s;}
+  }
+</style>
+</head>
+<body class="screen">
+ <!-- ============================================================================
+      SHARED ANIMATED LIQUID-MARBLE DEFINITION (shipped #ntMarble symbol, verbatim).
+      Reads colours from the --mrb-* vars on .screen — which are now the MAGENTA family,
+      so every marble instance (screen frame, modal border, deck head tag) re-skins
+      from that one place. Never placed behind a chart or number.
+      ============================================================================ -->
+ <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+   <defs>
+     <filter id="ntWarp" x="-15%" y="-15%" width="130%" height="130%">
+       <feTurbulence type="fractalNoise" baseFrequency="0.0085 0.0052" numOctaves="3" seed="11" result="w">
+         <animate attributeName="baseFrequency" dur="34s" repeatCount="indefinite"
+           values="0.0085 0.0052; 0.0125 0.0082; 0.0070 0.0046; 0.0085 0.0052"
+           calcMode="spline" keyTimes="0;0.34;0.7;1"
+           keySplines="0.42 0 0.58 1; 0.42 0 0.58 1; 0.42 0 0.58 1"/>
+       </feTurbulence>
+       <feDisplacementMap in="SourceGraphic" in2="w" scale="240" xChannelSelector="R" yChannelSelector="G"/>
+     </filter>
+     <filter id="ntWarp2" x="-15%" y="-15%" width="130%" height="130%">
+       <feTurbulence type="fractalNoise" baseFrequency="0.013 0.020" numOctaves="2" seed="4" result="w2">
+         <animate attributeName="baseFrequency" dur="26s" repeatCount="indefinite"
+           values="0.013 0.020; 0.019 0.027; 0.013 0.020"
+           calcMode="spline" keyTimes="0;0.5;1"
+           keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"/>
+       </feTurbulence>
+       <feDisplacementMap in="SourceGraphic" in2="w2" scale="90" xChannelSelector="R" yChannelSelector="G"/>
+     </filter>
+     <pattern id="ntDots" width="14" height="14" patternUnits="userSpaceOnUse">
+       <circle cx="3" cy="3" r="1.5" fill="#0c1012"/>
+     </pattern>
+     <symbol id="ntMarble" viewBox="0 0 1300 760" preserveAspectRatio="xMidYMid slice">
+       <g class="marble-drift">
+         <rect x="-120" y="-120" width="1540" height="1000" fill="var(--mrb-base)"/>
+         <g filter="url(#ntWarp)">
+           <path d="M-120,80 C300,10 360,320 200,520 C40,700 380,720 300,980 L-160,980 Z" fill="var(--mrb-veil)"/>
+           <path d="M1300,-60 C1120,180 1240,400 980,560 C720,720 980,940 820,1080 L1360,1080 L1360,-80 Z" fill="var(--mrb-veil)"/>
+           <path d="M-100,300 C260,220 360,480 200,620 C80,730 360,740 300,940 L120,1000 L-120,1000 Z" fill="var(--mrb-mid)"/>
+           <path d="M620,-60 C840,120 660,360 900,500 C1140,640 980,860 1240,960 L1360,1000 L1360,-80 Z" fill="var(--mrb-bright)" opacity="0.55"/>
+           <path d="M-60,480 C220,420 280,640 160,740 C60,820 280,860 260,1000 L120,1040 L-100,1040 Z" fill="var(--mrb-core)"/>
+           <path d="M860,540 C940,660 840,800 980,880 C1120,960 1020,1060 1180,1120 L1360,1160 L1360,560 Z" fill="var(--mrb-base)"/>
+           <path d="M220,560 C360,520 400,760 280,840 C170,910 280,640 220,680 C340,600 140,600 220,560 Z" fill="var(--mrb-bright)"/>
+           <path d="M640,700 C740,660 780,860 680,920 C600,960 660,760 600,780 Z" fill="var(--mrb-mid)" opacity="0.92"/>
+           <path d="M-120,860 C200,820 300,1000 180,1080 L-120,1120 Z" fill="var(--mrb-deep)"/>
+           <ellipse cx="430" cy="140" rx="110" ry="150" fill="var(--mrb-deep)"/>
+           <ellipse cx="1080" cy="240" rx="120" ry="160" fill="var(--mrb-bright)" opacity="0.35"/>
+         </g>
+         <g filter="url(#ntWarp2)" opacity="0.7">
+           <path d="M-120,150 C300,120 600,260 980,320" fill="none" stroke="var(--mrb-deep)" stroke-width="34"/>
+           <path d="M-120,260 C320,230 600,360 980,420" fill="none" stroke="var(--mrb-bright)" stroke-width="18" opacity="0.7"/>
+           <path d="M-120,560 C320,530 600,660 980,720" fill="none" stroke="var(--mrb-bright)" stroke-width="22" opacity="0.85"/>
+           <path d="M-120,680 C300,650 560,760 940,840" fill="none" stroke="var(--mrb-veil)" stroke-width="26"/>
+           <path d="M-120,860 C300,830 560,920 940,1000" fill="none" stroke="var(--mrb-mid)" stroke-width="30"/>
+         </g>
+         <rect x="-120" y="-120" width="1540" height="1000" fill="url(#ntDots)" opacity="0.10"/>
+       </g>
+     </symbol>
+   </defs>
+ </svg>
+
+ <div id="screen">
+  <!-- OUTER SCREEN FRAME: drifting MAGENTA marble bezel ring (shipped scaffolding) -->
+  <div class="nt-marble screenmarble"><svg><use href="#ntMarble"/></svg></div>
+  <div id="stage">
+    <div class="stage-bg"></div>
+    <div class="halftone"></div>
+    <canvas class="dotcluster" id="dotcl" width="560" height="420" aria-hidden="true"></canvas>
+    <canvas class="dotcluster2" id="dotcl2" width="340" height="300" aria-hidden="true"></canvas>
+    <div class="bgslash"></div>
+
+    <!-- ============ TOP STATUS BAR ============ -->
+    <div class="topbar"><div class="tb-inner">
+      <div class="tb-logo">NT</div>
+      <div class="tb-seg"><div class="k">Portfolio</div><div class="v accent" id="tbValue">—</div></div>
+      <div class="tb-seg"><div class="k">Day</div><div class="v" id="tbDay">—</div></div>
+      <div class="tb-seg"><div class="k">Positions</div><div class="v" id="tbCount">—</div></div>
+      <div class="tb-spacer"></div>
+      <div class="tb-live"><div class="dot"></div><div class="lv"><span class="txt">LIVE</span></div>
+        <div class="sy">T212 · SYNCED&nbsp;14:32</div></div>
+    </div></div>
+
+    <!-- ============ MAIN: HOLDINGS DECK (hero) + VIZ RAIL ============ -->
+    <div class="main">
+
+      <!-- ===== HERO — THE HOLDINGS DECK ===== -->
+      <section class="deck" aria-label="Holdings deck">
+        <div class="deck-head">
+          <div class="dh-tag"><div class="nt-marble"><svg><use href="#ntMarble"/></svg></div>
+            <span class="nm">Holdings Deck</span></div>
+          <div class="dh-meta"><b id="dhCount">—</b> POSITIONS · MKT VALUE <b id="dhMv">—</b> · OPEN P/L <b id="dhPl">—</b></div>
+        </div>
+        <div class="deck-scroll">
+          <table class="deck-table" id="deckTable">
+            <thead>
+              <tr>
+                <th data-key="ticker" aria-sort="none" scope="col"><button type="button" class="th-tag">Ticker · Name <span class="caret"></span></button></th>
+                <th data-key="qty" class="num" aria-sort="none" scope="col"><button type="button" class="th-tag">Qty <span class="caret"></span></button></th>
+                <th data-key="avg" class="num" aria-sort="none" scope="col"><button type="button" class="th-tag">Avg Cost <span class="caret"></span></button></th>
+                <th data-key="last" class="num" aria-sort="none" scope="col"><button type="button" class="th-tag">Last <span class="caret"></span></button></th>
+                <th data-key="mv" class="num" aria-sort="none" scope="col"><button type="button" class="th-tag">Mkt Value <span class="caret"></span></button></th>
+                <th data-key="day" class="num" aria-sort="none" scope="col"><button type="button" class="th-tag">Day % <span class="caret"></span></button></th>
+                <th data-key="pl" class="num" aria-sort="descending" scope="col"><button type="button" class="th-tag">Total P/L <span class="caret">▼︎</span></button></th>
+                <th data-key="trend" class="num" aria-sort="none" scope="col"><button type="button" class="th-tag" disabled style="cursor:default">Trend</button></th>
+              </tr>
+            </thead>
+            <tbody id="deckBody"><!-- rows injected --></tbody>
+          </table>
+        </div>
+        <!-- visually-hidden table mirror is the live table itself (semantic <table>) -->
+      </section>
+
+      <!-- ===== RIGHT RAIL — 3 expand tiles ===== -->
+      <div class="rail">
+        <div class="tile" data-viz="alloc" tabindex="0" role="button" aria-label="Allocation by holding — expand">
+          <div class="tl-head"><div class="nm">Allocation</div>
+            <div class="ex">EXPAND <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2H10V8M10 2L2 10"/></svg></div></div>
+          <div class="tl-body">
+            <canvas id="cv-alloc" aria-hidden="true"></canvas>
+            <!-- scrub overlay: surfaces values on hover/tap/focus -->
+            <div class="scrub" id="scrub-alloc" tabindex="0" role="img" aria-label="Allocation by holding"></div>
+            <!-- visually-hidden accessible name + table mirror (role=img lives off the role=button tile) -->
+            <span class="vh" id="vh-alloc"></span>
+            <div class="vh" id="vhtbl-alloc"></div>
+          </div>
+        </div>
+        <div class="tile" data-viz="movers" tabindex="0" role="button" aria-label="Top gainers and losers by profit and loss — expand">
+          <div class="tl-head"><div class="nm">Gainers / Losers</div>
+            <div class="ex">EXPAND <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2H10V8M10 2L2 10"/></svg></div></div>
+          <div class="tl-body">
+            <canvas id="cv-movers" aria-hidden="true"></canvas>
+            <div class="scrub" id="scrub-movers" tabindex="0" role="img" aria-label="Gainers and losers by profit and loss"></div>
+            <span class="vh" id="vh-movers"></span>
+            <div class="vh" id="vhtbl-movers"></div>
+          </div>
+        </div>
+        <div class="tile" data-viz="exposure" tabindex="0" role="button" aria-label="Exposure and true growth gauge — expand">
+          <div class="tl-head"><div class="nm">Exposure Gauge</div>
+            <div class="ex">EXPAND <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2H10V8M10 2L2 10"/></svg></div></div>
+          <div class="tl-body gauge-body">
+            <canvas id="cv-gauge" aria-hidden="true"></canvas>
+            <!-- collapsed gauge draws NO on-canvas number; the true-growth figure lives here as real selectable DOM text -->
+            <div class="greadout" id="greadout"><span class="gr-num" id="grNum">—</span><span class="gr-lbl">TRUE GROWTH</span></div>
+            <div class="scrub" id="scrub-exposure" tabindex="0" role="img" aria-label="Exposure and true growth gauge"></div>
+            <span class="vh" id="vh-exposure"></span>
+            <div class="vh" id="vhtbl-exposure"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ BOTTOM STATUS BAR ============ -->
+    <div class="botbar"><div class="bb-inner">
+      <div class="bb-seg"><b id="bbCount">—</b>&nbsp;POSITIONS</div>
+      <div class="bb-seg">WINNERS&nbsp;·&nbsp;<b id="bbWin">—</b></div>
+      <div class="bb-seg">SOURCE&nbsp;·&nbsp;<b>TRADING&nbsp;212</b></div>
+      <div class="bb-seg warn">QUOTES&nbsp;·&nbsp;<b>DELAYED&nbsp;15M</b></div>
+      <div class="bb-spacer"></div>
+      <div class="bb-seg">BASE&nbsp;·&nbsp;<b>GBP</b></div>
+      <div class="bb-pill t"><span class="txt">SORT · P/L ▼︎</span></div>
+    </div></div>
+  </div>
+ </div>
+
+ <!-- ============ EXPANDED OVERLAY (shipped z100 machinery) ============ -->
+ <div id="expand" role="dialog" aria-modal="true" aria-labelledby="expVizHead">
+   <div class="scrim" onclick="closeExpand()"></div>
+   <div class="exp-frame">
+     <div class="nt-marble frmarble"><svg><use href="#ntMarble"/></svg></div>
+     <div class="frhalf"></div>
+     <div class="frhatch t"></div>
+     <div class="frhatch b"></div>
+     <div class="frtag" id="expTag"><div class="nt-marble"><svg><use href="#ntMarble"/></svg></div><span class="txt">POSITION DETAIL</span></div>
+     <button class="exp-close" onclick="closeExpand()">✕ CLOSE</button>
+     <div class="exp-inner">
+       <div class="exp-viz">
+         <div class="evh" id="expVizHead">—</div>
+         <div class="evs" id="expVizSub">—</div>
+         <div class="evbody"><canvas id="cv-exp"></canvas></div>
+       </div>
+       <div class="exp-data">
+         <div class="edh" id="expDataHead">NUMBERS</div>
+         <div class="edlist" id="expRows"></div>
+         <div class="ed-foot" id="expFoot">Trading 212 · delayed quotes 15m · synced 14:32</div>
+       </div>
+     </div>
+   </div>
+ </div>
+
+ <!-- ============ CRT (shipped verbatim) ============ -->
+ <div id="crt" aria-hidden="true">
+   <div class="bulge"></div>
+   <div class="scan"></div>
+   <div class="grille"></div>
+   <div class="sheen"></div>
+   <div class="vig"></div>
+   <div class="corners"></div>
+   <div class="bezel"></div>
+   <div class="glassmask"></div>
+ </div>
+
+<script>
+/* ---------- TOKENS mirrored as JS consts (named tokens, no stray inline hex) ---------- */
+const INK='#14110D', CREAM='#EDE6D2', CREAM2='#F2ECE0',
+      ACCENT='#FF2E88', ACCENT_DK='#A8124F',
+      GAIN='#2FB5A8', LOSS='#C8402F', ORANGE='#FF5A1F', PURPLE='#5D5A86',
+      GRID='rgba(20,17,13,.12)', RULE='rgba(20,17,13,.18)', WATER='rgba(20,17,13,.22)',
+      TICKTXT='rgba(20,17,13,.66)', INKSHADOW='rgba(20,17,13,.25)';
+/* DOM glyph triangles carry U+FE0E (text-presentation) so emoji fonts never
+   colourise them; canvas markers are drawn as paths via triCanvas(), never glyphs. */
+const TRI_UP='▲︎', TRI_DN='▼︎', MINUS='−';
+
+/* ---------- Intl formatters (GBP base; never string-concat a symbol) ---------- */
+const LOCALE='en-GB', CCY='GBP';
+const fmtMoney0=new Intl.NumberFormat(LOCALE,{style:'currency',currency:CCY,minimumFractionDigits:0,maximumFractionDigits:0});
+const fmtMoney2=new Intl.NumberFormat(LOCALE,{style:'currency',currency:CCY,minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtQty=new Intl.NumberFormat(LOCALE,{minimumFractionDigits:0,maximumFractionDigits:2});
+const fmtPct=new Intl.NumberFormat(LOCALE,{style:'percent',minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPct1=new Intl.NumberFormat(LOCALE,{style:'percent',minimumFractionDigits:1,maximumFractionDigits:1});
+/* signed money with an explicit +/U+2212 prefix (sign is its own non-colour channel) */
+function money(v,d){const f=d===0?fmtMoney0:fmtMoney2;const s=f.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+function moneyPlain(v,d){return (d===0?fmtMoney0:fmtMoney2).format(v);}
+function pctSigned(v){const s=fmtPct.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+/* one-decimal signed percent — the single formatter for every gauge min/max bound */
+function pctSigned1(v){const s=fmtPct1.format(Math.abs(v));return (v<0?MINUS:'+')+s;}
+
+/* ---------- HONEST, SELF-CONSISTENT MOCK DATA ----------
+   8 holdings (mix US + London .L). Each carries qty, avgCost, last (GBP),
+   dayPct, a price series (GBP per share over 8 periods, last == `last`).
+   Derived (never invented): mv = last*qty ; pl = (last-avg)*qty ;
+   plPct = (last-avg)/avg ; weight = mv / Σmv (rescaled to sum 100%). */
+const RAW=[
+  // ticker, name, lse?, qty, avgCost, last, dayPct, series[8] (GBP/share, [7]==last)
+  ['NVDA','Nvidia Corp',        false, 38,  78.40, 102.65, 0.0318, [74,79,76,84,90,95,99,102.65]],
+  ['AAPL','Apple Inc',          false, 46, 132.10, 150.20, 0.0061, [128,131,129,138,142,146,148,150.20]],
+  ['VUSA','Vanguard S&P 500',   true,  52,  68.30,  74.90, 0.0042, [66,68,67,70,71.5,73,74,74.90]],
+  ['SHEL','Shell PLC',          true, 110,  24.80,  27.35, 0.0188, [25.2,24.9,25.6,26.1,26.6,27.0,27.2,27.35]],
+  ['MSFT','Microsoft Corp',     false, 18, 268.00, 312.40, 0.0094, [262,270,266,288,296,304,309,312.40]],
+  ['TSLA','Tesla Inc',          false, 14, 214.50, 178.30,-0.0212, [228,222,216,205,198,189,183,178.30]],
+  ['AMD','Advanced Micro Dev',  false, 30,  96.20, 110.75, 0.0156, [92,97,95,101,104,107,109,110.75]],
+  ['VOD.L','Vodafone Group',    true, 900,   0.795,  0.712,-0.0083, [0.83,0.81,0.80,0.78,0.76,0.74,0.72,0.712]],
+];
+/* derive each holding's numbers */
+const HOLD = RAW.map(([ticker,name,lse,qty,avg,last,dayPct,series])=>{
+  const mv = last*qty;
+  const pl = (last-avg)*qty;
+  const plPct = (last-avg)/avg;
+  return {ticker,name,lse,qty,avg,last,dayPct,series,mv,pl,plPct};
+});
+/* portfolio totals (consistent) */
+const TOTAL_MV = HOLD.reduce((s,h)=>s+h.mv,0);
+const TOTAL_PL = HOLD.reduce((s,h)=>s+h.pl,0);
+const TOTAL_COST = HOLD.reduce((s,h)=>s+h.avg*h.qty,0);
+/* weights rescaled to exactly 100% (honest: residual folded into largest) */
+HOLD.forEach(h=>h.weight = h.mv/TOTAL_MV);
+/* portfolio day move: £ value moved today = Σ mv·(dayPct/(1+dayPct)) (prev close basis);
+   day % = value-weighted average = today's £ move / yesterday's market value. */
+const TOTAL_DAY_ABS = HOLD.reduce((s,h)=>s + h.mv*(h.dayPct/(1+h.dayPct)) ,0); // £ moved today
+const TOTAL_MV_PREV = TOTAL_MV - TOTAL_DAY_ABS;                                  // yesterday's mv
+const TOTAL_DAY_PCT = TOTAL_DAY_ABS/TOTAL_MV_PREV;
+const WINNERS = HOLD.filter(h=>h.pl>=0).length;
+const MAX_ABS_PL = Math.max(...HOLD.map(h=>Math.abs(h.pl)));         // for diverging bars
+function niceCeil(v){const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;
+  const m=n<=1?1:n<=2?2:n<=5?5:10;return m*p;}
+const PL_DOMAIN = niceCeil(MAX_ABS_PL);
+
+/* fill the top status + deck head + bottom bar from derived totals */
+function fillChrome(){
+  document.getElementById('tbValue').textContent=fmtMoney0.format(TOTAL_MV);
+  document.getElementById('tbDay').textContent=(TOTAL_DAY_PCT>=0?TRI_UP+' ':TRI_DN+' ')+pctSigned(TOTAL_DAY_PCT);
+  document.getElementById('tbDay').className='v '+(TOTAL_DAY_PCT>=0?'gain':'loss');
+  document.getElementById('tbCount').textContent=String(HOLD.length);
+  document.getElementById('dhCount').textContent=String(HOLD.length);
+  document.getElementById('dhMv').textContent=fmtMoney0.format(TOTAL_MV);
+  document.getElementById('dhPl').textContent=money(TOTAL_PL,0);
+  document.getElementById('bbCount').textContent=HOLD.length+'/'+HOLD.length;
+  document.getElementById('bbWin').textContent=String(WINNERS);
+}
+
+/* ---------- shipped helpers (verbatim) ---------- */
+function px(c){ return c.getContext('2d'); }
+function line(ctx,pts,col,w){ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineJoin='round';ctx.beginPath();
+  pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();}
+function fitCanvas(c){
+  const r=c.getBoundingClientRect();
+  let w=Math.max(1,Math.round(r.width)), h=Math.max(1,Math.round(r.height));
+  if(!w||!h){ w=c.width||300; h=c.height||150; }
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  c.width=Math.round(w*dpr); c.height=Math.round(h*dpr);
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h};
+}
+function drawDotCluster(c,fade){
+  const ctx=px(c),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+  const step=15,r=2.0;
+  for(let row=0,y=0;y<H;y+=step,row++){
+    for(let x=0;x<W;x+=step){
+      let d = fade(x/W,y/H);
+      if(Math.random()>d) continue;
+      ctx.fillStyle=INK;ctx.beginPath();ctx.arc(x+(row%2?step/2:0),y,r,0,7);ctx.fill();
+    }
+  }
+}
+/* small ▲/▼ triangle drawn as a canvas path (one icon voice, never an emoji) */
+function triCanvas(ctx,x,y,s,up,col){ctx.fillStyle=col;ctx.beginPath();
+  if(up){ctx.moveTo(x,y-s);ctx.lineTo(x+s,y+s);ctx.lineTo(x-s,y+s);}
+  else  {ctx.moveTo(x,y+s);ctx.lineTo(x+s,y-s);ctx.lineTo(x-s,y-s);}
+  ctx.closePath();ctx.fill();}
+
+/* ---------- a11y: push the canvas's accessible name + a hidden <table> mirror
+   onto sibling DOM nodes (canvas itself is aria-hidden — role=img on a node nested
+   inside the role=button tile would be pruned). ---------- */
+function setRailA11y(key,label,cols,rows){
+  const live=document.getElementById('vh-'+key);
+  if(live)live.textContent=label;
+  const tWrap=document.getElementById('vhtbl-'+key);
+  if(tWrap){
+    let html='<table><caption>'+label+'</caption><thead><tr>';
+    cols.forEach(c=>html+='<th scope="col">'+c+'</th>');
+    html+='</tr></thead><tbody>';
+    rows.forEach(r=>{html+='<tr>';r.forEach((cell,i)=>html+=(i===0?'<th scope="row">':'<td>')+cell+(i===0?'</th>':'</td>'));html+='</tr>';});
+    html+='</tbody></table>';
+    tWrap.innerHTML=html;
+  }
+  const sc=document.getElementById('scrub-'+key);
+  if(sc)sc.setAttribute('aria-label',label);
+}
+
+/* ---------- in-frame VIZ STATES (loading / empty / error / stale) ----------
+   Branch on an explicit state token, not on data presence. 'live' draws the real viz.
+   STATE map lets a host flip any viz; default is 'live'. */
+const VIZ_STATE={alloc:'live',movers:'live',exposure:'live',spark:'live',posline:'live',rowpl:'live'};
+const QUOTE_AGE='15m';
+let __sweepT=0, __sweepRAF=null;
+function startSweep(){ if(__sweepRAF)return; const t0=performance.now();
+  const step=(t)=>{__sweepT=((t-t0)/1100)%1; __sweepRAF=requestAnimationFrame(step);
+    if(typeof redrawSkeletons==='function')redrawSkeletons();};
+  __sweepRAF=requestAnimationFrame(step); }
+function anySkeleton(){return Object.values(VIZ_STATE).some(s=>s==='loading');}
+function redrawSkeletons(){ /* re-issue the rail draws while any tile is in loading state */
+  if(!anySkeleton()){if(__sweepRAF){cancelAnimationFrame(__sweepRAF);__sweepRAF=null;}return;}
+  if(typeof drawRail==='function')drawRail();
+}
+/* shared ink helpers for the non-live states */
+function stateDashedFrame(ctx,W,H){ctx.save();ctx.setLineDash([8,6]);ctx.strokeStyle=RULE;ctx.lineWidth=2;
+  ctx.strokeRect(8,8,W-16,H-16);ctx.restore();}
+function stateSweep(ctx,W,H){ // one translateX sweep band (loading)
+  const x=(-0.3+1.6*__sweepT)*W; ctx.save();
+  const g=ctx.createLinearGradient(x-W*0.18,0,x+W*0.18,0);
+  g.addColorStop(0,'rgba(20,17,13,0)');g.addColorStop(.5,'rgba(20,17,13,.10)');g.addColorStop(1,'rgba(20,17,13,0)');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.restore();}
+function stateText(ctx,W,H,txt,sub){ctx.fillStyle=INK;ctx.textAlign='center';
+  ctx.font="900 16px 'Anton'";ctx.fillText(txt,W/2,H/2);
+  if(sub){ctx.fillStyle=TICKTXT;ctx.font="11px 'Space Mono'";ctx.fillText(sub,W/2,H/2+20);}}
+function staleChip(ctx,W,H){ // 'STALE · 15m' chip + dashed hatch band
+  ctx.save();ctx.setLineDash([4,6]);ctx.strokeStyle='rgba(20,17,13,.35)';ctx.lineWidth=10;
+  ctx.beginPath();ctx.moveTo(0,H-6);ctx.lineTo(W,H-6);ctx.stroke();ctx.restore();
+  const txt='STALE · '+QUOTE_AGE;ctx.font="700 11px 'Space Mono'";const tw=ctx.measureText(txt).width;
+  const cx=W-tw-18, cy=8;
+  ctx.fillStyle=INK;ctx.fillRect(cx+2,cy+2,tw+12,18);
+  ctx.fillStyle=ORANGE;ctx.fillRect(cx,cy,tw+12,18);
+  ctx.fillStyle=INK;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(txt,cx+6,cy+10);ctx.textBaseline='alphabetic';}
+/* registry of pending RETRY hit-rects so the scrub layer can host a focusable button */
+const RETRY_HIT={};
+function stateError(c,ctx,W,H,key){
+  stateDashedFrame(ctx,W,H);
+  ctx.fillStyle=INK;ctx.textAlign='center';ctx.font="900 15px 'Anton'";ctx.fillText("COULDN'T LOAD",W/2,H/2-14);
+  // square ink-outlined RETRY button (real focusable element lives on the scrub overlay)
+  const bw=92,bh=26,bx=W/2-bw/2,by=H/2+2;
+  ctx.fillStyle=INK;ctx.fillRect(bx+3,by+3,bw,bh);
+  ctx.fillStyle=CREAM;ctx.fillRect(bx,by,bw,bh);
+  ctx.strokeStyle=INK;ctx.lineWidth=2.5;ctx.strokeRect(bx,by,bw,bh);
+  ctx.fillStyle=INK;ctx.font="700 12px 'Oswald'";ctx.fillText('RETRY',W/2,by+17);
+  RETRY_HIT[key]={x:bx,y:by,w:bw,h:bh};
+}
+/* returns true if a non-live state was painted (so the live draw should bail) */
+function paintState(c,key){
+  const st=VIZ_STATE[key]||'live'; if(st==='live'||st==='stale')return false;
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  if(st==='loading'){stateDashedFrame(ctx,W,H);stateSweep(ctx,W,H);startSweep();
+    if(key!=='spark'&&key!=='rowpl')c.setAttribute&&c.setAttribute('aria-hidden','true');return true;}
+  if(st==='empty'){stateDashedFrame(ctx,W,H);stateText(ctx,W,H,'NO DATA','Add a position to populate');return true;}
+  if(st==='error'){stateError(c,ctx,W,H,key);return true;}
+  return false;
+}
+function onRetry(key){VIZ_STATE[key]='live';if(typeof drawRail==='function')drawRail();}
+
+/* ====================================================================
+   INLINE ROW SPARKLINE — drawSpark (house idiom miniaturised)
+   baseline rule + whisper area + ink-shadow line + colour line + end-cap node.
+   up=GAIN-direction uses --gain? No: per spec line colour up=tealdk-equiv.
+   On Positions the per-screen accent is magenta, but the in-row trend uses the
+   locked gain/loss semantic (teal up / red down) keyed to sign(pl) — NOT the
+   magenta accent — so the deck never relies on colour-only and the row's P/L
+   sign agrees with its line. (Magenta accent stays on the OUTLINE pl-bar + tags.)
+   ==================================================================== */
+const SPARK_UP='#0E8A86' /* tealdk — readable thin stroke for up */, SPARK_DN=LOSS;
+function drawSpark(c,big,h){
+  if(!big&&paintState(c,'spark'))return;
+  const stale=!big&&VIZ_STATE.spark==='stale';
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const s=h.series, up = h.pl>=0;               // sign(pl) wins
+  const col = up?SPARK_UP:SPARK_DN;
+  const mn=Math.min(...s),mx=Math.max(...s),pad=big?40:6;
+  const padT=big?34:4, padB=big?40:4;
+  const X=i=>pad+(W-pad*2)*i/(s.length-1);
+  const Y=v=>(H-padB)-((H-padT-padB))*(v-mn)/((mx-mn)||1);
+  if(big){
+    // feature-line treatment: gridlines + 3-pass line + £ axis + node
+    ctx.strokeStyle=GRID;ctx.lineWidth=1;
+    for(let g=0;g<=4;g++){const yy=padT+(H-padT-padB)*g/4;ctx.beginPath();ctx.moveTo(pad,yy);ctx.lineTo(W-pad,yy);ctx.stroke();
+      const val=mx-(mx-mn)*g/4;ctx.fillStyle=TICKTXT;ctx.font="12px 'Space Mono'";ctx.textAlign='right';
+      ctx.fillText(fmtMoney2.format(val),pad-8,yy+4);}
+    // dashed baseline at series min (house texture)
+    ctx.save();ctx.setLineDash([6,4]);ctx.strokeStyle=RULE;ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pad,Y(mn));ctx.lineTo(W-pad,Y(mn));ctx.stroke();ctx.restore();
+  }else{
+    // baseline rule at series min
+    ctx.strokeStyle=RULE;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad,Y(mn));ctx.lineTo(W-pad,Y(mn));ctx.stroke();
+  }
+  // whisper area under line
+  ctx.fillStyle = up?'rgba(14,138,134,.12)':'rgba(200,64,47,.12)';
+  ctx.beginPath();ctx.moveTo(X(0),Y(mn));
+  s.forEach((v,i)=>ctx.lineTo(X(i),Y(v)));ctx.lineTo(X(s.length-1),Y(mn));ctx.closePath();ctx.fill();
+  // ink offset-shadow line
+  line(ctx,s.map((v,i)=>[X(i)+(big?2:1.5),Y(v)+(big?2:1.5)]),INKSHADOW,big?5:2.4);
+  if(big){
+    // feature-line 3-pass: ink-shadow (done) -> dark underline -> bright overline
+    line(ctx,s.map((v,i)=>[X(i),Y(v)]),up?'#0E8A86':ACCENT_DK,7);
+    line(ctx,s.map((v,i)=>[X(i),Y(v)]),up?GAIN:LOSS,4);
+  }else{
+    line(ctx,s.map((v,i)=>[X(i),Y(v)]),col,2.4);
+  }
+  // end-cap node: ink square then colour square + direction tick
+  const lx=X(s.length-1),ly=Y(s[s.length-1]),ns=big?6:3.5;
+  ctx.fillStyle=INK;ctx.fillRect(lx-ns,ly-ns,ns*2,ns*2);
+  ctx.fillStyle=col;ctx.fillRect(lx-ns+1.2,ly-ns+1.2,ns*2-2.4,ns*2-2.4);
+  // direction tick (non-colour cue)
+  ctx.strokeStyle=INK;ctx.lineWidth=big?3:2;ctx.beginPath();
+  ctx.moveTo(lx,ly);ctx.lineTo(lx,ly+(up?-(ns+ (big?10:5)):(ns+(big?10:5))));ctx.stroke();
+  if(big){
+    ctx.fillStyle=INK;ctx.font="900 26px 'Anton'";ctx.textAlign='left';
+    ctx.fillText(fmtMoney2.format(h.last),pad,padT-10);
+  }
+  if(stale)staleChip(ctx,W,H);
+  // aria
+  c.setAttribute('role','img');
+  c.setAttribute('aria-label',h.ticker+' price trend: '+(up?'up':'down')+', '+money(h.pl,0)+' open P/L, now '+fmtMoney2.format(h.last)+(stale?' (stale '+QUOTE_AGE+')':''));
+}
+
+/* tiny diverging OUTLINE P/L bar drawn into each row cell (magenta outline) */
+function drawRowPLBar(c,h){
+  if(paintState(c,'rowpl')){c.setAttribute('aria-hidden','true');return;}
+  const stale=VIZ_STATE.rowpl==='stale';
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  if(stale)ctx.globalAlpha=0.55;
+  const zero=W/2, half=W/2-2;
+  const frac=Math.max(-1,Math.min(1,h.pl/MAX_ABS_PL));  // raw deck max (no niceCeil padding) → biggest mover fills the track; honest + comparable across rows
+  const xv=zero+half*frac;
+  const yb=Math.round(H*0.30), bh=Math.round(H*0.40);
+  // ink zero spine (heaviest)
+  ctx.strokeStyle=WATER;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(zero,2);ctx.lineTo(zero,H-2);ctx.stroke();
+  const left=Math.min(zero,xv), w=Math.abs(xv-zero);
+  // ink offset shadow under the outline bar
+  ctx.fillStyle=INKSHADOW;ctx.fillRect(left+1.5,yb+1.5,w,bh);
+  // magenta-OUTLINE bar (outline, not fill — accent as ink-stroke focal, ≤ budget)
+  ctx.fillStyle=h.pl>=0?'rgba(255,46,136,.22)':'rgba(200,64,47,.20)';
+  ctx.fillRect(left,yb,w,bh);
+  ctx.strokeStyle=ACCENT;ctx.lineWidth=2;ctx.strokeRect(left+.5,yb+.5,Math.max(1,w-1),bh-1);
+  if(stale)ctx.globalAlpha=1;
+  c.setAttribute('aria-hidden','true');
+}
+
+/* ====================================================================
+   RAIL TILE 1 — ALLOCATION DONUT (by holding) drawDonut
+   ==================================================================== */
+/* per-datum wedge palette graded magenta->purple->semantic (locked vocabulary feel) */
+const WEDGE=['#FF2E88','#D12E88','#A8124F','#7A2E6E','#5D5A86','#8a1f5c','#2FB5A8','#C8402F'];
+function drawDonut(c,big){
+  if(!big&&paintState(c,'alloc'))return;
+  const stale=!big&&VIZ_STATE.alloc==='stale';
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  if(stale)ctx.globalAlpha=0.55;            // dim FILLS for stale; ink keylines stay ≥3:1
+  const order=[...HOLD].sort((a,b)=>b.weight-a.weight);
+  const cx=big?W*0.40:W*0.40, cy=H/2, R=big?Math.min(W,H)*0.40:Math.min(W*0.40,H*0.42), r=R*0.55;
+  let a=-Math.PI/2;
+  order.forEach((h,i)=>{
+    const ang=h.weight*Math.PI*2;
+    ctx.fillStyle=WEDGE[i%WEDGE.length];ctx.beginPath();ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,R,a,a+ang);ctx.closePath();ctx.fill();
+    ctx.strokeStyle=INK;ctx.lineWidth=big?4:3;ctx.beginPath();
+    ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,a,a+ang);ctx.closePath();ctx.stroke();
+    a+=ang;
+  });
+  ctx.fillStyle=CREAM2;ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.fill();
+  ctx.strokeStyle=INK;ctx.lineWidth=big?4:3;ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.stroke();
+  ctx.fillStyle=INK;ctx.textAlign='center';
+  ctx.font=(big?"900 30px 'Anton'":"900 18px 'Anton'");ctx.fillText(String(HOLD.length),cx,cy-(big?2:0));
+  ctx.font=(big?"10px 'Oswald'":"8px 'Oswald'");ctx.fillText('HOLDINGS',cx,cy+(big?16:11));
+  if(big){
+    let ly=H*0.10, lx=W*0.70; ctx.textAlign='left';
+    order.forEach((h,i)=>{
+      ctx.fillStyle=WEDGE[i%WEDGE.length];ctx.fillRect(lx,ly-12,18,18);
+      ctx.strokeStyle=INK;ctx.lineWidth=2.5;ctx.strokeRect(lx,ly-12,18,18);
+      ctx.fillStyle=INK;ctx.font="700 16px 'Oswald'";ctx.fillText(h.ticker,lx+26,ly+3);
+      ctx.font="700 16px 'Space Mono'";ctx.textAlign='right';ctx.fillText(fmtPct1.format(h.weight),lx+168,ly+3);ctx.textAlign='left';
+      ly+=Math.min(60,(H*0.84)/order.length);
+    });
+  }
+  if(stale){ctx.globalAlpha=1;staleChip(ctx,W,H);}
+  const top=order[0];
+  const lbl='Allocation by holding across '+HOLD.length+' positions; largest is '+top.ticker+' at '+fmtPct1.format(top.weight);
+  if(big){ c.setAttribute('role','img'); c.setAttribute('aria-label',lbl); }
+  else{ setRailA11y('alloc',lbl,['Ticker','Weight'],order.map(h=>[h.ticker,fmtPct1.format(h.weight)])); }
+}
+
+/* ====================================================================
+   RAIL TILE 2 — TOP GAINERS / LOSERS P/L BARS drawMovers (diverging)
+   gain/loss ARE the fills (sanctioned exception); symmetric ±PL_DOMAIN
+   ==================================================================== */
+function drawMovers(c,big){
+  if(!big&&paintState(c,'movers'))return;
+  const stale=!big&&VIZ_STATE.movers==='stale';
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  if(stale)ctx.globalAlpha=0.55;            // dim bar FILLS; ink zero-spine + ticks stay full
+  // collapsed: show top-N by |pl|; big: all
+  const sorted=[...HOLD].sort((a,b)=>b.pl-a.pl);
+  const rows = big?sorted:[...sorted.slice(0,3),...sorted.slice(-2)];
+  const padL=big?70:40, padR=big?40:12, padT=big?28:12, padB=big?34:16;
+  const x0=padL,x1=W-padR,y0=padT,y1=H-padB;
+  const zero=x0+(x1-x0)/2;
+  const Xv=v=>zero+(x1-x0)/2*Math.max(-1,Math.min(1,v/PL_DOMAIN));
+  const n=rows.length, bh=(y1-y0)/n-(big?12:5);
+  // stamped zero spine (heaviest rule)
+  ctx.strokeStyle=WATER;ctx.lineWidth=big?3:2;ctx.beginPath();ctx.moveTo(zero,y0-4);ctx.lineTo(zero,y1+4);ctx.stroke();
+  // stamped tick notches at ±max
+  ctx.strokeStyle=RULE;ctx.lineWidth=big?2:1.5;
+  [x0,x1].forEach(xx=>{ctx.beginPath();ctx.moveTo(xx,y0-2);ctx.lineTo(xx,y0-(big?8:5));ctx.stroke();});
+  rows.forEach((h,i)=>{
+    const yy=y0+i*((y1-y0)/n)+(big?4:2);
+    const xv=Xv(h.pl), col=h.pl>=0?GAIN:LOSS;
+    const left=Math.min(zero,xv), w=Math.abs(xv-zero);
+    ctx.fillStyle=INK;ctx.fillRect(left+(big?4:2),yy+(big?4:2),w,bh);
+    ctx.fillStyle=col;ctx.fillRect(left,yy,w,bh);
+    if(big){
+      ctx.fillStyle=INK;ctx.font="700 16px 'Oswald'";ctx.textAlign='right';ctx.fillText(h.ticker,x0-10,yy+bh*0.68);
+      const lblCol=h.pl>=0?ACCENT_DK:LOSS;
+      ctx.fillStyle=lblCol;ctx.font="700 15px 'Space Mono'";ctx.textAlign=h.pl>=0?'left':'right';
+      const ly2=yy+bh*0.68;
+      // triangle marker drawn as a canvas PATH (never a font-glyph that tofus per-device)
+      if(h.pl>=0){triCanvas(ctx,xv+8+5,ly2-5,5,true,lblCol);ctx.fillText(money(h.pl,0),xv+8+15,ly2);}
+      else{triCanvas(ctx,xv-8-5,ly2-5,5,false,lblCol);ctx.fillText(money(h.pl,0),xv-8-15,ly2);}
+    }else{
+      ctx.fillStyle=INK;ctx.font="700 9px 'Oswald'";ctx.textAlign='right';ctx.fillText(h.ticker,x0-4,yy+bh*0.8);
+    }
+  });
+  // end-cap nodes on largest gainer (rows[0]) + largest loser (last) — focal accent ≤5%
+  function cap(h){const xv=Xv(h.pl),idx=rows.indexOf(h);if(idx<0)return;
+    const yy=y0+idx*((y1-y0)/n)+(big?4:2)+bh/2;
+    ctx.fillStyle=INK;ctx.fillRect(xv-(big?5:3),yy-(big?5:3),big?10:6,big?10:6);
+    ctx.fillStyle=ACCENT;ctx.fillRect(xv-(big?3:2),yy-(big?3:2),big?6:4,big?6:4);}
+  cap(rows[0]); cap(rows[rows.length-1]);
+  if(stale){ctx.globalAlpha=1;staleChip(ctx,W,H);}
+  const lbl='Per-stock open profit and loss: top gainer '+sorted[0].ticker+' '+money(sorted[0].pl,0)+', worst '+sorted[sorted.length-1].ticker+' '+money(sorted[sorted.length-1].pl,0)+'; net '+money(TOTAL_PL,0);
+  if(big){ c.setAttribute('role','img'); c.setAttribute('aria-label',lbl); }
+  else{ setRailA11y('movers',lbl,['Ticker','Open P/L','Direction'],
+    sorted.map(h=>[h.ticker,money(h.pl,0),h.pl>=0?'up':'down'])); }
+}
+
+/* ====================================================================
+   RAIL TILE 3 — EXPOSURE / TRUE-GROWTH GAUGE drawGauge (180° semicircle)
+   value = portfolio true growth % = TOTAL_PL/TOTAL_COST ; range -20..+40
+   ==================================================================== */
+const GROWTH = TOTAL_PL/TOTAL_COST;       // honest true-growth fraction
+const G_MIN=-0.20, G_MAX=0.40;
+function drawGauge(c,big){
+  if(!big&&paintState(c,'exposure'))return;
+  const stale=!big&&VIZ_STATE.exposure==='stale';
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const a0=Math.PI,a1=0;
+  let trackW,r,cx=W/2,cy;
+  if(big){trackW=42;r=Math.min(W,H)*0.42;cy=H*0.78;}
+  else{const topM=12,botM=8;cy=H-botM;r=Math.max(20,Math.min(W*0.42,cy-topM));trackW=Math.max(10,Math.min(18,r*0.30));}
+  const val=GROWTH, neg=val<0;
+  const arcCol = neg?LOSS:ACCENT;
+  const frac=(val-G_MIN)/(G_MAX-G_MIN);
+  const zeroFrac=(0-G_MIN)/(G_MAX-G_MIN);
+  const av=a0+(a1-a0)*frac;
+  // track
+  ctx.lineCap='butt';
+  ctx.strokeStyle='rgba(20,17,13,.14)';ctx.lineWidth=trackW;
+  ctx.beginPath();ctx.arc(cx,cy,r,a0,a1);ctx.stroke();
+  // stamped tick ladder w/ anchor rhythm (min / zero / max heavier+longer)
+  for(let t=0;t<=10;t++){const tf=t/10;const a=a0+(a1-a0)*tf;
+    const anchor = (t===0)|| (t===10) || Math.abs(tf-zeroFrac)<0.051;
+    ctx.strokeStyle=anchor?'rgba(20,17,13,.6)':'rgba(20,17,13,.4)';
+    ctx.lineWidth=(big?3:2)+(anchor?1:0);
+    const o1=r+(big?24:13)+(anchor?(big?4:3):0), o2=r+(big?12:7);
+    ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*o1,cy+Math.sin(a)*o1);ctx.lineTo(cx+Math.cos(a)*o2,cy+Math.sin(a)*o2);ctx.stroke();}
+  // value arc — ink shadow then accent (arc FILL dims when stale; ink shadow + needle stay full)
+  ctx.strokeStyle=INK;ctx.lineWidth=trackW+(big?4:3);ctx.beginPath();ctx.arc(cx,cy,r,a0,av);ctx.stroke();
+  if(stale)ctx.globalAlpha=0.5;
+  ctx.strokeStyle=arcCol;ctx.lineWidth=trackW-(big?2:1);ctx.beginPath();ctx.arc(cx,cy,r,a0,av);ctx.stroke();
+  if(stale)ctx.globalAlpha=1;
+  // needle + hub + accent cap
+  ctx.strokeStyle=INK;ctx.lineWidth=big?9:5;ctx.beginPath();ctx.moveTo(cx,cy);
+  ctx.lineTo(cx+Math.cos(av)*(r+(big?6:4)),cy+Math.sin(av)*(r+(big?6:4)));ctx.stroke();
+  ctx.fillStyle=INK;ctx.beginPath();ctx.arc(cx,cy,big?14:8,0,7);ctx.fill();
+  ctx.fillStyle=arcCol;ctx.beginPath();ctx.arc(cx,cy,big?7:4,0,7);ctx.fill();
+  if(big){
+    ctx.fillStyle=INK;ctx.font="900 60px 'Anton'";ctx.textAlign='center';
+    ctx.fillText((neg?MINUS:'+')+fmtPct1.format(Math.abs(val)).replace(MINUS,''),cx,cy-r*0.22);
+    ctx.fillStyle=ACCENT_DK;ctx.font="700 19px 'Space Mono'";ctx.fillText('TRUE GROWTH',cx,cy-r*0.22+30);
+    ctx.fillStyle=TICKTXT;ctx.font="13px 'Space Mono'";
+    ctx.textAlign='left';ctx.fillText(pctSigned1(G_MIN),cx-r-6,cy+22);
+    ctx.textAlign='right';ctx.fillText(pctSigned1(G_MAX),cx+r+6,cy+22);
+    // tiny down-triangle if negative (non-colour cue)
+    if(neg){triCanvas(ctx,cx,cy-r*0.22-44,10,false,LOSS);}
+  }
+  if(stale)staleChip(ctx,W,H);
+  const lbl='Exposure / true-growth gauge: '+(neg?'down ':'up ')+pctSigned(val)+' within a '+pctSigned1(G_MIN)+' to '+pctSigned1(G_MAX)+' range';
+  if(big){ c.setAttribute('role','img'); c.setAttribute('aria-label',lbl); }
+  else{
+    // collapsed gauge: real DOM number (no on-canvas text) + table mirror
+    const gn=document.getElementById('grNum');
+    if(gn){gn.textContent=pctSigned(val);gn.className='gr-num '+(neg?'dn':'up');}
+    setRailA11y('exposure',lbl,['Metric','Value'],
+      [['True growth',pctSigned(val)],['Min',pctSigned1(G_MIN)],['Max',pctSigned1(G_MAX)],['Period','since inception']]);
+  }
+}
+
+/* ====================================================================
+   POSITION-DETAIL line (price value-over-time for ONE holding) drawPosLine
+   used as the LEFT viz of the per-row expand modal (3-pass ink-stamp line).
+   ==================================================================== */
+let EXP_HOLD=null;
+function drawPosLine(c,big){
+  if(paintState(c,'posline'))return;
+  const stale=VIZ_STATE.posline==='stale';
+  const {ctx,w:W,h:H}=fitCanvas(c);ctx.clearRect(0,0,W,H);
+  const h=EXP_HOLD; if(!h){return;}
+  const s=h.series, up=h.pl>=0;
+  const padL=big?78:48,padR=big?40:24,padT=big?34:20,padB=big?44:34;
+  const x0=padL,x1=W-padR,y0=padT,y1=H-padB;
+  // data-derived domain incl. avg cost line, padded
+  const lo=Math.min(...s,h.avg), hi=Math.max(...s,h.avg);
+  const padv=(hi-lo)*0.12||1, mn=lo-padv, mx=hi+padv;
+  const X=i=>x0+(x1-x0)*i/(s.length-1);
+  const Y=v=>y1-(y1-y0)*(v-mn)/(mx-mn);
+  // gridlines + £ labels
+  ctx.strokeStyle=GRID;ctx.lineWidth=1;
+  for(let g=0;g<=4;g++){const yy=y0+(y1-y0)*g/4;ctx.beginPath();ctx.moveTo(x0,yy);ctx.lineTo(x1,yy);ctx.stroke();
+    const val=mx-(mx-mn)*g/4;ctx.fillStyle=TICKTXT;ctx.font="12px 'Space Mono'";ctx.textAlign='right';
+    ctx.fillText(fmtMoney2.format(val),x0-8,yy+4);}
+  // purple dashed avg-cost benchmark + faint fill band
+  ctx.fillStyle=PURPLE+'00';
+  ctx.save();ctx.setLineDash([7,5]);line(ctx,[[x0,Y(h.avg)],[x1,Y(h.avg)]],PURPLE,big?3:2.2);ctx.restore();
+  ctx.fillStyle='rgba(93,90,134,.16)';
+  ctx.fillRect(x0,Math.min(Y(h.avg),y1),x1-x0,Math.max(0,y1-Math.min(Y(h.avg),y1)));
+  // value area gradient (magenta accent)
+  const grad=ctx.createLinearGradient(0,y0,0,y1);
+  grad.addColorStop(0,'rgba(255,46,136,.40)');grad.addColorStop(1,'rgba(255,46,136,.03)');
+  ctx.fillStyle=grad;ctx.beginPath();ctx.moveTo(X(0),y1);
+  s.forEach((v,i)=>ctx.lineTo(X(i),Y(v)));ctx.lineTo(X(s.length-1),y1);ctx.closePath();ctx.fill();
+  // 3-pass line: ink shadow -> accent-dk underline -> accent overline
+  line(ctx,s.map((v,i)=>[X(i)+2,Y(v)+2]),INKSHADOW,big?7:5);
+  line(ctx,s.map((v,i)=>[X(i),Y(v)]),ACCENT_DK,big?7:5);
+  line(ctx,s.map((v,i)=>[X(i),Y(v)]),ACCENT,big?4:3);
+  // nodes
+  s.forEach((v,i)=>{ctx.fillStyle=INK;ctx.fillRect(X(i)-(big?5:4),Y(v)-(big?5:4),big?10:8,big?10:8);
+    ctx.fillStyle=ACCENT;ctx.fillRect(X(i)-(big?3:2.5),Y(v)-(big?3:2.5),big?6:5,big?6:5);});
+  // x labels
+  ctx.fillStyle='rgba(20,17,13,.55)';ctx.font=(big?"13px":"11px")+" 'Space Mono'";ctx.textAlign='center';
+  const labs=['W1','W2','W3','W4','W5','W6','W7','NOW'];
+  s.forEach((v,i)=>ctx.fillText(labs[i]||('W'+(i+1)),X(i),y1+22));
+  // avg-cost annotation
+  if(big){ctx.fillStyle=PURPLE;ctx.font="700 12px 'Space Mono'";ctx.textAlign='left';
+    ctx.fillText('AVG '+fmtMoney2.format(h.avg),x0+4,Y(h.avg)-6);}
+  if(stale)staleChip(ctx,W,H);
+  c.setAttribute('role','img');
+  c.setAttribute('aria-label',h.ticker+' price '+(up?'up':'down')+' from avg cost '+fmtMoney2.format(h.avg)+' to '+fmtMoney2.format(h.last)+', open P/L '+money(h.pl,0)+(stale?' (stale '+QUOTE_AGE+')':''));
+}
+
+/* ====================================================================
+   BUILD THE DECK TABLE (sortable, click-to-expand rows)
+   ==================================================================== */
+let SORT={key:'pl',dir:'desc'};
+function sortHolds(){
+  const k=SORT.key,d=SORT.dir==='asc'?1:-1;
+  const get={ticker:h=>h.ticker,qty:h=>h.qty,avg:h=>h.avg,last:h=>h.last,
+    mv:h=>h.mv,day:h=>h.dayPct,pl:h=>h.pl,trend:h=>h.pl}[k]||(h=>h.pl);
+  return [...HOLD].sort((a,b)=>{const av=get(a),bv=get(b);
+    if(typeof av==='string')return av.localeCompare(bv)*d;
+    return (av-bv)*d;});
+}
+function buildDeck(){
+  const body=document.getElementById('deckBody');body.innerHTML='';
+  const rows=sortHolds();
+  rows.forEach((h,idx)=>{
+    const up=h.pl>=0, dayUp=h.dayPct>=0;
+    const tr=document.createElement('tr');
+    tr.tabIndex=0;tr.setAttribute('role','button');
+    tr.setAttribute('aria-label',h.ticker+' '+h.name+', '+fmtQty.format(h.qty)+' shares, market value '
+      +fmtMoney2.format(h.mv)+', total P/L '+money(h.pl,0)+' ('+pctSigned(h.plPct)+'), day '
+      +(dayUp?'up':'down')+' '+pctSigned(h.dayPct)+'. Activate to expand.');
+    const sparkId='sp-'+h.ticker.replace(/\W/g,'');
+    const barId='plb-'+h.ticker.replace(/\W/g,'');
+    tr.innerHTML=
+      '<td><div class="c-tkr"><span class="tk">'+h.ticker.replace('.L','')
+        +(h.lse?'<span class="lse">LSE</span>':'')+'</span>'
+        +'<span class="nm">'+h.name+'</span></div></td>'
+      +'<td class="num">'+fmtQty.format(h.qty)+'</td>'
+      +'<td class="num">'+fmtMoney2.format(h.avg)+'</td>'
+      +'<td class="num">'+fmtMoney2.format(h.last)+'</td>'
+      +'<td class="num">'+fmtMoney0.format(h.mv)+'</td>'
+      +'<td class="num"><span class="c-day '+(dayUp?'up':'dn')+'"><span class="tri">'+(dayUp?TRI_UP:TRI_DN)+'</span>'+pctSigned(h.dayPct)+'</span></td>'
+      +'<td class="num"><div class="c-pl">'
+        +'<canvas class="plbar" id="'+barId+'" width="84" height="30"></canvas>'
+        +'<span class="plnum '+(up?'up':'dn')+'"><span class="tri">'+(up?TRI_UP:TRI_DN)+'</span>'+money(h.pl,0)+'</span>'
+      +'</div></td>'
+      +'<td class="num"><div class="c-spark"><canvas id="'+sparkId+'"></canvas></div></td>';
+    tr.addEventListener('click',()=>openExpand(h.ticker));
+    tr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openExpand(h.ticker);}});
+    body.appendChild(tr);
+  });
+  // draw the per-row canvases after insertion
+  rows.forEach(h=>{
+    const sp=document.getElementById('sp-'+h.ticker.replace(/\W/g,''));
+    const bar=document.getElementById('plb-'+h.ticker.replace(/\W/g,''));
+    if(sp)drawSpark(sp,false,h);
+    if(bar)drawRowPLBar(bar,h);
+  });
+}
+/* header sort wiring */
+function wireSort(){
+  document.querySelectorAll('#deckTable thead th[data-key]').forEach(th=>{
+    const key=th.getAttribute('data-key');
+    if(key==='trend')return;
+    const btn=th.querySelector('.th-tag');
+    btn.addEventListener('click',()=>{
+      if(SORT.key===key){SORT.dir=SORT.dir==='asc'?'desc':'asc';}
+      else{SORT.key=key;SORT.dir=(key==='ticker')?'asc':'desc';}
+      // update aria-sort + carets
+      document.querySelectorAll('#deckTable thead th[data-key]').forEach(t=>{
+        const c=t.querySelector('.caret');
+        if(t.getAttribute('data-key')===SORT.key){
+          t.setAttribute('aria-sort',SORT.dir==='asc'?'ascending':'descending');
+          if(c)c.textContent=SORT.dir==='asc'?TRI_UP:TRI_DN;
+        }else{t.setAttribute('aria-sort','none');if(c&&t.getAttribute('data-key')!=='trend')c.textContent='';}
+      });
+      buildDeck();
+    });
+  });
+}
+
+/* ====================================================================
+   EXPAND CONFIG — rail tiles + per-holding position detail
+   ==================================================================== */
+function holdRows(h){
+  // exactly ONE full-ink hero row; honest figures derived from the holding
+  const dayUp=h.dayPct>=0, up=h.pl>=0;
+  return [
+    ['hero','Unrealised P/L', (up?TRI_UP+' ':TRI_DN+' ')+money(h.pl,0), up?'gain':'loss'],
+    ['Last price', fmtMoney2.format(h.last),'plain'],
+    ['Avg cost', fmtMoney2.format(h.avg),'plain'],
+    ['Quantity', fmtQty.format(h.qty),'plain'],
+    ['Market value', fmtMoney2.format(h.mv),'plain'],
+    ['Return %', (up?TRI_UP+' ':TRI_DN+' ')+pctSigned(h.plPct), up?'gain':'loss'],
+    ['Realised P/L', money(0,0),'plain'],
+    ['Day change', (dayUp?TRI_UP+' ':TRI_DN+' ')+pctSigned(h.dayPct), dayUp?'gain':'loss'],
+    ['% of portfolio', fmtPct1.format(h.weight),'plain'],
+  ];
+}
+const EXP={
+  alloc:{head:'Allocation',sub:'Weight by holding · '+HOLD.length+' positions',tag:'EXPOSURE MIX',draw:drawDonut,
+    rows:(()=>{const o=[...HOLD].sort((a,b)=>b.weight-a.weight);
+      const r=o.map(h=>[h.ticker,fmtPct1.format(h.weight),'plain']);
+      r.unshift(['hero','Largest position',o[0].ticker+' '+fmtPct1.format(o[0].weight),'plain']);return r;})()},
+  movers:{head:'Gainers / Losers',sub:'Open P/L by holding · diverging',tag:'P/L SPREAD',draw:drawMovers,
+    rows:(()=>{const o=[...HOLD].sort((a,b)=>b.pl-a.pl);
+      const r=o.map(h=>[h.ticker,(h.pl>=0?TRI_UP+' ':TRI_DN+' ')+money(h.pl,0),h.pl>=0?'gain':'loss']);
+      r.unshift(['hero','Net open P/L',(TOTAL_PL>=0?TRI_UP+' ':TRI_DN+' ')+money(TOTAL_PL,0),TOTAL_PL>=0?'gain':'loss']);return r;})()},
+  exposure:{head:'Exposure Gauge',sub:'True growth · deposits stripped',tag:'TRUE GROWTH',draw:drawGauge,
+    rows:[['hero','True growth',(GROWTH>=0?TRI_UP+' ':TRI_DN+' ')+pctSigned(GROWTH),GROWTH>=0?'gain':'loss'],
+      ['Open P/L',money(TOTAL_PL,0),'gain'],
+      ['Invested cost',fmtMoney0.format(TOTAL_COST),'plain'],
+      ['Market value',fmtMoney0.format(TOTAL_MV),'plain'],
+      ['Winners',WINNERS+' / '+HOLD.length,'plain'],
+      ['Largest exposure',[...HOLD].sort((a,b)=>b.weight-a.weight)[0].ticker,'plain'],
+      ['Range',pctSigned1(G_MIN)+' … '+pctSigned1(G_MAX),'plain']]},
+};
+
+let CURRENT_EXP=null;
+let LAST_TRIGGER=null;
+function openExpand(key){
+  let cfg, head, sub, tag, drawFn, rows;
+  const hold=HOLD.find(h=>h.ticker===key);
+  if(hold){
+    EXP_HOLD=hold;
+    head=hold.ticker.replace('.L','')+' · '+hold.name;
+    sub='Price vs avg cost · 8 periods'+(hold.lse?' · LSE':'');
+    tag='POSITION DETAIL';
+    drawFn=drawPosLine;
+    rows=holdRows(hold);
+  }else{
+    cfg=EXP[key];if(!cfg)return;
+    head=cfg.head;sub=cfg.sub;tag=cfg.tag;drawFn=cfg.draw;rows=cfg.rows;
+  }
+  CURRENT_EXP={draw:drawFn};
+  document.getElementById('expVizHead').textContent=head;
+  document.getElementById('expVizSub').textContent=sub;
+  document.getElementById('expDataHead').textContent=head.split(' · ')[0]+' · NUMBERS';
+  document.querySelector('#expTag .txt').textContent=tag;
+  const rowsEl=document.getElementById('expRows');rowsEl.innerHTML='';
+  rows.forEach(r=>{
+    const hero=r[0]==='hero';
+    const lbl=hero?r[1]:r[0], val=hero?r[2]:r[1], kind=hero?r[3]:r[2];
+    const d=document.createElement('div');d.className='edrow'+(hero?' hero':'');
+    d.innerHTML='<div class="lbl">'+lbl+'</div><div class="val '+(kind==='gain'?'gain':kind==='loss'?'loss':'')+'">'+val+'</div>';
+    rowsEl.appendChild(d);
+  });
+  document.getElementById('expand').classList.add('on');
+  // deep-link
+  try{const u=new URL(location);u.searchParams.set('expand',key);history.replaceState(null,'',u);}catch(e){}
+  requestAnimationFrame(()=>drawFn(document.getElementById('cv-exp'),true));
+  // focus close button for trap
+  setTimeout(()=>{const cb=document.querySelector('.exp-close');if(cb)cb.focus();},0);
+}
+function closeExpand(){
+  CURRENT_EXP=null;EXP_HOLD=null;
+  document.getElementById('expand').classList.remove('on');
+  try{const u=new URL(location);u.searchParams.delete('expand');history.replaceState(null,'',u);}catch(e){}
+  if(LAST_TRIGGER&&LAST_TRIGGER.focus)LAST_TRIGGER.focus();
+}
+/* wire rail tiles */
+document.querySelectorAll('.tile[data-viz]').forEach(el=>{
+  el.addEventListener('click',()=>{LAST_TRIGGER=el;openExpand(el.getAttribute('data-viz'));});
+  el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();LAST_TRIGGER=el;openExpand(el.getAttribute('data-viz'));}});
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeExpand();});
+/* focus trap inside modal */
+document.getElementById('expand').addEventListener('keydown',e=>{
+  if(e.key!=='Tab')return;
+  const f=document.querySelector('.exp-close');if(!f)return;
+  e.preventDefault();f.focus();
+});
+
+/* ---------- SCRUB layer: value tooltip on hover + tap + focus over each rail canvas ----------
+   Also hosts the focusable RETRY action when a tile is in the error state. */
+function scrubValue(key,relx,rely){
+  // relx/rely in 0..1 within the canvas box; returns {k,v,dir} or null
+  if(key==='alloc'){
+    const order=[...HOLD].sort((a,b)=>b.weight-a.weight);
+    const idx=Math.min(order.length-1,Math.max(0,Math.round(rely*(order.length-1))));
+    const h=order[idx];return{k:h.ticker,v:fmtPct1.format(h.weight)};
+  }
+  if(key==='movers'){
+    const sorted=[...HOLD].sort((a,b)=>b.pl-a.pl);
+    const rows=[...sorted.slice(0,3),...sorted.slice(-2)];
+    const idx=Math.min(rows.length-1,Math.max(0,Math.round(rely*(rows.length-1))));
+    const h=rows[idx];return{k:h.ticker,v:money(h.pl,0),dir:h.pl>=0?'up':'dn'};
+  }
+  if(key==='exposure'){
+    return{k:'TRUE GROWTH',v:pctSigned(GROWTH),dir:GROWTH>=0?'up':'dn'};
+  }
+  return null;
+}
+function wireScrub(){
+  ['alloc','movers','exposure'].forEach(key=>{
+    const sc=document.getElementById('scrub-'+key);if(!sc)return;
+    const body=sc.parentElement;
+    let tip=body.querySelector('.scrubtip');
+    if(!tip){tip=document.createElement('div');tip.className='scrubtip';body.appendChild(tip);}
+    function show(clientX,clientY){
+      // RETRY hit-test first (error state hosts a focusable action on this layer)
+      const r=body.getBoundingClientRect();
+      const relx=(clientX-r.left)/r.width, rely=(clientY-r.top)/r.height;
+      const v=scrubValue(key,relx,rely);if(!v){tip.classList.remove('on');return;}
+      tip.innerHTML='<span class="st-k">'+v.k+'</span><span class="'+(v.dir==='up'?'st-up':v.dir==='dn'?'st-dn':'')+'">'+v.v+'</span>';
+      tip.style.left=Math.max(8,Math.min(r.width-8,clientX-r.left))+'px';
+      tip.style.top=Math.max(20,clientY-r.top)+'px';
+      tip.classList.add('on');
+    }
+    function hide(){tip.classList.remove('on');}
+    sc.addEventListener('pointermove',e=>{if(VIZ_STATE[key]==='error'){return;}show(e.clientX,e.clientY);});
+    sc.addEventListener('pointerdown',e=>{
+      if(VIZ_STATE[key]==='error'){const hit=RETRY_HIT[key];if(hit){onRetry(key);}return;}
+      show(e.clientX,e.clientY);
+    });
+    sc.addEventListener('pointerleave',hide);
+    sc.addEventListener('blur',hide);
+    sc.addEventListener('focus',()=>{const r=body.getBoundingClientRect();show(r.left+r.width*0.5,r.top+r.height*0.5);});
+    sc.addEventListener('keydown',e=>{
+      if(VIZ_STATE[key]==='error'&&(e.key==='Enter'||e.key===' ')){e.preventDefault();onRetry(key);}
+    });
+  });
+}
+
+/* ---------- RAIL render + responsive redraw ---------- */
+const RAIL_VIZ=[['cv-alloc',drawDonut],['cv-movers',drawMovers],['cv-gauge',drawGauge]];
+function drawRail(){RAIL_VIZ.forEach(([id,fn])=>{const c=document.getElementById(id);if(c)fn(c,false);});}
+function renderAll(){
+  fillChrome();
+  buildDeck();wireSort();
+  drawRail();
+  wireScrub();
+  drawDotCluster(document.getElementById('dotcl'),(x,y)=>Math.max(0,1-Math.hypot(x,1-y)*0.95));
+  drawDotCluster(document.getElementById('dotcl2'),(x,y)=>Math.max(0,1-Math.hypot(1-x,y)*1.05));
+}
+
+if('ResizeObserver' in window){
+  const ro=new ResizeObserver(entries=>{for(const e of entries){const fn=e.target.__draw;if(fn)fn();}});
+  RAIL_VIZ.forEach(([id,fn])=>{const c=document.getElementById(id);if(!c||!c.parentElement)return;
+    const box=c.parentElement;box.__draw=()=>{const cc=document.getElementById(id);if(cc)fn(cc,false);};ro.observe(box);});
+  const expBody=document.querySelector('.exp-viz .evbody');
+  if(expBody){expBody.__draw=()=>{if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))
+    CURRENT_EXP.draw(document.getElementById('cv-exp'),true);};ro.observe(expBody);}
+  // redraw row canvases when the deck scroll box resizes
+  const ds=document.querySelector('.deck-scroll');
+  if(ds){ds.__draw=()=>{HOLD.forEach(h=>{const sp=document.getElementById('sp-'+h.ticker.replace(/\W/g,''));
+      const bar=document.getElementById('plb-'+h.ticker.replace(/\W/g,''));
+      if(sp)drawSpark(sp,false,h);if(bar)drawRowPLBar(bar,h);});};ro.observe(ds);}
+}
+let rzT=null;
+function onResize(){clearTimeout(rzT);rzT=setTimeout(()=>{
+  drawRail();
+  HOLD.forEach(h=>{const sp=document.getElementById('sp-'+h.ticker.replace(/\W/g,''));
+    const bar=document.getElementById('plb-'+h.ticker.replace(/\W/g,''));
+    if(sp)drawSpark(sp,false,h);if(bar)drawRowPLBar(bar,h);});
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))
+    CURRENT_EXP.draw(document.getElementById('cv-exp'),true);
+},80);}
+window.addEventListener('resize',onResize);
+
+function go(){
+  renderAll();
+  const m=location.search.match(/[?&]expand=([^&]+)/);
+  if(m){openExpand(decodeURIComponent(m[1]));}
+}
+if(document.fonts&&document.fonts.ready){
+  document.fonts.ready.then(()=>{go();
+    requestAnimationFrame(()=>{drawRail();
+      HOLD.forEach(h=>{const sp=document.getElementById('sp-'+h.ticker.replace(/\W/g,''));
+        const bar=document.getElementById('plb-'+h.ticker.replace(/\W/g,''));
+        if(sp)drawSpark(sp,false,h);if(bar)drawRowPLBar(bar,h);});
+      if(CURRENT_EXP)CURRENT_EXP.draw(document.getElementById('cv-exp'),true);});
+    setTimeout(()=>{drawRail();
+      HOLD.forEach(h=>{const sp=document.getElementById('sp-'+h.ticker.replace(/\W/g,''));
+        const bar=document.getElementById('plb-'+h.ticker.replace(/\W/g,''));
+        if(sp)drawSpark(sp,false,h);if(bar)drawRowPLBar(bar,h);});
+      if(CURRENT_EXP)CURRENT_EXP.draw(document.getElementById('cv-exp'),true);},240);
+  });
+}else{window.addEventListener('load',go);}
+window.addEventListener('load',()=>{setTimeout(()=>{drawRail();
+  HOLD.forEach(h=>{const sp=document.getElementById('sp-'+h.ticker.replace(/\W/g,''));
+    const bar=document.getElementById('plb-'+h.ticker.replace(/\W/g,''));
+    if(sp)drawSpark(sp,false,h);if(bar)drawRowPLBar(bar,h);});
+  if(CURRENT_EXP&&document.getElementById('expand').classList.contains('on'))
+    CURRENT_EXP.draw(document.getElementById('cv-exp'),true);},380);});
+
+/* ---------- prefers-reduced-motion: pause marble SMIL (shipped) ---------- */
+(function(){
+  const mq=window.matchMedia('(prefers-reduced-motion: reduce)');
+  function apply(){
+    document.querySelectorAll('.nt-marble svg, svg use').forEach(el=>{
+      const svg=el.ownerSVGElement||el.closest('svg');if(!svg)return;
+      try{if(mq.matches){svg.pauseAnimations();}else{svg.unpauseAnimations();}}catch(e){}
+    });
+    document.querySelectorAll('svg').forEach(svg=>{try{if(mq.matches){svg.pauseAnimations();}}catch(e){}});
+  }
+  apply();if(mq.addEventListener)mq.addEventListener('change',apply);
+})();
+</script>
+</body>
+</html>
