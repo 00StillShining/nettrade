@@ -32,7 +32,7 @@
   padding: var(--s2) var(--s4);
   border: 1px solid var(--ink-line);
   border-radius: 4px;
-  background: rgba(36, 41, 56, 0.35); /* --ink-raise with alpha */
+  background: var(--ink-raise-35);
   position: relative;
 }
 
@@ -173,7 +173,7 @@
   padding: 6px var(--s3);
   border: 1px solid var(--ink-line);
   border-radius: 4px;
-  background: rgba(36, 41, 56, 0.35); /* --ink-raise with alpha, matches topBar/statusBar */
+  background: var(--ink-raise-35); /* matches topBar/statusBar */
   overflow-x: auto;
 }
 
@@ -197,6 +197,15 @@
   color: var(--animus-field);
 }
 
+/* House amber focus ring — the only keyboard route to all seven screens, so
+   it must show a crafted ring, not the low-contrast UA outline. --amber (not
+   --amber-deep) for legibility on the dark chrome bar. */
+.navLink:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  color: var(--animus-field);
+}
+
 .navLinkActive {
   color: var(--amber);
   border-color: var(--amber);
@@ -211,7 +220,7 @@
   padding: var(--s2) var(--s4);
   border: 1px solid var(--ink-line);
   border-radius: 4px;
-  background: rgba(36, 41, 56, 0.35);
+  background: var(--ink-raise-35);
   display: flex;
   align-items: center;
   justify-content: space-between;

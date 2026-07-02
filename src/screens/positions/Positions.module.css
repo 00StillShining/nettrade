@@ -13,13 +13,7 @@
    scrolls internally inside its panel (SCREEN_PATTERNS.md §2). */
 
 .screen {
-  /* Same shared paper-grain + AA-safe P/L tokens as the Dashboard (locked
-     recipe §7) — kept local per-screen (CSS Modules scope) rather than
-     imported, matching how Dashboard.module.css defines its own copy. */
-  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/></svg>");
-  --gain-ink: #3f6f45;
-  --loss-ribbon: #b83129;
-
+  /* --paper-grain / --gain-ink / --loss-ribbon inherit from tokens.css :root. */
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -180,6 +174,13 @@
   background: #4a4f5c;
   border-color: #3a3f4c;
   color: #8b93a8;
+}
+
+/* House amber focus ring (mirrors Settings .keycap:focus-visible); the 2px
+   offset lifts it off the amber fill onto the cream panel where it reads. */
+.syncBtn:focus-visible {
+  outline: 2px solid var(--amber-deep);
+  outline-offset: 2px;
 }
 
 /* ============================== ROSTER PANEL ============================== */

@@ -176,6 +176,7 @@ function DashboardView({ positions, status, error, lastSync, refresh }: UsePosit
           : "error";
 
   const plUp = totals.totalUnrealizedPl >= 0;
+  const plZero = totals.totalUnrealizedPl === 0;
   const pctFmt = totals.pct !== null ? fmtPct(totals.pct) : null;
 
   const showSkeleton = (status === "loading" || status === "idle") && positions.length === 0;
@@ -185,7 +186,7 @@ function DashboardView({ positions, status, error, lastSync, refresh }: UsePosit
   return (
     <Chrome
       title="DASHBOARD"
-      env="live"
+      env={import.meta.env.VITE_MOCK ? "demo" : "live"}
       accountLabel="DEFAULT"
       connection={connection}
       lastSyncISO={lastSync}
@@ -214,12 +215,12 @@ function DashboardView({ positions, status, error, lastSync, refresh }: UsePosit
                 <>
                   <div className={s.heroValue}>{fmtMinor(totals.totalValue, displayCcy)}</div>
 
-                  <div className={`${s.heroPlRow} ${plUp ? s.gain : s.loss}`}>
-                    <Triangle up={plUp} className={s.heroTri} />
+                  <div className={`${s.heroPlRow} ${plZero ? "" : plUp ? s.gain : s.loss}`}>
+                    {!plZero && <Triangle up={plUp} className={s.heroTri} />}
                     <span>{fmtMinor(Math.abs(totals.totalUnrealizedPl), displayCcy)}</span>
                     {pctFmt && (
                       <span className={s.heroPlPct}>
-                        ({plUp ? "+" : "−"}
+                        ({plZero ? "" : plUp ? "+" : "−"}
                         {pctFmt})
                       </span>
                     )}
@@ -245,8 +246,8 @@ function DashboardView({ positions, status, error, lastSync, refresh }: UsePosit
                   </div>
                   <div className={s.microStat}>
                     <div className={s.microLabel}>Unrealised</div>
-                    <div className={`${s.microValue} ${plUp ? s.gain : s.loss}`}>
-                      {plUp ? "+" : "−"}
+                    <div className={`${s.microValue} ${plZero ? "" : plUp ? s.gain : s.loss}`}>
+                      {plZero ? "" : plUp ? "+" : "−"}
                       {fmtMinor(Math.abs(totals.totalUnrealizedPl), displayCcy)}
                       {pctFmt && <span className={s.microPct}> ({pctFmt})</span>}
                     </div>

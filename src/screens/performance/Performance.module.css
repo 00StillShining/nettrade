@@ -14,10 +14,7 @@
    dark deadspace framing them. */
 
 .screen {
-  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/></svg>");
-  --gain-ink: #3f6f45;
-  --loss-ribbon: #b83129;
-
+  /* --paper-grain / --gain-ink / --loss-ribbon inherit from tokens.css :root. */
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -414,6 +411,12 @@
 .periodBtn:active {
   transform: translate(1px, 1px);
   box-shadow: 1px 1px 0 var(--ink);
+}
+
+/* House amber focus ring (mirrors Settings .keycap:focus-visible). */
+.periodBtn:focus-visible {
+  outline: 2px solid var(--amber-deep);
+  outline-offset: 2px;
 }
 
 .periodBtnActive,

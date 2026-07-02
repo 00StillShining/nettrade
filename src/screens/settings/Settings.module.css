@@ -14,9 +14,7 @@
    gutters keep dark deadspace framing them. */
 
 .screen {
-  /* Shared inert paper-grain data-URI (copied from the sibling recipe so
-     panels don't each duplicate it — SCREEN_PATTERNS §7). STATIC only. */
-  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/></svg>");
+  /* --paper-grain inherits from tokens.css :root. */
   /* Deeper amber for keycap bevels/hover so pressable affordances read on
      cream without a soft blur (defined locally per the parallel-sprint rule —
      do NOT touch tokens.css; --amber-deep already exists globally and is used

@@ -192,14 +192,17 @@ function PositionsView({ positions, status, error, lastSync, refresh }: UsePosit
   return (
     <Chrome
       title="POSITIONS"
-      env="live"
+      env={import.meta.env.VITE_MOCK ? "demo" : "live"}
       accountLabel="DEFAULT"
       connection={connection}
       lastSyncISO={lastSync}
       positionsCount={positions.length}
       rateLimitNote="1 req/s"
     >
-      <div className={s.screen}>
+      {/* When the dossier dialog is open, mark the background screen `inert` so
+          roving screen-reader cursors (and Tab) can't reach the roster cards
+          behind it — aria-modal alone doesn't isolate the DOM (nit a11y fix). */}
+      <div className={s.screen} inert={selected ? true : undefined}>
         {/* ============================== HERO ============================== */}
         <section className={s.hero} aria-label="Holdings summary">
           <div className={s.heroRibbon}>Positions</div>
@@ -214,8 +217,14 @@ function PositionsView({ positions, status, error, lastSync, refresh }: UsePosit
             </div>
             <div className={s.heroStat}>
               <div className={s.heroLabel}>Unrealised</div>
-              <div className={`${s.heroValue} ${totals.totalUnrealizedPl >= 0 ? s.gain : s.loss}`}>
-                <Triangle up={totals.totalUnrealizedPl >= 0} className={s.heroTri} />
+              <div
+                className={`${s.heroValue} ${
+                  totals.totalUnrealizedPl === 0 ? "" : totals.totalUnrealizedPl > 0 ? s.gain : s.loss
+                }`}
+              >
+                {totals.totalUnrealizedPl !== 0 && (
+                  <Triangle up={totals.totalUnrealizedPl > 0} className={s.heroTri} />
+                )}
                 {fmtMinor(Math.abs(totals.totalUnrealizedPl), displayCcy)}
               </div>
             </div>

@@ -484,6 +484,23 @@ export function ValueChart({
 
   const scrubbedPoint = scrubIndex !== null ? points.find((p) => p.x === scrubIndex) ?? null : null;
 
+  // Date + value context for the slider so a screen reader announces
+  // "12 Jun: £14,240 value · £12,000 net deposits" instead of a bare index.
+  // Honest about gaps: a null figure reads "no recorded value", never a fake 0.
+  const ariaValueText = scrubbedPoint
+    ? [
+        labelFor(scrubbedPoint.atISO),
+        scrubbedPoint.valueMinor !== null
+          ? `${fmtMinor(scrubbedPoint.valueMinor, currency)} value`
+          : "no recorded value",
+        scrubbedPoint.netDepositsMinor !== null
+          ? `${fmtMinor(scrubbedPoint.netDepositsMinor, currency)} net deposits`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : undefined;
+
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (points.length === 0 || !wrapRef.current) return;
     const rect = wrapRef.current.getBoundingClientRect();
@@ -555,6 +572,7 @@ export function ValueChart({
               aria-valuemin={0}
               aria-valuemax={Math.max(0, points.length - 1)}
               aria-valuenow={scrubIndex ?? Math.max(0, points.length - 1)}
+              aria-valuetext={ariaValueText}
               onPointerMove={handlePointerMove}
               onPointerDown={handlePointerMove}
               onPointerLeave={() => setScrubIndex(null)}

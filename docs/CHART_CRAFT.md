@@ -11,6 +11,11 @@
 > `.claude/skills/actuality-ui/` + `docs/VISUAL_DIRECTION.md` (dark cinematic frame + Dispatch
 > "SDN" cream-paper panels; radar/pentagon charts; one accent per world). When building a
 > chart: take the **craft/function rules here**, render them in the **new look** there.
+>
+> **Line refs to `src/screens/dashboard/Dashboard.tsx` below are historical/pre-rebuild**
+> — the flat `src/screens/Dashboard.tsx` and its `drawValue`/`drawGauge`/`drawDonut`/`drawPL`
+> functions no longer exist at those line numbers. Treat them as **design intent**, not literal
+> anchors. Paths are repo-relative.
 
 ## Global chart grammar
 
@@ -120,7 +125,7 @@ Banned from the viz layer: `system-ui`/`Inter`/`Roboto`/any thin weight; pure `#
 
 ## CRAFT SPEC — Value-over-time chart (the hero data-sculpture)
 
-Portfolio value as a line/area over time with a net-deposits overlay; scrubbable; the click-to-expand centrepiece on **Dashboard** and **Performance**. This spec extends the **already-shipped** `drawValue` in `src/screens/Dashboard.tsx` (lines 116–198) — it does **not** replace it. The canvas draw idiom is locked; the net-new work is the **scrub layer, tooltip, keyboard access, aria summary, the four data-states, the data-derived y-domain, and a house-texture pass on the grid**, plus packaging it as a reusable component. Per-screen accent is keyed by the map: **Dashboard = teal** (the shipped values), **Performance = lime** (swap the accent token only — see §8).
+Portfolio value as a line/area over time with a net-deposits overlay; scrubbable; the click-to-expand centrepiece on **Dashboard** and **Performance**. This spec extends the **already-shipped** `drawValue` in `src/screens/dashboard/Dashboard.tsx` — it does **not** replace it. The canvas draw idiom is locked; the net-new work is the **scrub layer, tooltip, keyboard access, aria summary, the four data-states, the data-derived y-domain, and a house-texture pass on the grid**, plus packaging it as a reusable component. Per-screen accent is keyed by the map: **Dashboard = teal** (the shipped values), **Performance = lime** (swap the accent token only — see §8).
 
 > Hard rule that governs all of the below: **distinctive must never cost readability or truthful numbers.** Every number drawn is one the caller supplied; nothing is invented to fill the frame.
 
@@ -287,7 +292,7 @@ declare function ValueChart(props: ValueChartProps): JSX.Element;
 
 ## True-Growth Gauge — Craft Spec
 
-The canonical **gauge tile**: a 180° semicircle dial reading the period **true-growth %** (portfolio return with deposit inflows stripped out — your money's *real* work, not money you merely paid in). It is the signed-KPI-vs-range widget of the system. It already exists as `drawGauge(c, big)` on `#cv-gauge` in the shipped Dashboard (`prototypes/dashboard-final.html` L695–736, ported in `src/screens/Dashboard.tsx`). **This spec hardens and componentizes that exact viz — it does not redesign it.** Every *visual* value below is the shipped value; the *data-honesty* upgrades (value-from-props, Intl formatting, derived aria) are the explicit hardening delta over the shipped canvas, which currently hard-codes `+9.5%` and a literal `frac` (L719, L729–730).
+The canonical **gauge tile**: a 180° semicircle dial reading the period **true-growth %** (portfolio return with deposit inflows stripped out — your money's *real* work, not money you merely paid in). It is the signed-KPI-vs-range widget of the system. It already exists as `drawGauge(c, big)` on `#cv-gauge` in the shipped Dashboard (`prototypes/dashboard-final.html` L695–736, ported in `src/screens/dashboard/Dashboard.tsx`). **This spec hardens and componentizes that exact viz — it does not redesign it.** Every *visual* value below is the shipped value; the *data-honesty* upgrades (value-from-props, Intl formatting, derived aria) are the explicit hardening delta over the shipped canvas, which currently hard-codes `+9.5%` and a literal `frac` (L719, L729–730).
 
 ### Why it's a gauge (and stays one)
 A gauge is correct *only* for a single bounded value against a signed range — never a trend. True-growth-over-time belongs in the `drawValue` line chart; the gauge shows the *one number now* against its `min … max` band (shipped `-10 … +20`). Do not repurpose this component for a series.
@@ -430,7 +435,7 @@ declare function TrueGrowthGauge(props: TrueGrowthGaugeProps): JSX.Element;
 
 ## Archetype: Allocation Donut
 
-Part-to-whole proportion ring for portfolio composition — holdings or sectors as cut-paper wedges summing to 100%, with legible tickers and exact weights. This is Actuality's canonical composition viz, already shipped in the Dashboard as `drawDonut(c, big)` (`Dashboard.tsx:279–339`). The spec below promotes that shipped function into a reusable, fully-accessible `<AllocationDonut/>` component **without changing its look on the Dashboard** — every visual decision here matches the signed-off Dashboard, then closes the gaps the shipped version leaves (states, a11y, touch/keyboard, tooltips, slice-cap discipline, accent-collision).
+Part-to-whole proportion ring for portfolio composition — holdings or sectors as cut-paper wedges summing to 100%, with legible tickers and exact weights. This is Actuality's canonical composition viz, already shipped in the Dashboard as `drawDonut(c, big)` (`src/screens/dashboard/Dashboard.tsx`). The spec below promotes that shipped function into a reusable, fully-accessible `<AllocationDonut/>` component **without changing its look on the Dashboard** — every visual decision here matches the signed-off Dashboard, then closes the gaps the shipped version leaves (states, a11y, touch/keyboard, tooltips, slice-cap discipline, accent-collision).
 
 **Hard rule (governs all of the below):** distinctive treatment must never cost legibility or truthful numbers. The donut renders only the weights the caller supplies; it never invents a percentage, never normalises a number into existence, and never draws a wedge whose arc is not exactly `weight/total × 2π`.
 
@@ -576,7 +581,7 @@ declare function AllocationDonut(props: AllocationDonutProps): JSX.Element;
 
 ## Archetype — Per-Stock P/L Bars (diverging horizontal P/L by holding)
 
-Realised/unrealised profit & loss per position, drawn as diverging horizontal bars around a true-zero ink axis: gains push right, losses push left, one row per holding, sortable. This is the canonical **signed-per-category** viz and MUST match the shipped Dashboard `drawPL` (src/screens/Dashboard.tsx:342) bar-for-bar — it is a re-skinnable, sortable generalisation of that function, not a new chart.
+Realised/unrealised profit & loss per position, drawn as diverging horizontal bars around a true-zero ink axis: gains push right, losses push left, one row per holding, sortable. This is the canonical **signed-per-category** viz and MUST match the shipped Dashboard `drawPL` (src/screens/dashboard/Dashboard.tsx) bar-for-bar — it is a re-skinnable, sortable generalisation of that function, not a new chart.
 
 ### Non-negotiable house rules (carry over verbatim)
 - **Canvas only.** Drawn on a raw 2D `<canvas>` via `draw(c, big)` using the shipped `fitCanvas(c)` (backing store = CSS box × `min(dpr,2)`, pre-scaled ctx). **No SVG chart, no Recharts/D3/Chart.js.** SVG is reserved exclusively for the `#ntMarble` liquid-marble texture.
@@ -1057,7 +1062,7 @@ declare function NtRadar(props: NtRadarProps): JSX.Element;
 ## Actuality Craft Spec — `Sparkline` (holdings-roster micro-trend)
 
 ### 0. What this is and where it lives
-A tiny inline trend line living **inside each `.card` of the HOLDINGS ROSTER** (`prototypes/dashboard-final.html` lines 859–882 build+draw / `src/screens/Dashboard.tsx` port). Each roster card carries: ticker (`.tkr`, Anton), allocation (`.alloc`, Space Mono), the **sparkline canvas** (counter-skewed `.spark`), and an up/dn **`.badge`** (teal/loss parallelogram with ▲/▼ + signed £ P/L). The sparkline must read direction (up/down) **at a glance**, with no axes, no gridlines, no numbers on the canvas itself — the badge carries the truthful figure.
+A tiny inline trend line living **inside each `.card` of the HOLDINGS ROSTER** (`prototypes/dashboard-final.html` lines 859–882 build+draw / `src/screens/dashboard/Dashboard.tsx` port). Each roster card carries: ticker (`.tkr`, Anton), allocation (`.alloc`, Space Mono), the **sparkline canvas** (counter-skewed `.spark`), and an up/dn **`.badge`** (teal/loss parallelogram with ▲/▼ + signed £ P/L). The sparkline must read direction (up/down) **at a glance**, with no axes, no gridlines, no numbers on the canvas itself — the badge carries the truthful figure.
 
 This is the single riskiest viz in the system: as shipped (lines 870–882) it is a bare `2.4px` `TEALDK`/`LOSS` polyline (no nodes, no shadow, no fill) that reads close to a default Chart.js sparkline. This spec keeps the shipped draw idiom **but adds exactly enough house identity** (ink baseline rule + ink/colour end-cap node + whisper area fill) to stamp it as ours — without ever crowding a 34px-tall canvas or hurting the glance read.
 
@@ -1428,7 +1433,7 @@ declare function line(ctx: CanvasRenderingContext2D, pts: number[][], col: strin
 
 # Actuality Craft Spec — `<VizState>` (empty / loading-skeleton / error-with-retry / stale-data)
 
-Every Actuality viz already draws on a raw `<canvas>` inside a clip-path parallelogram tile (see `/Users/stillshining/nettrade/src/screens/Dashboard.tsx`, `/Users/stillshining/nettrade/src/screens/Dashboard.module.css`). This archetype is the **non-populated lifecycle** of that exact tile. The rule: a tile in any state is still a *stamped comic-collage data panel*, never a bare spinner, never a blank axis, never a default skeleton-shimmer rectangle. The shipped Dashboard has **no** empty/loading/error handling yet, so this is the canonical implementation all seven screens import.
+Every Actuality viz already draws on a raw `<canvas>` inside a clip-path parallelogram tile (see `src/screens/dashboard/Dashboard.tsx`, `src/screens/dashboard/Dashboard.module.css`). This archetype is the **non-populated lifecycle** of that exact tile. The rule: a tile in any state is still a *stamped comic-collage data panel*, never a bare spinner, never a blank axis, never a default skeleton-shimmer rectangle. The shipped Dashboard has **no** empty/loading/error handling yet, so this is the canonical implementation all seven screens import.
 
 The state shape is drawn on the **same `#cv-*` canvas** as the populated chart (not a different DOM node), so swapping `state` never reflows the tile. The tile chrome (border 6px ink, `box-shadow: 10px 10px 0 var(--ink)`, `clip-path` parallelogram), the head bar, and the expand chip are identical across all four states.
 

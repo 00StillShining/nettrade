@@ -168,14 +168,17 @@ function WatchlistView({ items, connected, lastSyncISO }: WatchlistData) {
   return (
     <Chrome
       title="WATCHLIST"
-      env="live"
+      env={import.meta.env.VITE_MOCK ? "demo" : "live"}
       accountLabel="DEFAULT"
       connection={connection}
       lastSyncISO={lastSyncISO}
       positionsCount={null}
       rateLimitNote="1 req/s"
     >
-      <div className={s.screen}>
+      {/* When the dossier dialog is open, mark the background screen `inert` so
+          roving screen-reader cursors (and Tab) can't reach the cards behind it
+          — aria-modal alone doesn't isolate the DOM (nit a11y fix). */}
+      <div className={s.screen} inert={selected ? true : undefined}>
         {/* ============================== HERO ============================== */}
         <section className={s.hero} aria-label="Watchlist summary">
           <div className={s.heroRibbon}>Watchlist</div>

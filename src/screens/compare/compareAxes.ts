@@ -76,13 +76,13 @@ function rawMetrics(p: Position, totalValue: number): Partial<Record<AxisKey, Ax
   const ccy = p.accountCurrency || "GBP";
   const instCcy = p.instrumentCurrency || ccy;
 
-  // VALUE — current market value in account ccy (always present, >=0).
-  out.value = {
-    key: "value",
-    label: "Value",
-    raw: p.currentValueMinor,
-    display: fmtMoney(p.currentValueMinor, ccy),
-  };
+  // NOTE: absolute market VALUE is deliberately NOT a radar axis. alloc.raw =
+  // currentValueMinor / totalValue uses the SAME totalValue divisor for both
+  // holdings, so a Value axis and an Allocation axis are perfectly collinear
+  // under pairwise normalisation — they'd produce identical ratios and pick the
+  // same winner, silently double-weighting size in the silhouette + the
+  // aWins/bWins tally. Allocation is kept as the portfolio-relative size axis;
+  // absolute Market Value stays visible as a dossier stat in Compare.tsx.
 
   // RETURN % — unrealised P/L ÷ cost basis. OMITTED if no cost basis (can't
   // form a percentage) — never zero-filled.
@@ -125,8 +125,11 @@ function rawMetrics(p: Position, totalValue: number): Partial<Record<AxisKey, Ax
   return out;
 }
 
-/** Stable axis order for the pentagon (drawn clockwise from top). */
-const AXIS_ORDER: AxisKey[] = ["value", "return", "alloc", "priceVsAvg", "quantity"];
+/** Stable axis order for the radar (drawn clockwise from top). "value" is
+ * intentionally excluded — it is collinear with "alloc" (see rawMetrics). The
+ * remaining four axes are genuinely independent (return %, portfolio share,
+ * price-vs-avg, quantity). */
+const AXIS_ORDER: AxisKey[] = ["return", "alloc", "priceVsAvg", "quantity"];
 
 /**
  * Pairwise-normalise ONE axis's two raw values to 0..1 each.
@@ -216,11 +219,8 @@ export function computeCompareShape(a: Position, b: Position, totalValue: number
  * Money/qty use the SAME shared helpers as every screen via re-export wrappers
  * so the a11y `display` strings match the visible figures. We import the shared
  * fmtMinor/fmtQty rather than re-implement (single source of truth). */
-import { fmtMinor, fmtQty, fmtPct } from "../shared/format";
+import { fmtQty, fmtPct } from "../shared/format";
 
-function fmtMoney(minor: number, ccy: string): string {
-  return fmtMinor(minor, ccy);
-}
 function fmtNum(n: number): string {
   return fmtQty(n);
 }

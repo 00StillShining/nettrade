@@ -227,7 +227,7 @@ function JournalView({ seed, persisted, connection, lastSyncISO }: JournalData) 
   return (
     <Chrome
       title="JOURNAL"
-      env="live"
+      env={import.meta.env.VITE_MOCK ? "demo" : "live"}
       accountLabel="DEFAULT"
       connection={connection}
       lastSyncISO={lastSyncISO}

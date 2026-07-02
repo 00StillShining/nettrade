@@ -15,12 +15,8 @@
    internally inside its panel (SCREEN_PATTERNS.md §2). */
 
 .screen {
-  /* Same shared paper-grain data-URI as every other cream screen (locked
-     recipe §7) — kept LOCAL per-screen (CSS Modules scope) rather than
-     imported, matching how Positions/Performance define their own copy.
-     No --gain-ink / --loss tokens here: this screen intentionally has no
-     P/L palette. */
-  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/></svg>");
+  /* --paper-grain inherits from tokens.css :root (this screen has no P/L
+     palette, so no --gain-ink / --loss-ribbon). */
   /* Hairline divider on cream — reused for card foot borders + subtle rules,
      matching Performance's rgba(43,36,28,0.08) inline hairline. */
   --paper-hairline: rgba(43, 36, 28, 0.1);
@@ -185,6 +181,19 @@
 
 .filterBtn:hover {
   background: #e8dcc0;
+}
+
+/* House amber focus ring for every Journal button (mirrors Settings
+   .keycap:focus-visible) — the UA ring is too low-contrast on cream. One
+   shared rule covers the filter chips, add-entry, tag toggles and the
+   composer's save/cancel. The 2px offset keeps it legible over amber fills. */
+.filterBtn:focus-visible,
+.addBtn:focus-visible,
+.tagToggle:focus-visible,
+.composerSave:focus-visible,
+.composerCancel:focus-visible {
+  outline: 2px solid var(--amber-deep);
+  outline-offset: 2px;
 }
 
 .filterBtnActive,

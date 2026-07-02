@@ -258,7 +258,7 @@ function CompareView({ positions, status, error, lastSync, refresh }: UsePositio
   return (
     <Chrome
       title="COMPARE"
-      env="live"
+      env={import.meta.env.VITE_MOCK ? "demo" : "live"}
       accountLabel="DEFAULT"
       connection={connection}
       lastSyncISO={lastSync}

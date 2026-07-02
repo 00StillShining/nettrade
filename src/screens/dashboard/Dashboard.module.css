@@ -14,27 +14,10 @@
    The full-height flex/grid scroll chain below is UNCHANGED from Phase 1 —
    only the skin changed (SCREEN_PATTERNS.md §2 viewport-lock law). */
 
-/* Baked, static paper-grain texture — a single low-opacity feTurbulence
-   data-URI, shared via custom property so every cream panel's ::before can
-   use it without duplicating the data-URI. Inert: no live filter, no
-   animation, pointer-events:none wherever it's used (anti-brick rule,
-   VISUAL_DIRECTION §3). Applied on .hero::before / .panel::before /
-   .railPanel::before below. */
+/* Baked static paper-grain + AA-safe P/L pigments (--paper-grain, --gain-ink,
+   --loss-ribbon) now live in tokens.css :root and inherit here — no per-screen
+   copy (was byte-identical across 9 modules; single source of truth). */
 .screen {
-  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/></svg>");
-  /* --gain (#5a8a5a) is a touch light for small text set directly on cream;
-     a slightly deeper green keeps AA contrast while staying restrained
-     (task spec: "if --gain is too light on cream, use a deeper green for
-     text"). Losses keep using the shared --loss token as-is. */
-  --gain-ink: #3f6f45;
-  /* --panel-red (#c0332b) under --paper (#ece2ce) text on the Top Losers
-     ribbon measures 4.36:1 — marginally short of the WCAG AA 4.5:1 floor
-     for normal-size text (ribbon label is 11px/600, not "large text").
-     A small local-only lightness trim (same hue/saturation) clears AA
-     (4.66:1) while staying visually indistinguishable from the shared
-     --panel-red token used elsewhere. */
-  --loss-ribbon: #b83129;
-
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -177,13 +160,15 @@
     align-items: flex-start;
   }
 
+  /* Below 1100px the hero stacks vertically, so the radar column would sit
+     UNDER heroLeft and (even pinned to 200px) push the Holdings table + status
+     bar past the overflow:hidden screen — violating the LOCKED viewport-lock
+     law (nothing is ever clipped). Drop it here to give .mainRow back its
+     flex:1 budget; Portfolio Shape stays reachable at >=1100px (horizontal
+     room) and its five axes remain in the visually-hidden data-mirror table
+     for assistive tech at every width. */
   .heroRadarCol {
-    width: 100%;
-    max-width: none;
-    padding-left: 0;
-    padding-top: var(--s4);
-    border-left: none;
-    border-top: 2px solid var(--paper-2);
+    display: none;
   }
 }
 
@@ -289,6 +274,13 @@
   background: #4a4f5c;
   border-color: #3a3f4c;
   color: #8b93a8;
+}
+
+/* House amber focus ring (mirrors Settings .keycap:focus-visible); the 2px
+   offset lifts it off the amber fill onto the cream panel where it reads. */
+.syncBtn:focus-visible {
+  outline: 2px solid var(--amber-deep);
+  outline-offset: 2px;
 }
 
 /* ---- Supporting micro-stats: a tight row in the hero aside, all derived
@@ -947,9 +939,14 @@
 }
 
 .radarCanvas {
-  flex: 1 1 auto;
+  /* Pinned to an explicit CSS box so the backing-store height attribute that
+     fitCanvas writes (rect.height x dpr) can NEVER feed back into layout — on
+     retina an auto-height canvas balloons the stacked hero past the
+     viewport-lock (LOCKED law: nothing is ever clipped). flex:0 0 auto +
+     fixed height means getBoundingClientRect().height is CSS-fixed. */
+  flex: 0 0 auto;
   width: 100%;
-  min-height: 160px;
+  height: 200px;
   display: block;
 }
 

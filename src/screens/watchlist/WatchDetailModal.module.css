@@ -33,9 +33,7 @@
 
 /* ---- Dialog: the mini-dossier, single column, capped small ---- */
 .dialog {
-  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/></svg>");
-  --gain-ink: #3f6f45;
-
+  /* --paper-grain / --gain-ink inherit from tokens.css :root. */
   width: 64vw;
   /* A MINI-dossier (VISUAL_DIRECTION §5): height fits its content so a short
      note never leaves a cream void below it (fill-space law, SCREEN_PATTERNS

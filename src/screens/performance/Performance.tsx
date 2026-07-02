@@ -201,7 +201,7 @@ function PerformanceView({
   return (
     <Chrome
       title="PERFORMANCE"
-      env="live"
+      env={import.meta.env.VITE_MOCK ? "demo" : "live"}
       accountLabel="DEFAULT"
       connection={connection}
       lastSyncISO={lastSync}
