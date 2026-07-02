@@ -135,6 +135,8 @@ export default function PositionDetailModal({ position, totalValue, onClose }: P
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
         onClose();
         return;
       }

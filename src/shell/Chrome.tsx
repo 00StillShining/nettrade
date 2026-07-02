@@ -1,19 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import styles from "./Chrome.module.css";
-
-/** INTERIM nav destinations — superseded by the Phase-3 Animus (AC-style)
- * WebGL menu. This flat NavLink row exists only so every screen is reachable
- * while the real 3D menu is built. */
-const NAV_ITEMS: { to: string; label: string }[] = [
-  { to: "/", label: "Dashboard" },
-  { to: "/positions", label: "Positions" },
-  { to: "/watchlist", label: "Watchlist" },
-  { to: "/performance", label: "Performance" },
-  { to: "/compare", label: "Compare" },
-  { to: "/journal", label: "Journal" },
-  { to: "/settings", label: "Settings" },
-];
 
 export type ConnectionState = "ok" | "error" | "loading" | "no-key";
 
@@ -91,6 +78,7 @@ export default function Chrome({
   children,
 }: ChromeProps) {
   const clockRef = useRef<HTMLSpanElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const tick = () => {
@@ -103,13 +91,54 @@ export default function Chrome({
     return () => window.clearInterval(id);
   }, []);
 
+  // RETURN-TO-ANIMUS: Esc surfaces the user back to the 3D menu from any screen
+  // (the consistent control the brief mandates — this Chrome wraps every
+  // screen, so wiring it here covers all seven). The visible affordance is the
+  // wordmark + "◄ ANIMUS" button below.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        // Yield to an already-consumed Esc (an open detail modal handles it
+        // first, on document, and marks it defaultPrevented) so dismissing a
+        // modal doesn't also yank the user out to the Animus menu.
+        if (e.defaultPrevented) return;
+        // Esc while typing (e.g. the Settings API-key field) means "cancel this
+        // edit", NOT "leave the screen" — blur the field and stay put, so an
+        // in-progress key entry is never discarded + the user ejected.
+        const t = e.target as HTMLElement | null;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) {
+          t.blur();
+          return;
+        }
+        e.preventDefault();
+        navigate("/");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navigate]);
+
+  const toAnimus = () => navigate("/");
+
   const conn = CONNECTION_COPY[connection];
 
   return (
     <div className={styles.chrome}>
       <div className={styles.topBar}>
         <div className={styles.wordmarkRow}>
-          <p className={styles.wordmark}>Actuality</p>
+          {/* RETURN-TO-ANIMUS affordance — the wordmark is a button back to the
+              3D menu ("/"); Esc does the same. Consistent on every screen. */}
+          <button
+            type="button"
+            className={styles.animusBtn}
+            onClick={toAnimus}
+            title="Return to the Animus menu (Esc)"
+          >
+            <span className={styles.animusArrow} aria-hidden="true">
+              &#9668;
+            </span>
+            <span className={styles.wordmark}>Actuality</span>
+          </button>
           <span className={styles.sdnTag}>&middot;SDN</span>
           <span className={styles.sdnTag}>{title}</span>
         </div>
@@ -143,23 +172,6 @@ export default function Chrome({
           </span>
         </div>
       </div>
-
-      {/* INTERIM nav — superseded by the Phase-3 Animus (AC-style) WebGL menu.
-          A flat, compact react-router NavLink row so every screen is
-          reachable; does not affect the viewport-lock height chain below
-          (it's its own flex:0 0 auto row, same as topBar/statusBar). */}
-      <nav className={styles.nav} aria-label="Screens">
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === "/"}
-            className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`}
-          >
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
 
       <div className={styles.chromeBody}>{children}</div>
 

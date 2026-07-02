@@ -1,0 +1,74 @@
+/* Dive wipe — a diagonal bone/red band sweeping L→R ("deeper", §4). Animates
+   ONLY clip-path + transform + opacity. z-index above the labels/HUD and above
+   the CRT's z-index-10 slot — safe only because BakedCrt is unmounted/suspended
+   for the whole time this node exists, so nothing ever stacks with it: this is
+   the single full-screen effect on screen during a dive. */
+.wipe {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    rgba(232, 230, 226, 0) 0%,
+    rgba(232, 230, 226, 0.94) 36%,
+    rgba(176, 31, 31, 0.97) 52%,
+    rgba(232, 230, 226, 0.94) 68%,
+    rgba(232, 230, 226, 0) 100%
+  );
+  clip-path: inset(0 100% 0 0);
+  animation: dive-sweep 560ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  transform-origin: left center;
+}
+
+/* Solid --animus-field backing so the "cover moment" fully hides the route swap
+   (the gradient is transparent at its 0%/100% stops, so on its own the corners
+   would show the swap). WIDE opaque hold — fully covered from 35% through 72%
+   around the ~55% nav point — so a slow WKWebView frame that delays this
+   animation's start can't land the route swap before the cover is opaque (the
+   nav timer is scheduled in parallel; the wide hold is the slack that absorbs
+   drift). Still animating opacity only (anti-brick #4). */
+.wipe::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--animus-field);
+  opacity: 0;
+  animation: dive-cover 560ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+@keyframes dive-cover {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes dive-sweep {
+  0% {
+    clip-path: inset(0 100% 0 0);
+    transform: scale(1.02);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  55% {
+    clip-path: inset(0 0 0 0);
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    clip-path: inset(0 0 0 100%);
+    transform: scale(0.99);
+    opacity: 0;
+  }
+}

@@ -58,6 +58,8 @@ export default function WatchDetailModal({ item, onClose }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
         onClose();
         return;
       }

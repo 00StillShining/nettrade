@@ -1,0 +1,128 @@
+/* AnimusMenu — transparent HUD over the persistent canvas. The root does NOT
+   capture pointer events (so clicks fall through to the canvas raycaster);
+   only the CRT-safe HUD chrome paints. No opaque background — the pale
+   --animus-field void comes from the WebGL scene behind this. */
+
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 4; /* above canvas (0) + labels (5 is above; labels are their own layer) */
+  pointer-events: none;
+}
+
+/* ---- Top-left wordmark HUD ---- */
+.hud {
+  position: absolute;
+  top: 26px;
+  left: 30px;
+}
+
+.wordmarkRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.diamond {
+  color: var(--animus-red);
+  font-size: 12px;
+  align-self: center;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #2b241c; /* warm ink on the pale void */
+}
+
+.animusTag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: rgba(43, 36, 28, 0.55);
+  border: 1px solid rgba(43, 36, 28, 0.25);
+  border-radius: 2px;
+  padding: 2px 7px;
+}
+
+/* ---- Selected-destination banner (the big answer: what you'd dive into) ---- */
+.selectedBanner {
+  position: absolute;
+  left: 30px;
+  bottom: 92px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.selectedName {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(40px, 7vw, 92px);
+  line-height: 0.92;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--animus-red); /* the ONE colour marks the live selection */
+}
+
+.selectedIndex {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: rgba(43, 36, 28, 0.6);
+}
+
+/* ---- Bottom key-prompt strip (obviously operable) ---- */
+.prompts {
+  position: absolute;
+  left: 30px;
+  bottom: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: rgba(43, 36, 28, 0.7);
+}
+
+.prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.promptSep {
+  color: rgba(43, 36, 28, 0.35);
+}
+
+/* Keycap — beveled, reads pressable (the SDN keycap language), display-only. */
+.key {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  color: #2b241c;
+  background: rgba(220, 218, 212, 0.85);
+  border: 1px solid rgba(43, 36, 28, 0.35);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 3px 6px;
+  min-width: 16px;
+  text-align: center;
+}
+
+/* Visually-hidden live region (assistive tech only). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
