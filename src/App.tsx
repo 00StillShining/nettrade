@@ -6,6 +6,7 @@ import BakedCrt from "./shell/BakedCrt";
 import Dashboard from "./screens/dashboard/Dashboard";
 import Positions from "./screens/positions/Positions";
 import Watchlist from "./screens/watchlist/Watchlist";
+import Performance from "./screens/performance/Performance";
 import Placeholder from "./screens/Placeholder";
 
 /**
@@ -13,9 +14,10 @@ import Placeholder from "./screens/Placeholder";
  * (static, inert) CRT overlay sits on top. No live filters, no
  * backdrop-filter, no WebGL yet (that's Phase 3 for the Animus menu).
  *
- * Dashboard, Positions and Watchlist are real screens; the remaining three data
- * screens (Performance, Compare, Journal) plus Settings render the shared
- * cream-paper Placeholder until they're built. Everything else redirects home.
+ * Dashboard, Positions, Watchlist and Performance are real screens; the
+ * remaining two data screens (Compare, Journal) plus Settings render the
+ * shared cream-paper Placeholder until they're built. Everything else
+ * redirects home.
  */
 export default function App() {
   return (
@@ -25,7 +27,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/positions" element={<Positions />} />
           <Route path="/watchlist" element={<Watchlist />} />
-          <Route path="/performance" element={<Placeholder name="Performance" />} />
+          <Route path="/performance" element={<Performance />} />
           <Route path="/compare" element={<Placeholder name="Compare" />} />
           <Route path="/journal" element={<Placeholder name="Journal" />} />
           <Route path="/settings" element={<Placeholder name="Settings" />} />

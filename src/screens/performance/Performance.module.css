@@ -1,0 +1,563 @@
+/* Performance — the SDN "dossier" screen on the dark CRT frame
+   (VISUAL_DIRECTION.md §5 "Performance": a large cream panel with a
+   painterly equity-curve splash LEFT + bold-label/plain-value dossier pairs
+   RIGHT; SCREEN_PATTERNS.md §7 the LOCKED cream-paper recipe). Answers ONE
+   question: "am I ACTUALLY up, once you separate what I deposited from what
+   I earned?" One hero (True Gain + Return %) + one dossier row (chart +
+   rail), viewport-locked exactly like Positions/Dashboard — the chart
+   scrolls nothing internally (it's a fixed splash), the rail scrolls if it
+   ever overflows a very short window.
+
+   Every panel: cream `--paper` fill + baked static paper-grain (inert SVG
+   data-URI, no live filter) + ~2.5-3px solid `--ink` outline + solid-colour
+   header ribbon. Panels never touch the bezel — the `.screen` gutters keep
+   dark deadspace framing them. */
+
+.screen {
+  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/></svg>");
+  --gain-ink: #3f6f45;
+  --loss-ribbon: #b83129;
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s4);
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: var(--s3) var(--s4) var(--s4);
+  /* Viewport-locked: fill the chrome body, never grow past it
+     (SCREEN_PATTERNS §2). */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* ============================== HERO — the honest answer ============================== */
+
+.hero {
+  flex: 0 0 auto;
+  width: 100%;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 7px;
+  padding: var(--s5) var(--s6);
+  padding-top: calc(var(--s4) + 30px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+.heroRibbon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: var(--amber);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s5);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.heroTop {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s7);
+  flex-wrap: wrap;
+}
+
+.heroMain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.heroLabel {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+}
+
+.heroValue {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: clamp(32px, 4.4vw, 52px);
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+.heroValueSm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: clamp(22px, 2.6vw, 30px);
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.heroTri {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+.heroTriSm {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.heroSubLabel {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  opacity: 0.8;
+}
+
+.heroNote {
+  position: relative;
+  z-index: 1;
+  max-width: 78ch;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-body);
+}
+
+/* ============================== STATES ============================== */
+
+.stateNote {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--loss);
+  background: rgba(192, 51, 43, 0.08);
+  border: 1px solid rgba(192, 51, 43, 0.25);
+  border-radius: 4px;
+  padding: var(--s3) var(--s4);
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+.pendingNote {
+  flex: 0 0 auto;
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-body);
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink-line);
+  border-radius: 6px;
+  padding: var(--s3) var(--s4);
+}
+
+.pendingNote strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.emptyState {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--s6) var(--s5);
+  text-align: center;
+  font-family: var(--font-body);
+  color: #9aa1b4;
+  border: 1px dashed var(--ink-line);
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+
+.emptyTitle {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--animus-field);
+  margin-bottom: var(--s2);
+}
+
+.skeletonBar {
+  border-radius: 3px;
+  background: var(--paper-2);
+}
+
+/* ============================== MAIN DOSSIER ROW ============================== */
+/* 2-col: the equity-curve splash panel (main, flexible) + the dossier rail
+   (fixed ~360px). Collapses to one column under ~1100px (SCREEN_PATTERNS
+   §1/§2 — same breakpoint discipline as Dashboard/Positions). */
+
+.mainRow {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--s4);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+@media (max-width: 1100px) {
+  .mainRow {
+    grid-template-columns: minmax(0, 1fr);
+    /* Single column now stacks the chart panel + rail as TWO row tracks —
+       the single-row minmax(0,1fr) above only bounds one track, so without
+       an explicit second track the chart panel collapses to its content
+       height (6px) and the rail's auto row eats the rest. Give the chart a
+       fair fixed share and let the rail's own overflow-y:auto absorb
+       whatever remains (same "flexible panel with a floor" pattern as
+       Dashboard's .railFlex, SCREEN_PATTERNS §7d). */
+    grid-template-rows: minmax(220px, 1fr) minmax(0, 1fr);
+  }
+
+  .rail {
+    min-height: 0;
+  }
+}
+
+/* ---- LEFT: equity curve splash panel ---- */
+
+.chartPanel {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.chartPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+.chartHead {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) var(--s4);
+  /* Teal ribbon — the main-panel colour (same family as Dashboard/Positions'
+     main-panel head), distinct from the amber hero. */
+  background: var(--teal);
+  position: relative;
+  z-index: 1;
+  flex-wrap: wrap;
+}
+
+.chartTitle {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink);
+}
+
+.legendSwatchLime {
+  width: 12px;
+  height: 3px;
+  background: var(--lime);
+  flex: 0 0 auto;
+}
+
+.legendSwatchPurple {
+  width: 12px;
+  height: 0;
+  border-top: 2px dashed var(--purple);
+  flex: 0 0 auto;
+}
+
+.chartBody {
+  flex: 1 1 auto;
+  min-height: 160px;
+  position: relative;
+  z-index: 1;
+  padding: var(--s3) var(--s2) 0;
+}
+
+.chartFoot {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
+  padding: var(--s2) var(--s4) var(--s4);
+  display: flex;
+  justify-content: center;
+}
+
+/* ---- Period selector: beveled keycap-style buttons, active = amber ---- */
+
+.periodRow {
+  display: flex;
+  gap: 6px;
+}
+
+.periodBtn {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  /* Skeuomorphic keycap bevel — a hard offset shadow, never a soft blur
+     (anti-brick: box-shadow blur radius must stay 0). */
+  box-shadow: 2px 2px 0 var(--ink);
+  transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.periodBtn:hover {
+  background: #e8dcc0;
+}
+
+.periodBtn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.periodBtnActive,
+.periodBtnActive:hover {
+  background: var(--amber);
+  color: var(--ink);
+}
+
+/* ---- RIGHT: dossier rail ---- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.railPanel {
+  flex: 0 0 auto;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  padding: var(--s3) var(--s4);
+  position: relative;
+  overflow: hidden;
+}
+
+.railHero {
+  border-color: var(--amber-deep);
+}
+
+.railHead {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  margin-bottom: var(--s2);
+  padding-bottom: 6px;
+  border-bottom: 1.5px solid var(--paper-2);
+}
+
+/* ---- Dossier row: bold label / plain (mono) value pair ---- */
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: 5px 0;
+}
+
+.row + .row {
+  border-top: 1px solid rgba(43, 36, 28, 0.08);
+}
+
+.rowLabel {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  white-space: nowrap;
+}
+
+.rowValueCol {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rowValue {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.rowTri {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+}
+
+.rowSub {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--ink-body);
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* When .rowSub carries its own gain/loss tone (Best/Worst Holding — the sub
+   line IS the signed P/L figure, not the ticker in .rowValue), read at full
+   opacity so the colour+triangle signal isn't muted like the plain sub-label
+   case above. */
+.rowSub.gain,
+.rowSub.loss {
+  opacity: 1;
+  font-weight: 700;
+}
+
+/* Missing figure -> em-dash + grey "metric to confirm" note (never a
+   fabricated number — honest-data rule, CHART_CRAFT §9). */
+.confirmTag {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-style: italic;
+  color: #8b8272;
+}
+
+.emdash {
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 14px;
+  color: #8b8272;
+}
+
+/* ---- Gain / loss (shared) ---- */
+
+.gain {
+  color: var(--gain-ink);
+}
+
+.loss {
+  color: var(--loss);
+}
+
+/* ---- Reconciliation note ---- */
+
+.reconPanel {
+  flex: 0 0 auto;
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink-line);
+  border-radius: 6px;
+  padding: var(--s3) var(--s4);
+}
+
+.reconTitle {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  margin-bottom: 6px;
+}
+
+.reconNote {
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ink-body);
+}
+
+@media (max-width: 720px) {
+  .heroTop {
+    gap: var(--s5);
+  }
+}
