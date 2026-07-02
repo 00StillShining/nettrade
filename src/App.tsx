@@ -7,17 +7,17 @@ import Dashboard from "./screens/dashboard/Dashboard";
 import Positions from "./screens/positions/Positions";
 import Watchlist from "./screens/watchlist/Watchlist";
 import Performance from "./screens/performance/Performance";
-import Placeholder from "./screens/Placeholder";
+import Compare from "./screens/compare/Compare";
+import Journal from "./screens/journal/Journal";
+import Settings from "./screens/settings/Settings";
 
 /**
  * App — Phase-2 shell. Dark cinematic Frame holds the routed screen; a baked
  * (static, inert) CRT overlay sits on top. No live filters, no
  * backdrop-filter, no WebGL yet (that's Phase 3 for the Animus menu).
  *
- * Dashboard, Positions, Watchlist and Performance are real screens; the
- * remaining two data screens (Compare, Journal) plus Settings render the
- * shared cream-paper Placeholder until they're built. Everything else
- * redirects home.
+ * All seven screens — Dashboard, Positions, Watchlist, Performance, Compare,
+ * Journal and Settings — are real now. Everything else redirects home.
  */
 export default function App() {
   return (
@@ -28,9 +28,9 @@ export default function App() {
           <Route path="/positions" element={<Positions />} />
           <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/performance" element={<Performance />} />
-          <Route path="/compare" element={<Placeholder name="Compare" />} />
-          <Route path="/journal" element={<Placeholder name="Journal" />} />
-          <Route path="/settings" element={<Placeholder name="Settings" />} />
+          <Route path="/compare" element={<Compare />} />
+          <Route path="/journal" element={<Journal />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Frame>

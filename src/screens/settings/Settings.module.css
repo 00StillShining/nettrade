@@ -1,0 +1,600 @@
+/* Settings — the SDN "control-panel dossier" on the dark CRT frame
+   (VISUAL_DIRECTION.md §5 "Settings": labelled rows, beveled keycap
+   toggles/buttons, an amber primary action, the API key framed as slotting a
+   credential into the device; SCREEN_PATTERNS.md §7 the LOCKED cream-paper
+   recipe). Answers ONE question: "how does Actuality connect and behave, and
+   how do I change it?" One calm hero band (the purpose) + a grid of grouped
+   control panels, viewport-locked exactly like Positions/Performance — the
+   groups region scrolls internally on a short window; the hero + chrome bars
+   stay anchored, nothing is ever clipped.
+
+   Every panel: cream `--paper` fill + baked static paper-grain (inert SVG
+   data-URI, no live filter — anti-brick) + ~3px solid `--ink` outline +
+   solid-colour header ribbon. Panels never touch the bezel — the `.screen`
+   gutters keep dark deadspace framing them. */
+
+.screen {
+  /* Shared inert paper-grain data-URI (copied from the sibling recipe so
+     panels don't each duplicate it — SCREEN_PATTERNS §7). STATIC only. */
+  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/></svg>");
+  /* Deeper amber for keycap bevels/hover so pressable affordances read on
+     cream without a soft blur (defined locally per the parallel-sprint rule —
+     do NOT touch tokens.css; --amber-deep already exists globally and is used
+     for the primary action). */
+  --keycap-shadow: var(--ink);
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s4);
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: var(--s3) var(--s4) var(--s4);
+  /* Viewport-locked: fill the chrome body, never grow past it
+     (SCREEN_PATTERNS §2). */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* ============================== HERO — the one purpose ============================== */
+
+.hero {
+  flex: 0 0 auto;
+  width: 100%;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 7px;
+  padding: var(--s4) var(--s6) var(--s5);
+  padding-top: calc(var(--s3) + 30px);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+.heroRibbon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: var(--amber);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s5);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* Scope pill — mirrors Performance's ribbon scope; here it names that these
+   controls are LOCAL this sprint (persistence deferred). Keycap language. */
+.heroScope {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  padding: 1px 8px;
+}
+
+.heroTop {
+  position: relative;
+  z-index: 1;
+}
+
+.heroLabel {
+  font-family: var(--font-display);
+  font-size: clamp(16px, 2vw, 22px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.heroNote {
+  margin-top: var(--s2);
+  max-width: 82ch;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-body);
+}
+
+/* ============================== CONTROL GROUPS ============================== */
+/* A 2-col grid of grouped control panels that fills the working width and
+   absorbs the remaining height; the region scrolls internally on a short
+   window so no panel is ever clipped (SCREEN_PATTERNS §1/§2). Collapses to
+   one column under ~1000px. */
+
+.groups {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Let the rows absorb leftover height on tall/full-screen windows instead of
+     leaving a dark deadspace band under the panels (fill-space law §1). */
+  grid-auto-rows: auto;
+  align-content: stretch;
+  gap: var(--s4);
+  padding-right: 2px; /* room for the scrollbar so outlines aren't clipped */
+}
+
+@media (max-width: 1000px) {
+  .groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- Panel (the shared cream card) ---- */
+
+.panel {
+  min-width: 0;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--paper-grain);
+  background-repeat: repeat;
+  background-size: 160px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+.panelHead {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
+  padding: var(--s2) var(--s4);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+/* Ribbon palette per SCREEN_PATTERNS §7a — amber for the hero/primary
+   credential panel (ties to its amber SAVE action), teal for the secondary
+   "SDN terminal" utility panels (Account/Sync/Display). Both take --ink text
+   (AA on these light-ish grounds). */
+.headAmber {
+  background: var(--amber);
+}
+
+.headTeal {
+  background: var(--teal);
+}
+
+.panelBody {
+  position: relative;
+  z-index: 1;
+  padding: var(--s3) var(--s4) var(--s4);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: var(--s2);
+  /* Stretch to fill a taller row so the shorter panel of each pair distributes
+     honestly (fill-space law §1); its groupNote is pushed to the bottom. */
+  flex: 1 1 auto;
+}
+
+/* ---- Labelled control row ---- */
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s2) 0;
+}
+
+.row + .row {
+  border-top: 1px solid rgba(43, 36, 28, 0.1);
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowLabel {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.rowHint {
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--ink-body);
+  opacity: 0.85;
+}
+
+.rowControl {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.groupNote {
+  /* Pushed to the bottom of a stretched panel so the leftover height sits
+     between the controls and the note, not as dead space below the note. */
+  margin-top: auto;
+  padding-top: var(--s2);
+  border-top: 1px solid rgba(43, 36, 28, 0.08);
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-style: italic;
+  line-height: 1.45;
+  color: #8b8272;
+}
+
+/* ---- Plain readouts (mono) ---- */
+
+.readout {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.modePill {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  padding: 3px 12px;
+  border-radius: 3px;
+  border: 1.5px solid var(--ink);
+}
+
+.modeDemo {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.modeLive {
+  background: var(--amber);
+  color: var(--ink);
+}
+
+/* ============================== KEYCAPS (the beveled control language) ============================== */
+/* The "LSHIFT/ENTER" keycap grammar (VISUAL_DIRECTION §5): a hard-offset
+   bevel shadow (blur radius 0 — anti-brick), presses down on :active,
+   active/selected = amber. Mirrors Performance's .periodBtn exactly so the
+   pressable vocabulary is consistent across screens. */
+
+.keycapRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.keycap {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  /* Hard-offset keycap bevel — NEVER a soft blur (anti-brick: blur radius 0).
+     Animate only transform/box-shadow-offset on press. */
+  box-shadow: 2px 2px 0 var(--keycap-shadow);
+  transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.keycap:hover {
+  background: #e8dcc0;
+}
+
+.keycap:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--keycap-shadow);
+}
+
+.keycap:focus-visible {
+  outline: 2px solid var(--amber-deep);
+  outline-offset: 2px;
+}
+
+.keycapActive,
+.keycapActive:hover {
+  background: var(--amber);
+  color: var(--ink);
+}
+
+/* Toggle variant — a fixed-width keycap so ON/OFF don't jitter the layout. */
+.keycapToggle {
+  min-width: 54px;
+  text-align: center;
+}
+
+/* ============================== CREDENTIAL SLOT ============================== */
+/* The API key framed as SEATING a credential card into the device
+   (VISUAL_DIRECTION §5): a slot rail + a masked field, with an honest status
+   chip and the amber SAVE/RECONNECT primary action. */
+
+.slot {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s3);
+  background: var(--paper-2);
+  border: 1.5px solid var(--ink);
+  border-radius: 5px;
+  padding: var(--s2) var(--s3);
+  /* Recessed look — inner hard-offset shadow (blur 0) so the card reads as
+     sitting in a slot, not floating. */
+  box-shadow: inset 2px 2px 0 rgba(43, 36, 28, 0.14);
+}
+
+/* The physical slot lip on the left of the field. */
+.slotRail {
+  flex: 0 0 6px;
+  align-self: stretch;
+  background: repeating-linear-gradient(
+    180deg,
+    var(--ink) 0,
+    var(--ink) 3px,
+    transparent 3px,
+    transparent 6px
+  );
+  border-radius: 2px;
+  opacity: 0.55;
+}
+
+.slotField {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.slotLabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  opacity: 0.8;
+}
+
+.keyInput {
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid var(--ink);
+  padding: 3px 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  color: var(--ink);
+  caret-color: var(--amber-deep);
+}
+
+.keyInput::placeholder {
+  color: var(--ink-body);
+  opacity: 0.5;
+  letter-spacing: 0.04em;
+}
+
+.keyInput:focus {
+  outline: none;
+  border-bottom-color: var(--amber-deep);
+}
+
+/* While the resting mask overlay is showing, hide the input's OWN password
+   bullets so a long real key doesn't spill past the mask's right edge (the
+   overlay carries the whole display). Caret/focus is unchanged since focus
+   flips `revealed` back to the plain field. */
+.keyInputMasked {
+  color: transparent;
+}
+
+/* Resting masked shape, overlaid when the field isn't focused — reads as a
+   seated card without exposing the secret. pointer-events:none so a click
+   still lands in the real input beneath. */
+.keyMask {
+  position: absolute;
+  left: 0;
+  bottom: 3px;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.24em;
+  color: var(--ink);
+  background: var(--paper-2);
+  padding-right: 6px;
+}
+
+/* ---- Honest status chip + note ---- */
+
+.slotStatusRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 3px;
+  border: 1.5px solid var(--ink);
+}
+
+.statusDot {
+  font-size: 9px;
+  line-height: 1;
+}
+
+/* Staged/seated-local = amber (an action pending real wiring, NOT a verified
+   green "connected" — honest-data rule). Empty = neutral tan. There is
+   deliberately NO green "connected" state here: verifying a real connection
+   needs the deferred Keychain read + API probe. */
+.statusStaged {
+  background: var(--amber);
+  color: var(--ink);
+}
+
+.statusEmpty {
+  background: var(--paper);
+  color: var(--ink-body);
+}
+
+.keychainNote {
+  flex: 1 1 12ch;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-style: italic;
+  line-height: 1.4;
+  color: #8b8272;
+}
+
+/* ---- Actions ---- */
+
+.slotActions {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s1);
+}
+
+/* Honest hint beside a disabled RECONNECT — the re-probe is deferred wiring,
+   not a broken button. Italic body, quiet, same tone as the group notes. */
+.actionHint {
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-style: italic;
+  line-height: 1.4;
+  color: #8b8272;
+}
+
+/* Amber PRIMARY action — the one accent/primary-action colour (§ cream
+   recipe). Keycap bevel, presses down on :active. */
+.primaryBtn {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--amber);
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  padding: var(--s2) var(--s5);
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--keycap-shadow);
+  transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: var(--amber-deep);
+}
+
+.primaryBtn:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--keycap-shadow);
+}
+
+.primaryBtn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.ghostBtn {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  background: transparent;
+  border: 1.5px solid var(--ink-body);
+  border-radius: 4px;
+  padding: var(--s2) var(--s4);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.ghostBtn:hover:not(:disabled) {
+  background: rgba(43, 36, 28, 0.08);
+}
+
+.primaryBtn:disabled,
+.ghostBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+@media (max-width: 720px) {
+  .keycapRow {
+    justify-content: flex-start;
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s2);
+  }
+
+  .rowControl {
+    align-self: flex-start;
+  }
+}
