@@ -36,7 +36,8 @@ import { usePositions } from "./usePositions";
 import type { Position } from "../adapters/trading212";
 import { computeTruth } from "../engine/truth";
 import { netDepositsSeries, realisedSeries, valueSeries, filterByPeriod } from "../engine/series";
-import type { CashEvent, EquitySnapshot, PerformanceTruth, Period, SeriesBundle, Trade } from "../engine/types";
+import { computePeriodTruth } from "../engine/period";
+import type { CashEvent, EquitySnapshot, PerformanceTruth, Period, PeriodTruth, SeriesBundle, Trade } from "../engine/types";
 import { MOCK_CASH_EVENTS, MOCK_TRADES, MOCK_SNAPSHOTS } from "../data/mockPerformance";
 import { MOCK_POSITIONS } from "../data/mockPositions";
 
@@ -51,6 +52,11 @@ export type PerformanceStatus = "idle" | "loading" | "ok" | "no-key" | "error" |
 
 export interface UsePerformanceResult {
   truth: PerformanceTruth | null;
+  /** Period-aware truth for the active `period` — the two-lens
+   * (component/snapshot) figure described in PeriodTruth's doc comment
+   * (types.ts). Null exactly when `truth` is null (mock path: never; live
+   * path: honestly pending like `truth` is today, see `historyPending`). */
+  periodTruth: PeriodTruth | null;
   series: SeriesBundle;
   status: PerformanceStatus;
   error: string | null;
@@ -66,7 +72,10 @@ export interface UsePerformanceResult {
 
 /** Shared composition: engine calls only, no I/O. Exposed separately so the
  * mock/live hooks below both drive it from their own cashEvents/trades/
- * snapshots/positions without duplicating the computeTruth + series wiring. */
+ * snapshots/positions without duplicating the computeTruth + series wiring.
+ * Computes `periodTruth` ALONGSIDE the existing all-time `truth` — both are
+ * derived from the same inputs/asOfISO, neither replaces the other (see
+ * PeriodTruth's doc comment on why the two must stay distinct). */
 function buildPerformance(
   cashEvents: CashEvent[],
   trades: Trade[],
@@ -75,8 +84,9 @@ function buildPerformance(
   asOfISO: string,
   currency: string,
   period: Period,
-): { truth: PerformanceTruth; series: SeriesBundle } {
+): { truth: PerformanceTruth; periodTruth: PeriodTruth; series: SeriesBundle } {
   const truth = computeTruth(cashEvents, trades, positions, asOfISO, currency);
+  const periodTruth = computePeriodTruth(cashEvents, trades, positions, snapshots, period, asOfISO, currency);
   const fullSeries: SeriesBundle = {
     netDeposits: netDepositsSeries(cashEvents, asOfISO),
     realised: realisedSeries(trades, asOfISO),
@@ -84,6 +94,7 @@ function buildPerformance(
   };
   return {
     truth,
+    periodTruth,
     series: {
       netDeposits: filterByPeriod(fullSeries.netDeposits, period, asOfISO),
       realised: filterByPeriod(fullSeries.realised, period, asOfISO),
@@ -99,7 +110,7 @@ export function useMockPerformance(): UsePerformanceResult {
   const [period, setPeriod] = useState<Period>("ALL");
   const [lastSync] = useState(() => new Date(Date.now() - 90_000).toISOString());
 
-  const { truth, series } = useMemo(
+  const { truth, periodTruth, series } = useMemo(
     () =>
       buildPerformance(
         MOCK_CASH_EVENTS,
@@ -115,6 +126,7 @@ export function useMockPerformance(): UsePerformanceResult {
 
   return {
     truth,
+    periodTruth,
     series,
     status: "ok",
     error: null,
@@ -143,7 +155,7 @@ export function useLivePerformance(): UsePerformanceResult {
 
   const currency = positions[0]?.accountCurrency ?? "GBP";
 
-  const { truth, series } = useMemo(() => {
+  const { truth, periodTruth, series } = useMemo(() => {
     const asOfISO = new Date().toISOString();
     return buildPerformance([], [], positions, [], asOfISO, currency, period);
   }, [positions, currency, period]);
@@ -159,6 +171,7 @@ export function useLivePerformance(): UsePerformanceResult {
 
   return {
     truth,
+    periodTruth,
     series,
     status,
     error,

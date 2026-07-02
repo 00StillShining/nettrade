@@ -80,6 +80,23 @@
   text-transform: uppercase;
 }
 
+/* Scope tag on the ribbon — names the headline's time window ("All-time")
+   so the True Gain is never mistaken for a period figure (e.g. a broker's
+   YTD number — a real confusion the user hit). Paper pill on the amber
+   ribbon, keycap language. */
+.heroScope {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
+  border-radius: 3px;
+  padding: 1px 8px;
+}
+
 .heroTop {
   position: relative;
   z-index: 1;
@@ -355,7 +372,22 @@
 
 .periodRow {
   display: flex;
+  align-items: center;
   gap: 6px;
+}
+
+/* Tiny label so the keycaps read as scoping the window — they now scope
+   BOTH the headline figure AND the chart's date range together (the hero
+   ribbon's scope pill mirrors the active window). */
+.periodLabel {
+  margin-right: var(--s2);
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-body);
+  opacity: 0.85;
 }
 
 .periodBtn {
@@ -413,6 +445,34 @@
 
 .railHero {
   border-color: var(--amber-deep);
+}
+
+/* THIS PERIOD panel — the windowed component lens. A teal accent (same
+   family as the chart panel's teal head) marks it as the period-scoped
+   reading, visually distinct from both the neutral all-time "Truth
+   Components" panel and the amber-deep "Honest Answer" hero panel, so the
+   two lenses never read as one merged figure. */
+.railPeriod {
+  border-color: var(--teal);
+}
+
+.railPeriod .railHead {
+  color: var(--ink);
+  border-bottom-color: var(--teal);
+}
+
+/* Small honesty caption pinned under the windowed rows — spells out that
+   these banked pieces are NOT summed into the hero's holdings-growth
+   figure (the two-lens rule made visible). */
+.railPeriodNote {
+  margin-top: var(--s2);
+  padding-top: 6px;
+  border-top: 1px solid rgba(43, 36, 28, 0.08);
+  font-family: var(--font-body);
+  font-size: 9.5px;
+  font-style: italic;
+  line-height: 1.45;
+  color: #8b8272;
 }
 
 .railHead {

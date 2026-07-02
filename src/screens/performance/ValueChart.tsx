@@ -248,10 +248,10 @@ function drawChart(
     ctx.globalAlpha = 1;
   }
 
-  // ---- The value series, honestly (SPARSE-aware): draw each contiguous run
-  // of real observed points as its own polyline — a gap between two dated
-  // points with nothing between them is never bridged with a fabricated
-  // line (series.ts's no-fabrication rule extends to the draw layer too).
+  // ---- The value series, honestly (SPARSE-aware): consecutive REAL
+  // observations are connected; null slots exist only where the OTHER series
+  // has a point, so no unobserved value is ever invented between two missing
+  // snapshots (series.ts's no-fabrication rule extends to the draw layer too).
   const valuePoints = points.filter((p) => p.valueMinor !== null);
   const progressCount = Math.max(0, Math.round(valuePoints.length * progress));
   const visibleValuePoints = valuePoints.slice(0, progressCount === 0 && progress > 0 ? 1 : progressCount);
@@ -377,7 +377,7 @@ function ariaSummaryFrom(stats: ValueChartStats, points: PlotPoint[], currency: 
     stats.trueGainPct === null
       ? ""
       : ` (${stats.trueGainPct >= 0 ? "+" : "−"}${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(Math.abs(stats.trueGainPct * 100))}%)`;
-  return `Portfolio value ${money(stats.currentValueMinor)}, ${gainWord}${pctWord} versus ${money(stats.netContributionsMinor)} net deposits over ${n} recorded point${n === 1 ? "" : "s"}.`;
+  return `Portfolio value ${money(stats.currentValueMinor)}, ${gainWord}${pctWord} all-time versus ${money(stats.netContributionsMinor)} net deposits; ${n} recorded point${n === 1 ? "" : "s"} in the selected window.`;
 }
 
 function useReducedMotion(): boolean {
@@ -455,6 +455,18 @@ export function ValueChart({
     if (!canvas || effectiveState !== "ready") return;
     drawChart(canvas, points, progress, depositsProgress, scrubIndex, currency);
 
+    // Re-draw once webfonts land (CHART_CRAFT §4: draw only after
+    // document.fonts.ready). The animated entrance self-heals via its rAF
+    // redraws, but the prefers-reduced-motion path draws exactly ONCE — a
+    // first paint before Space Mono loads would otherwise leave the axis/£
+    // labels permanently in the fallback monospace.
+    let cancelled = false;
+    void document.fonts.ready.then(() => {
+      if (!cancelled && canvasRef.current) {
+        drawChart(canvasRef.current, points, progress, depositsProgress, scrubIndex, currency);
+      }
+    });
+
     let raf = 0;
     const onResize = () => {
       cancelAnimationFrame(raf);
@@ -464,6 +476,7 @@ export function ValueChart({
     };
     window.addEventListener("resize", onResize);
     return () => {
+      cancelled = true;
       window.removeEventListener("resize", onResize);
       cancelAnimationFrame(raf);
     };

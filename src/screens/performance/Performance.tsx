@@ -10,23 +10,31 @@ import s from "./Performance.module.css";
  * Performance — the SDN "dossier" screen (VISUAL_DIRECTION.md §5
  * "Performance"; SCREEN_PATTERNS.md §7 the locked cream recipe). Function
  * first (actuality-ui skill §1): answers ONE question — "am I ACTUALLY up,
- * once you separate what I DEPOSITED from what I EARNED?" The naive
- * "current value minus net deposits" reading is misleading (it ignores
- * dividends taken out, realised gains banked, idle cash); the HONEST answer
- * is computeTruth's component sum. This screen leads with that honest
- * answer, then shows every component it's built from — never hiding the gap
- * between the naive and honest readings.
+ * once you separate what I DEPOSITED from what I EARNED?" — now PERIOD-AWARE:
+ * the same question, answered honestly for whichever window (YTD/1M/3M/6M/1Y/
+ * ALL) the user has selected, so it can be compared against the broker's own
+ * period figure (e.g. Trading 212's "+£59.90 YTD") instead of only ever
+ * showing an all-time number that reads as a mismatch.
  *
- * Wired to the Performance-Truth ENGINE (src/engine/**, untouched, 36 tests
- * passing) via usePerformance — this screen owns no truth/series maths of
- * its own, only formatting + layout.
+ * Wired to the Performance-Truth ENGINE (src/engine/**, untouched maths,
+ * now period.ts too — see PeriodTruth's doc comment in engine/types.ts for
+ * the two-lens model) via usePerformance — this screen owns no truth/series
+ * maths of its own, only formatting + layout.
  */
 
 const PERIODS: Period[] = ["1M", "3M", "6M", "YTD", "1Y", "ALL"];
 
+/** DD MMM from an ISO date string, for the snapshot-anchor sub-line. */
+function fmtDayMonth(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" }).format(d);
+}
+
 function PeriodSelector({ period, onChange }: { period: Period; onChange: (p: Period) => void }) {
   return (
-    <div className={s.periodRow} role="group" aria-label="Chart period">
+    <div className={s.periodRow} role="group" aria-label="Performance window">
+      <span className={s.periodLabel}>Window</span>
       {PERIODS.map((p) => (
         <button
           key={p}
@@ -94,12 +102,52 @@ function DossierRow({
   );
 }
 
-function PerformanceView({ truth, series, status, error, lastSync, period, setPeriod, refresh, historyPending }: UsePerformanceResult) {
+function PerformanceView({
+  truth,
+  periodTruth,
+  series,
+  status,
+  error,
+  lastSync,
+  period,
+  setPeriod,
+  refresh,
+  historyPending,
+}: UsePerformanceResult) {
   const currency = truth?.currency ?? "GBP";
+  const isAllTime = period === "ALL";
 
   const trueGainMinor = truth?.totalGainMinor ?? null;
   const trueGainZero = trueGainMinor === 0;
   const trueGainUp = trueGainMinor !== null && trueGainMinor >= 0;
+
+  // ---- The period-aware hero figure. See PeriodTruth's doc comment
+  // (engine/types.ts) for the two-lens model this reads from.
+  //
+  // period === "ALL": unchanged — the existing all-time True Gain (the
+  // component-sum totalGainMinor) is already a COMPLETE figure (it includes
+  // unrealisedPl, which is inherently a "now" mark, no anchor needed).
+  //
+  // period !== "ALL": the component lens ALONE is never a complete gain —
+  // it has no unrealised (mark-to-market) term, so presenting it as "the"
+  // gain would silently hide the biggest swing factor for anyone still
+  // holding positions. The snapshot lens (holdings growth since the last
+  // recorded snapshot at/before the window start) IS a complete figure when
+  // an anchor exists — so that is what the hero shows for a period; when no
+  // anchor exists yet, the hero honestly shows "metric to confirm" with the
+  // engine's own explanatory note, never a partial substitute.
+  const periodAnchor = periodTruth?.snapshotGain.anchor ?? null;
+  const periodGainMinor = periodTruth?.snapshotGain.gainMinor ?? null;
+  const periodGainZero = periodGainMinor === 0;
+  const periodGainUp = periodGainMinor !== null && periodGainMinor >= 0;
+
+  // Return % for a period: the engine's snapshot-lens returnPct (gain over
+  // "anchor value + everything added since the anchor" — computed in
+  // period.ts with decimal.js, guarded to null when the base is <= 0 or no
+  // anchor exists; see snapshotGain's doc comment in engine/types.ts). This
+  // screen only READS it — the denominator choice is a truth-policy decision
+  // that lives in the engine, never re-derived here with float maths.
+  const periodReturnPct = periodTruth?.snapshotGain.returnPct ?? null;
 
   const chartStats = useMemo(
     () => ({
@@ -163,7 +211,16 @@ function PerformanceView({ truth, series, status, error, lastSync, period, setPe
       <div className={s.screen}>
         {/* ============================== HERO — the honest answer ============================== */}
         <section className={s.hero} aria-label="True gain — the honest performance answer">
-          <div className={s.heroRibbon}>Performance</div>
+          <div className={s.heroRibbon}>
+            <span>Performance</span>
+            {/* Scope the headline explicitly and DYNAMICALLY: the period
+                keycaps now scope BOTH the chart AND this headline figure
+                together, so the pill names the exact window the number is
+                for ("All-time" for ALL, else "YTD"/"1M"/…). This is the
+                fix for the real confusion — an all-time headline read as a
+                mismatch against the broker's YTD figure. */}
+            <span className={s.heroScope}>{isAllTime ? "All-time" : period}</span>
+          </div>
 
           {showSkeleton ? (
             <>
@@ -173,55 +230,138 @@ function PerformanceView({ truth, series, status, error, lastSync, period, setPe
           ) : (
             <>
               <div className={s.heroTop}>
-                <div className={s.heroMain}>
-                  <div className={s.heroLabel}>True Gain</div>
-                  <div className={trueGainZero ? s.heroValue : `${s.heroValue} ${trueGainUp ? s.gain : s.loss}`}>
-                    {trueGainMinor !== null && !trueGainZero && (
-                      <Triangle up={trueGainUp} className={s.heroTri} />
-                    )}
-                    {trueGainMinor !== null ? (
-                      <>
-                        {!trueGainZero && (trueGainUp ? "+" : "−")}
-                        {fmtMinor(Math.abs(trueGainMinor), currency)}
-                      </>
-                    ) : (
-                      <span className={s.confirmTag}>
-                        <span className={s.emdash}>&mdash;</span> metric to confirm
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className={s.heroMain}>
-                  <div className={s.heroLabel}>Return</div>
-                  <div
-                    className={
-                      truth?.totalReturnPct == null
-                        ? s.heroValueSm
-                        : `${s.heroValueSm} ${truth.totalReturnPct >= 0 ? s.gain : s.loss}`
-                    }
-                  >
-                    {truth?.totalReturnPct != null ? (
-                      <>
-                        {truth.totalReturnPct !== 0 && (
-                          <Triangle up={truth.totalReturnPct >= 0} className={s.heroTriSm} />
+                {isAllTime ? (
+                  <>
+                    {/* ---- ALL: the all-time True Gain (component-sum) — a
+                        COMPLETE figure (includes unrealised, a "now" mark).
+                        Unchanged from before. ---- */}
+                    <div className={s.heroMain}>
+                      <div className={s.heroLabel}>True Gain</div>
+                      <div className={trueGainZero ? s.heroValue : `${s.heroValue} ${trueGainUp ? s.gain : s.loss}`}>
+                        {trueGainMinor !== null && !trueGainZero && (
+                          <Triangle up={trueGainUp} className={s.heroTri} />
                         )}
-                        {truth.totalReturnPct !== 0 && (truth.totalReturnPct >= 0 ? "+" : "−")}
-                        {fmtPct(truth.totalReturnPct)}
-                      </>
-                    ) : (
-                      <span className={s.confirmTag}>
-                        <span className={s.emdash}>&mdash;</span> metric to confirm
-                      </span>
-                    )}
-                  </div>
-                  <div className={s.heroSubLabel}>of net contributions</div>
-                </div>
+                        {trueGainMinor !== null ? (
+                          <>
+                            {!trueGainZero && (trueGainUp ? "+" : "−")}
+                            {fmtMinor(Math.abs(trueGainMinor), currency)}
+                          </>
+                        ) : (
+                          <span className={s.confirmTag}>
+                            <span className={s.emdash}>&mdash;</span> metric to confirm
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className={s.heroMain}>
+                      <div className={s.heroLabel}>Return</div>
+                      <div
+                        className={
+                          truth?.totalReturnPct == null || truth.totalReturnPct === 0
+                            ? s.heroValueSm
+                            : `${s.heroValueSm} ${truth.totalReturnPct > 0 ? s.gain : s.loss}`
+                        }
+                      >
+                        {truth?.totalReturnPct != null ? (
+                          <>
+                            {truth.totalReturnPct !== 0 && (
+                              <Triangle up={truth.totalReturnPct >= 0} className={s.heroTriSm} />
+                            )}
+                            {truth.totalReturnPct !== 0 && (truth.totalReturnPct >= 0 ? "+" : "−")}
+                            {fmtPct(truth.totalReturnPct)}
+                          </>
+                        ) : (
+                          <span className={s.confirmTag}>
+                            <span className={s.emdash}>&mdash;</span> metric to confirm
+                          </span>
+                        )}
+                      </div>
+                      <div className={s.heroSubLabel}>of net contributions</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* ---- PERIOD: the SNAPSHOT lens (holdings growth since
+                        the last recorded snapshot at/before the window start).
+                        This is the only COMPLETE gain figure for a window
+                        (it captures unrealised swings, which the component
+                        lens cannot); the component lens lives in the rail's
+                        THIS PERIOD panel, never summed with this figure. When
+                        no anchor snapshot exists yet, the em-dash "metric to
+                        confirm" pattern carries the engine's honest note
+                        rather than a fabricated or partial number. ---- */}
+                    <div className={s.heroMain}>
+                      <div className={s.heroLabel}>Holdings growth · {period}</div>
+                      <div
+                        className={
+                          periodGainMinor === null || periodGainZero
+                            ? s.heroValue
+                            : `${s.heroValue} ${periodGainUp ? s.gain : s.loss}`
+                        }
+                      >
+                        {periodGainMinor !== null ? (
+                          <>
+                            {!periodGainZero && <Triangle up={periodGainUp} className={s.heroTri} />}
+                            {!periodGainZero && (periodGainUp ? "+" : "−")}
+                            {fmtMinor(Math.abs(periodGainMinor), currency)}
+                          </>
+                        ) : (
+                          <span className={s.confirmTag}>
+                            <span className={s.emdash}>&mdash;</span> metric to confirm
+                          </span>
+                        )}
+                      </div>
+                      <div className={s.heroSubLabel}>
+                        {periodAnchor
+                          ? `value change minus what you added, since the ${fmtDayMonth(periodAnchor.atISO)} snapshot`
+                          : "no recorded snapshot at the window start"}
+                      </div>
+                    </div>
+                    <div className={s.heroMain}>
+                      <div className={s.heroLabel}>Period Return</div>
+                      <div
+                        className={
+                          periodReturnPct == null || periodReturnPct === 0
+                            ? s.heroValueSm
+                            : `${s.heroValueSm} ${periodReturnPct > 0 ? s.gain : s.loss}`
+                        }
+                      >
+                        {periodReturnPct != null ? (
+                          <>
+                            {periodReturnPct !== 0 && (
+                              <Triangle up={periodReturnPct >= 0} className={s.heroTriSm} />
+                            )}
+                            {periodReturnPct !== 0 && (periodReturnPct >= 0 ? "+" : "−")}
+                            {fmtPct(periodReturnPct)}
+                          </>
+                        ) : (
+                          <span className={s.confirmTag}>
+                            <span className={s.emdash}>&mdash;</span> metric to confirm
+                          </span>
+                        )}
+                      </div>
+                      <div className={s.heroSubLabel}>over start value + added</div>
+                    </div>
+                  </>
+                )}
               </div>
 
-              <p className={s.heroNote}>
-                What you&rsquo;ve actually earned — realised + unrealised + dividends − fees + interest — versus
-                the {truth ? fmtMinor(truth.netContributionsMinor, currency) : "—"} you put in.
-              </p>
+              {isAllTime ? (
+                <p className={s.heroNote}>
+                  Your <strong>all-time</strong> gain since you opened the account — what you&rsquo;ve actually
+                  earned (realised + unrealised + dividends − fees + interest) versus the{" "}
+                  {truth ? fmtMinor(truth.netContributionsMinor, currency) : "—"} you put in. The buttons below
+                  scope both this figure and the chart.
+                </p>
+              ) : (
+                <p className={s.heroNote}>
+                  Your <strong>{period}</strong> holdings growth — how much your positions&rsquo; value changed
+                  since the snapshot shown under the figure, with what you&rsquo;ve paid in since that snapshot
+                  taken out, so fresh deposits can&rsquo;t masquerade as gains. This is a value-change reading; the exactly-banked pieces (realised,
+                  dividends, fees, interest) for the same window are itemised separately in the dossier and are
+                  never added on top. The buttons below scope both this figure and the chart.
+                </p>
+              )}
             </>
           )}
         </section>
@@ -282,7 +422,11 @@ function PerformanceView({ truth, series, status, error, lastSync, period, setPe
             {/* ---- RIGHT: the dossier key/value rail ---- */}
             <aside className={s.rail} aria-label="Performance dossier">
               <div className={s.railPanel}>
-                <div className={s.railHead}>Contributions</div>
+                {/* Scope-tag the all-time rail panels whenever a window is
+                    active — they sit directly below a "This Period" panel
+                    with same-named rows, the exact all-time-vs-window
+                    misreading this build exists to prevent. */}
+                <div className={s.railHead}>Contributions{!isAllTime ? " · All-time" : ""}</div>
                 <DossierRow
                   label="Deposited"
                   value={truth ? fmtMinor(truth.netContributionsMinor, currency) : null}
@@ -294,17 +438,78 @@ function PerformanceView({ truth, series, status, error, lastSync, period, setPe
                 />
               </div>
 
+              {/* ---- THIS PERIOD: the exactly-computable windowed component
+                  lens (period !== ALL). Kept VISUALLY DISTINCT from the
+                  all-time "Truth Components" panel below and NEVER summed
+                  into a single gain — these are the named, banked pieces that
+                  fell inside the window (realised, dividends, fees, interest,
+                  in-window deposits), a different reading from the hero's
+                  holdings-growth (snapshot) lens. No unrealised term here by
+                  construction (see PeriodComponents' doc comment). ---- */}
+              {!isAllTime && periodTruth && (
+                <div className={`${s.railPanel} ${s.railPeriod}`}>
+                  <div className={s.railHead}>This Period · {period}</div>
+                  <DossierRow
+                    label="Realised"
+                    value={fmtMinor(periodTruth.components.realisedInWindowMinor, currency)}
+                    tone={
+                      periodTruth.components.realisedInWindowMinor === 0
+                        ? "neutral"
+                        : periodTruth.components.realisedInWindowMinor > 0
+                          ? "gain"
+                          : "loss"
+                    }
+                  />
+                  <DossierRow
+                    label="Dividends"
+                    value={fmtMinor(periodTruth.components.dividendsMinor, currency)}
+                  />
+                  <DossierRow label="Fees" value={fmtMinor(periodTruth.components.feesMinor, currency)} />
+                  <DossierRow
+                    label="Interest"
+                    value={fmtMinor(periodTruth.components.interestMinor, currency)}
+                  />
+                  <DossierRow
+                    label="Deposited in-window"
+                    value={fmtMinor(periodTruth.components.netContributionsMinor, currency)}
+                    sub={
+                      `${fmtMinor(periodTruth.components.depositsMinor, currency)} in · ` +
+                      `${fmtMinor(periodTruth.components.withdrawalsMinor, currency)} out`
+                    }
+                  />
+                  <p className={s.railPeriodNote}>
+                    Banked pieces inside the window — separate from Holdings growth above, never added to it.
+                  </p>
+                </div>
+              )}
+
               <div className={s.railPanel}>
-                <div className={s.railHead}>Truth Components</div>
+                <div className={s.railHead}>Truth Components{!isAllTime ? " · All-time" : ""}</div>
                 <DossierRow
                   label="Realised"
                   value={truth ? fmtMinor(truth.realisedPlMinor, currency) : null}
-                  tone={truth ? (truth.realisedPlMinor >= 0 ? "gain" : "loss") : undefined}
+                  tone={
+                    truth
+                      ? truth.realisedPlMinor === 0
+                        ? "neutral"
+                        : truth.realisedPlMinor > 0
+                          ? "gain"
+                          : "loss"
+                      : undefined
+                  }
                 />
                 <DossierRow
                   label="Unrealised"
                   value={truth ? fmtMinor(truth.unrealisedPlMinor, currency) : null}
-                  tone={truth ? (truth.unrealisedPlMinor >= 0 ? "gain" : "loss") : undefined}
+                  tone={
+                    truth
+                      ? truth.unrealisedPlMinor === 0
+                        ? "neutral"
+                        : truth.unrealisedPlMinor > 0
+                          ? "gain"
+                          : "loss"
+                      : undefined
+                  }
                 />
                 <DossierRow label="Dividends" value={truth ? fmtMinor(truth.dividendsMinor, currency) : null} />
                 <DossierRow label="Fees" value={truth ? fmtMinor(truth.feesMinor, currency) : null} />
@@ -316,7 +521,7 @@ function PerformanceView({ truth, series, status, error, lastSync, period, setPe
               </div>
 
               <div className={`${s.railPanel} ${s.railHero}`}>
-                <div className={s.railHead}>The Honest Answer</div>
+                <div className={s.railHead}>The Honest Answer{!isAllTime ? " · All-time" : ""}</div>
                 <DossierRow
                   label="True Gain"
                   value={trueGainMinor !== null ? fmtMinor(Math.abs(trueGainMinor), currency) : null}
@@ -340,14 +545,30 @@ function PerformanceView({ truth, series, status, error, lastSync, period, setPe
                   label="Best Holding"
                   value={truth?.best ? `${truth.best.ticker.split("_")[0]}` : null}
                   sub={truth?.best ? fmtMinor(truth.best.unrealizedPlMinor, currency) : undefined}
-                  subTone={truth?.best ? (truth.best.unrealizedPlMinor >= 0 ? "gain" : "loss") : undefined}
+                  subTone={
+                    truth?.best
+                      ? truth.best.unrealizedPlMinor === 0
+                        ? "neutral"
+                        : truth.best.unrealizedPlMinor > 0
+                          ? "gain"
+                          : "loss"
+                      : undefined
+                  }
                   confirm={!truth?.best}
                 />
                 <DossierRow
                   label="Worst Holding"
                   value={truth?.worst ? `${truth.worst.ticker.split("_")[0]}` : null}
                   sub={truth?.worst ? fmtMinor(truth.worst.unrealizedPlMinor, currency) : undefined}
-                  subTone={truth?.worst ? (truth.worst.unrealizedPlMinor >= 0 ? "gain" : "loss") : undefined}
+                  subTone={
+                    truth?.worst
+                      ? truth.worst.unrealizedPlMinor === 0
+                        ? "neutral"
+                        : truth.worst.unrealizedPlMinor > 0
+                          ? "gain"
+                          : "loss"
+                      : undefined
+                  }
                   confirm={!truth?.worst}
                 />
               </div>
@@ -359,9 +580,10 @@ function PerformanceView({ truth, series, status, error, lastSync, period, setPe
                     Your holdings are worth {fmtMinor(truth.currentValueMinor, currency)}; you&rsquo;ve put in{" "}
                     {fmtMinor(truth.netContributionsMinor, currency)} net. The{" "}
                     {fmtMinor(Math.abs(reconciliation.naiveGap), currency)}{" "}
-                    {reconciliation.naiveGap >= 0 ? "surplus" : "shortfall"} plus what you took out as
-                    dividends/withdrawals is reconciled by your true gain above — not a raw balance check, but the
-                    honest sum of realised, unrealised, dividends, fees and interest.
+                    {reconciliation.naiveGap >= 0 ? "surplus" : "shortfall"} is a raw balance check that ignores
+                    cash not currently invested — dividends, interest and sale proceeds sitting in the account never
+                    show up in holdings value. The honest answer is the component sum above: realised, unrealised,
+                    dividends, fees and interest, each named and auditable.
                   </p>
                 </div>
               )}

@@ -95,6 +95,17 @@ describe("computeRealised", () => {
     expect(result.perTicker.GHOST).toEqual({ realisedMinor: 0, closedQty: 0 });
   });
 
+  it("a buy-only ticker still appears in perTicker as a zero entry (never sold)", () => {
+    // HELD is bought but never sold — it realises nothing, yet the public
+    // perTicker surface must still list it as { realisedMinor: 0, closedQty:
+    // 0 } (pre-seeded per trade's ticker), the same behaviour as the loop
+    // before the replay refactor.
+    const trades: Trade[] = [{ dateISO: "2025-05-01", ticker: "HELD", side: "buy", quantity: 4, priceMinor: 100, feeMinor: 0 }];
+    const result = computeRealised(trades);
+    expect(result.realisedPlMinor).toBe(0);
+    expect(result.perTicker.HELD).toEqual({ realisedMinor: 0, closedQty: 0 });
+  });
+
   it("re-sorts out-of-order trades chronologically before replaying", () => {
     // Same as the losing-sell case but supplied sell-before-buy in the array.
     const trades: Trade[] = [

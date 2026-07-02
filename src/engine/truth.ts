@@ -28,6 +28,87 @@ export interface RealisedResult {
   perTicker: Record<string, { realisedMinor: number; closedQty: number }>;
 }
 
+/** One SELL's realised contribution, dated, as produced mid-replay by
+ * `replayRealisedEvents`. `realisedMinor` here is the RAW (unrounded)
+ * per-sell delta — callers accumulate/round at their own boundary (see
+ * computeRealised's whole-total rounding vs. a windowed caller that only
+ * wants to accumulate a subset of these events). */
+export interface RealisedSellEvent {
+  dateISO: string;
+  ticker: string;
+  sellQty: number;
+  realisedMinor: number;
+}
+
+/**
+ * replayRealisedEvents — the SINGLE SOURCE OF TRUTH for the average-cost
+ * replay's core loop. Walks `trades` in chronological order (defensively
+ * re-sorted; input array never mutated) and yields one `RealisedSellEvent`
+ * per SELL (including no-op/clamped sells, so a caller can see every dated
+ * event even when it realises 0). BUYS silently update the running
+ * per-ticker cost basis and produce no event.
+ *
+ * This function holds the ONLY copy of the average-cost/clamping/fee rules
+ * (see computeRealised's doc comment for the full rule explanation) so that
+ * computeRealised, realisedSeries (series.ts), and computePeriodComponents
+ * (period.ts) can never drift out of sync with each other — they all
+ * replay through this one loop and differ only in how they aggregate the
+ * resulting events (sum everything vs. stamp cumulative points vs. sum only
+ * sells inside a date window).
+ */
+export function replayRealisedEvents(trades: Trade[]): RealisedSellEvent[] {
+  if (trades.length === 0) return [];
+
+  // Defensive chronological sort (codepoint — ISO strings, no locale collation);
+  // do not mutate the caller's array.
+  const ordered = [...trades].sort((a, b) => (a.dateISO < b.dateISO ? -1 : a.dateISO > b.dateISO ? 1 : 0));
+
+  const running: Record<string, RunningCost> = Object.create(null);
+  const events: RealisedSellEvent[] = [];
+
+  for (const t of ordered) {
+    const state = running[t.ticker] ?? { qty: 0, totalCostMinor: 0 };
+
+    if (t.side === "buy") {
+      const cost = new Decimal(t.quantity).times(t.priceMinor).plus(t.feeMinor);
+      state.totalCostMinor = new Decimal(state.totalCostMinor).plus(cost).toNumber();
+      state.qty += t.quantity;
+      running[t.ticker] = state;
+      continue;
+    }
+
+    // side === "sell"
+    if (state.qty <= 0) {
+      // Nothing held for this ticker in the replay — cannot realise
+      // anything against phantom shares. No-op, not an error: a partial
+      // trade history legitimately starts mid-position sometimes. Still a
+      // real dated event (0 realised, 0 closedQty) — callers that stamp a
+      // point per sell (e.g. realisedSeries) rely on seeing it.
+      running[t.ticker] = state;
+      events.push({ dateISO: t.dateISO, ticker: t.ticker, sellQty: 0, realisedMinor: 0 });
+      continue;
+    }
+
+    // Guard: clamp a sell that exceeds held qty rather than going negative.
+    const sellQty = Math.min(t.quantity, state.qty);
+    const avgCostPerShare = new Decimal(state.totalCostMinor).dividedBy(state.qty); // ratio only, never stored as Money
+    const proceeds = new Decimal(sellQty).times(t.priceMinor);
+    const costOfSold = avgCostPerShare.times(sellQty);
+    const realised = proceeds.minus(costOfSold).minus(t.feeMinor).toNumber();
+
+    events.push({ dateISO: t.dateISO, ticker: t.ticker, sellQty, realisedMinor: realised });
+
+    const remainingQty = state.qty - sellQty;
+    // Reduce cost basis proportionally so the average cost of the shares
+    // that remain is unchanged (standard average-cost-basis rule).
+    state.totalCostMinor = remainingQty > 0 ? avgCostPerShare.times(remainingQty).toNumber() : 0;
+    state.qty = remainingQty;
+    running[t.ticker] = state;
+  }
+
+  return events;
+}
+
 /**
  * computeRealised — AVERAGE-COST replay of a trade list.
  *
@@ -78,52 +159,23 @@ export function computeRealised(trades: Trade[]): RealisedResult {
     return { realisedPlMinor: 0, perTicker };
   }
 
-  // Defensive chronological sort (codepoint — ISO strings, no locale collation);
-  // do not mutate the caller's array.
-  const ordered = [...trades].sort((a, b) => (a.dateISO < b.dateISO ? -1 : a.dateISO > b.dateISO ? 1 : 0));
+  // Pre-seed a zero entry for EVERY trade's ticker (including buy-only
+  // tickers that produce no sell event) so perTicker's public surface is
+  // unchanged from the pre-refactor loop, which created an entry per trade's
+  // ticker: a buy-only ticker still appears as { realisedMinor: 0,
+  // closedQty: 0 } rather than being absent.
+  for (const t of trades) {
+    if (!perTicker[t.ticker]) perTicker[t.ticker] = { realisedMinor: 0, closedQty: 0 };
+  }
 
-  const running: Record<string, RunningCost> = Object.create(null);
+  const events = replayRealisedEvents(trades);
   let realisedTotal = 0;
 
-  for (const t of ordered) {
-    const state = running[t.ticker] ?? { qty: 0, totalCostMinor: 0 };
-    if (!perTicker[t.ticker]) perTicker[t.ticker] = { realisedMinor: 0, closedQty: 0 };
-
-    if (t.side === "buy") {
-      const cost = new Decimal(t.quantity).times(t.priceMinor).plus(t.feeMinor);
-      state.totalCostMinor = new Decimal(state.totalCostMinor).plus(cost).toNumber();
-      state.qty += t.quantity;
-      running[t.ticker] = state;
-      continue;
-    }
-
-    // side === "sell"
-    if (state.qty <= 0) {
-      // Nothing held for this ticker in the replay — cannot realise
-      // anything against phantom shares. No-op, not an error: a partial
-      // trade history legitimately starts mid-position sometimes.
-      running[t.ticker] = state;
-      continue;
-    }
-
-    // Guard: clamp a sell that exceeds held qty rather than going negative.
-    const sellQty = Math.min(t.quantity, state.qty);
-    const avgCostPerShare = new Decimal(state.totalCostMinor).dividedBy(state.qty); // ratio only, never stored as Money
-    const proceeds = new Decimal(sellQty).times(t.priceMinor);
-    const costOfSold = avgCostPerShare.times(sellQty);
-    const realised = proceeds.minus(costOfSold).minus(t.feeMinor).toNumber();
-
-    realisedTotal += realised;
-    perTicker[t.ticker].realisedMinor += realised;
-    perTicker[t.ticker].closedQty += sellQty;
-
-    const remainingQty = state.qty - sellQty;
-    // Reduce cost basis proportionally so the average cost of the shares
-    // that remain is unchanged (standard average-cost-basis rule).
-    state.totalCostMinor =
-      remainingQty > 0 ? avgCostPerShare.times(remainingQty).toNumber() : 0;
-    state.qty = remainingQty;
-    running[t.ticker] = state;
+  for (const e of events) {
+    if (!perTicker[e.ticker]) perTicker[e.ticker] = { realisedMinor: 0, closedQty: 0 };
+    realisedTotal += e.realisedMinor;
+    perTicker[e.ticker].realisedMinor += e.realisedMinor;
+    perTicker[e.ticker].closedQty += e.sellQty;
   }
 
   // Round each per-ticker figure to integer minor units at return time too

@@ -164,3 +164,101 @@ export interface SeriesBundle {
 }
 
 export type Period = "1M" | "3M" | "6M" | "YTD" | "1Y" | "ALL";
+
+/**
+ * The EXACTLY-computable windowed sums for a period — see
+ * `computePeriodComponents` in period.ts for the full method + boundary
+ * convention. This is the "component lens": named, auditable pieces summed
+ * only from events that actually fall inside the window. It is NOT a full
+ * gain figure on its own (see `PeriodTruth`'s doc comment) — most notably it
+ * omits any unrealised (mark-to-market) change, which this lens cannot see.
+ *
+ * CURRENCY CAVEAT: `realisedInWindowMinor` inherits computeRealised's v1
+ * instrument-currency limitation (see Trade's doc comment in this file) —
+ * exact only for single-currency accounts.
+ */
+export interface PeriodComponents {
+  depositsMinor: Money;
+  withdrawalsMinor: Money;
+  /** deposits - withdrawals, windowed. */
+  netContributionsMinor: Money;
+  dividendsMinor: Money;
+  feesMinor: Money;
+  interestMinor: Money;
+  /** Realised P/L for SELLS that fall inside the window, cost basis legitimately
+   * carried in from before the window (see computePeriodComponents' doc comment). */
+  realisedInWindowMinor: Money;
+}
+
+/**
+ * PeriodTruth — the period-aware Performance-Truth output. See period.ts's
+ * `computePeriodTruth` for the full method.
+ *
+ * ⚠️ TWO LENSES — NEVER SUM THEM:
+ *   1. THE COMPONENT LENS (`components`) — exactly-computable windowed sums
+ *      (realised + dividends + fees + interest + net contributions) from
+ *      named, dated events that fall inside the window. It CANNOT see
+ *      unrealised (mark-to-market) change, because that requires knowing the
+ *      value of still-held positions at the window's start, which this lens
+ *      does not attempt.
+ *   2. THE SNAPSHOT LENS (`snapshotGain`) — "holdings growth": how much your
+ *      total holdings value grew, net of what you contributed, since the
+ *      last recorded snapshot AT OR BEFORE the window start. This lens DOES
+ *      capture unrealised swings (it's a value delta), but it does NOT
+ *      separately itemise realised/dividends/fees/interest — a dividend
+ *      paid out as cash, for instance, raises the component lens (it's
+ *      counted directly) but does NOT raise holdings value (the cash left
+ *      the invested pot), so it barely moves the snapshot lens.
+ * These measure DIFFERENT, overlapping-but-not-identical things and must
+ * NEVER be added together into one number — that would double-count (or
+ * miss-count) pieces that appear in one lens but not the other. The screen
+ * must present them as distinct, separately labelled readings.
+ */
+export interface PeriodTruth {
+  period: Period;
+  /** Window start (see periodStartISO). Null for "ALL" (no window — all-time). */
+  startISO: string | null;
+  components: PeriodComponents;
+  /**
+   * The "holdings growth" lens. `gainMinor` = currentValue (from live
+   * positions) − anchor.totalValueMinor − `sinceAnchorNetContributionsMinor`.
+   * `anchor` is the LATEST EquitySnapshot with atISO <= startISO (never a
+   * later snapshot substituted silently, never interpolated). If no such
+   * snapshot exists, `anchor`, `gainMinor`, `sinceAnchorNetContributionsMinor`
+   * and `returnPct` are all null and `note` explains why in plain language —
+   * an honest gap, not a bug to paper over.
+   *
+   * WHY `sinceAnchorNetContributionsMinor` AND NOT the window's own net
+   * contributions: the anchor may PRE-DATE the window start (it is the last
+   * recorded snapshot at or before it). A deposit/withdrawal dated between
+   * the anchor and the window start is already baked into `currentValueMinor`
+   * (a live "now" mark) but NOT into `anchor.totalValueMinor` — so netting
+   * only in-window contributions would report that money as holdings growth,
+   * the exact masquerade this app exists to prevent. This figure therefore
+   * nets contributions from the ANCHOR's own date (exclusive-start,
+   * inclusive-end, same convention as every other windowed sum), and is
+   * exposed so the screen can reuse it as the return-% denominator base.
+   */
+  snapshotGain: {
+    anchor: EquitySnapshot | null;
+    gainMinor: Money | null;
+    /**
+     * Net contributions (deposits − withdrawals) from the anchor's date up to
+     * asOfISO — the exact figure netted out of `gainMinor` (null when no
+     * anchor). See the WHY note above for why this spans anchor→now, not just
+     * the window.
+     */
+    sinceAnchorNetContributionsMinor: Money | null;
+    /**
+     * Snapshot-lens return: `gainMinor` over
+     * (anchor.totalValueMinor + sinceAnchorNetContributionsMinor) — "what was
+     * actually at risk from the anchor onward: the starting holdings value
+     * plus everything added since." Computed via decimal.js (engine ratio
+     * convention). Null when there is no anchor OR the denominator is <= 0
+     * (an undefined/meaningless ratio — same divide-by-zero discipline as
+     * computeTruth's totalReturnPct).
+     */
+    returnPct: number | null;
+    note: string;
+  };
+}

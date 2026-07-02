@@ -145,6 +145,37 @@ function monthsBackMs(asOf: Date, months: number): number {
 }
 
 /**
+ * periodStartMs — the single source of truth for "when does this period's
+ * window begin" (milliseconds since epoch), shared by `filterByPeriod`
+ * here and by `periodStartISO` in period.ts so the two never drift apart.
+ * Returns `null` for "ALL" (no window start — the whole history). Returns
+ * `NaN` for an unparsable `asOfISO` (callers already guard this before
+ * calling — see filterByPeriod/periodStartISO — so this is defensive only).
+ *
+ * ALL-UTC, deterministic: never reads Date.now() or a local-time getter
+ * (see monthsBackMs's doc comment on why local time would break
+ * reproducibility across machines/timezones).
+ */
+function periodStartMs(period: Period, asOfISO: string): number | null {
+  if (period === "ALL") return null;
+
+  const asOfDate = new Date(asOfISO);
+
+  switch (period) {
+    case "1M":
+      return monthsBackMs(asOfDate, 1);
+    case "3M":
+      return monthsBackMs(asOfDate, 3);
+    case "6M":
+      return monthsBackMs(asOfDate, 6);
+    case "1Y":
+      return monthsBackMs(asOfDate, 12);
+    case "YTD":
+      return new Date(Date.UTC(asOfDate.getUTCFullYear(), 0, 1)).getTime();
+  }
+}
+
+/**
  * filterByPeriod — clips an already-computed series to a period window
  * ending at `asOfISO`. This is a pure windowing/subsetting operation: it
  * never invents points at the window edges, it just keeps whichever real
@@ -157,30 +188,21 @@ export function filterByPeriod(points: TimeSeriesPoint[], period: Period, asOfIS
   const asOfMs = toMs(asOfISO);
   if (Number.isNaN(asOfMs)) return points; // defensive: unparsable asOf — don't silently drop everything
 
-  const asOfDate = new Date(asOfISO);
-  let startMs: number;
-
-  switch (period) {
-    case "1M":
-      startMs = monthsBackMs(asOfDate, 1);
-      break;
-    case "3M":
-      startMs = monthsBackMs(asOfDate, 3);
-      break;
-    case "6M":
-      startMs = monthsBackMs(asOfDate, 6);
-      break;
-    case "1Y":
-      startMs = monthsBackMs(asOfDate, 12);
-      break;
-    case "YTD": {
-      startMs = new Date(Date.UTC(asOfDate.getUTCFullYear(), 0, 1)).getTime();
-      break;
-    }
-  }
+  const startMs = periodStartMs(period, asOfISO);
+  // periodStartMs only returns null for "ALL", already handled above, so
+  // startMs is a number here; the `?? -Infinity` is a defensive fallback only.
+  const startMsSafe = startMs ?? -Infinity;
 
   return points.filter((p) => {
     const ms = toMs(p.atISO);
-    return !Number.isNaN(ms) && ms >= startMs && ms <= asOfMs;
+    return !Number.isNaN(ms) && ms >= startMsSafe && ms <= asOfMs;
   });
 }
+
+/**
+ * periodStartMsExported — internal re-export point for period.ts. Not part
+ * of the public series.ts API surface used by screens; period.ts imports
+ * this single function so periodStartISO can never compute a different
+ * window boundary than filterByPeriod does for the same (period, asOfISO).
+ */
+export { periodStartMs as __periodStartMsForPeriodModule };
