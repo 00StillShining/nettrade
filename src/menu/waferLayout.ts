@@ -28,15 +28,20 @@ export const WAFERS_PER_STACK = 14;
 /** Total instances across all stacks (drives the single InstancedMesh size). */
 export const TOTAL_WAFERS = STACK_COUNT * WAFERS_PER_STACK;
 
-/** Horizontal gap between adjacent stacks, in world units. */
-export const STACK_SPACING = 2.15;
+/** Horizontal gap between adjacent stacks, in world units. Tightened in 3b so all
+ *  7 stacks stay inside the frustum at BOTH end selections with no rack slide
+ *  (see AnimusScene framing note + the frustum check). */
+export const STACK_SPACING = 2.0;
 
-/** Vertical gap between wafers within a stack. */
-const WAFER_GAP = 0.5;
+/** Vertical gap between wafers within a stack. Exported so the label projector
+ *  computes its crown anchor from the SAME constant (no hardcoded copies). */
+export const WAFER_GAP = 0.5;
 
-/** Wafer plane size (matches the additive-blended quad in the scene). */
-export const WAFER_W = 1.9;
+/** Wafer SLAB size (Phase 3b: real 3D boxes, not planes). W×H is the face; D is
+ *  the thickness that gives the strata physical depth under the Lambert lights. */
+export const WAFER_W = 1.8;
 export const WAFER_H = 0.34;
+export const WAFER_D = 0.16;
 
 export interface WaferInstance {
   /** Which stack (0..STACK_COUNT-1) this wafer belongs to. */

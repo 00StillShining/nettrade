@@ -28,7 +28,7 @@ export default function AnimusCanvas() {
       frameloop="demand"
       dpr={[1, 1.5]}
       gl={{ antialias: false, alpha: true, powerPreference: "high-performance" }}
-      camera={{ position: [0, 1.35, 8.4], fov: 42 }}
+      camera={{ position: [0, 1.15, 13.5], fov: 47 }}
       style={{
         position: "fixed",
         inset: 0,
