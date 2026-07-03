@@ -1,6 +1,22 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import styles from "./Chrome.module.css";
+
+/** Flat top-nav destinations for hopping between DATA SCREENS without diving
+ * back through the Animus. ANIMUS returns to the 3D menu at "/"; the seven
+ * screens each go to their route (the menu now lives at "/", so DASHBOARD is
+ * "/dashboard"). This row renders ONLY on data screens — Chrome never wraps the
+ * menu route. Restored in Phase 3c (removed in 3a while the Animus was built). */
+const NAV_ITEMS: { to: string; label: string; end?: boolean }[] = [
+  { to: "/", label: "Animus", end: true },
+  { to: "/dashboard", label: "Dashboard" },
+  { to: "/positions", label: "Positions" },
+  { to: "/watchlist", label: "Watchlist" },
+  { to: "/performance", label: "Performance" },
+  { to: "/compare", label: "Compare" },
+  { to: "/journal", label: "Journal" },
+  { to: "/settings", label: "Settings" },
+];
 
 export type ConnectionState = "ok" | "error" | "loading" | "no-key";
 
@@ -172,6 +188,23 @@ export default function Chrome({
           </span>
         </div>
       </div>
+
+      {/* Flat screen nav — hop between data screens without re-diving through
+          the Animus. flex:0 0 auto like topBar/statusBar so it does NOT break
+          the viewport-lock height chain (topBar → nav → chromeBody(flex:1) →
+          statusBar, SCREEN_PATTERNS.md §2). */}
+      <nav className={styles.nav} aria-label="Screens">
+        {NAV_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`}
+          >
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
 
       <div className={styles.chromeBody}>{children}</div>
 

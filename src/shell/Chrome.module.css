@@ -192,6 +192,57 @@
   align-self: center;
 }
 
+/* ---- Flat screen nav — a thin row between the top telemetry bar and the body.
+   flex:0 0 auto like topBar/statusBar, so it does NOT break the viewport-lock
+   height chain (topBar → nav → chromeBody(flex:1) → statusBar). ---- */
+
+.nav {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s2) var(--s4) 0;
+  padding: 6px var(--s3);
+  border: 1px solid var(--ink-line);
+  border-radius: 4px;
+  background: var(--ink-raise-35);
+  overflow-x: auto;
+}
+
+.navLink {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ghost-title);
+  text-decoration: none;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+
+.navLink:hover {
+  color: var(--animus-field);
+}
+
+/* House amber focus ring — a keyboard route to every screen, so it shows a
+   crafted ring, not the low-contrast UA outline. */
+.navLink:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  color: var(--animus-field);
+}
+
+.navLinkActive {
+  color: var(--amber);
+  border-color: var(--amber);
+  background: rgba(232, 132, 42, 0.1);
+}
+
 /* ---- Bottom status bar ---- */
 
 .statusBar {

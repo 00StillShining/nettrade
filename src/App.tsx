@@ -1,12 +1,10 @@
 import "./index.css";
 import "./theme/tokens.css";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import type { ReactNode } from "react";
+import Frame from "./shell/Frame";
 import BakedCrt from "./shell/BakedCrt";
-import { AnimusProvider, useAnimus } from "./menu/animusStore";
-import AnimusCanvas from "./menu/AnimusCanvas";
-import AnimusMenu from "./menu/AnimusMenu";
-import MenuWipe from "./menu/MenuWipe";
-import ScreenFrame from "./menu/ScreenFrame";
+import Animus, { AnimusFlash } from "./animus/Animus";
 import Dashboard from "./screens/dashboard/Dashboard";
 import Positions from "./screens/positions/Positions";
 import Watchlist from "./screens/watchlist/Watchlist";
@@ -16,57 +14,59 @@ import Journal from "./screens/journal/Journal";
 import Settings from "./screens/settings/Settings";
 
 /**
- * App — Phase-3a shell. The Animus (AC-style WebGL menu) IS home: the app opens
- * into the 3D menu at "/", the user dives from a wafer-stack into a screen, and
- * a consistent control (Esc / the ◄ ANIMUS wordmark in Chrome) surfaces them
- * back. This replaced the interim flat nav (removed from Chrome).
+ * App — Actuality's shell after the Animus pivot. Home ("/") is now a single,
+ * faithful raw-WebGL2 port of the AC-II "Animus 2.0" menu (src/animus/Animus.tsx),
+ * living in its own pale-void world — NO dark Frame, NO baked CRT on that route.
  *
- * Anti-brick architecture (RUNTIME_AND_STACK §5, skill §7):
- *   #1  ONE persistent <AnimusCanvas>, mounted here ONCE, NEVER per route — it
- *       stays mounted whether the menu or a screen is showing.
- *   #2  It renders on demand only; a screen showing flips mode → "screen" and
- *       its useFrame early-returns (dead-still GPU behind the opaque screen).
- *   #5  During a dive the CRT is SUSPENDED (mode === "diving") so the wipe +
- *       dolly are the single full-screen effect.
+ * The seven data screens render inside the dark cinematic <Frame> + <BakedCrt/>,
+ * exactly as they did pre-3a. A dive from a menu leaf runs the Animus's white
+ * flash (hoisted to <AnimusFlash/> so it survives the route swap) and navigates
+ * to the screen under the cover.
+ *
+ * Chrome (src/shell/Chrome.tsx) still gives every data screen its top page-nav
+ * + Esc/wordmark return to "/". The Animus's own Esc only fires while it's
+ * mounted (route "/"), and Chrome only mounts on data screens — so the two Esc
+ * handlers never coexist.
  */
+
+/** Wrap a data screen in the dark Frame (screens render their own <Chrome/>). */
+function Screen({ children }: { children: ReactNode }) {
+  return <Frame>{children}</Frame>;
+}
+
 function Shell() {
-  const { mode, wipeActive, wipeRunId } = useAnimus();
+  // BakedCrt renders on every data screen but NOT on the Animus route — the
+  // reference's overexposed white void is its own world and must not sit under
+  // a dark CRT curve.
+  const onMenu = useLocation().pathname === "/";
 
   return (
     <>
-      {/* Persistent WebGL layer — behind everything (z 0), never unmounted. */}
-      <AnimusCanvas />
-
       <Routes>
-        {/* "/" is the Animus menu HUD (NOT a screen) — it renders NO opaque
-            Frame, so the pale --animus-field void from the canvas shows. */}
-        <Route path="/" element={<AnimusMenu />} />
+        {/* "/" — the Animus menu. Its own fixed pale-void wrapper covers the
+            viewport; no Frame, no CRT. */}
+        <Route path="/" element={<Animus />} />
 
-        {/* The seven data screens render inside the opaque dark Frame, which
-            covers the (frozen) canvas. ScreenFrame also asserts mode="screen". */}
-        <Route path="/positions" element={<ScreenFrame><Positions /></ScreenFrame>} />
-        <Route path="/watchlist" element={<ScreenFrame><Watchlist /></ScreenFrame>} />
-        <Route path="/performance" element={<ScreenFrame><Performance /></ScreenFrame>} />
-        <Route path="/compare" element={<ScreenFrame><Compare /></ScreenFrame>} />
-        <Route path="/journal" element={<ScreenFrame><Journal /></ScreenFrame>} />
-        <Route path="/settings" element={<ScreenFrame><Settings /></ScreenFrame>} />
-
-        {/* Dashboard also has a route so returning to it (or a stale hash) works;
-            it renders as a screen. The menu's DASHBOARD stack dives here. */}
-        <Route path="/dashboard" element={<ScreenFrame><Dashboard /></ScreenFrame>} />
+        {/* The seven data screens — dark Frame + Chrome (self-wrapped). */}
+        <Route path="/dashboard" element={<Screen><Dashboard /></Screen>} />
+        <Route path="/positions" element={<Screen><Positions /></Screen>} />
+        <Route path="/watchlist" element={<Screen><Watchlist /></Screen>} />
+        <Route path="/performance" element={<Screen><Performance /></Screen>} />
+        <Route path="/compare" element={<Screen><Compare /></Screen>} />
+        <Route path="/journal" element={<Screen><Journal /></Screen>} />
+        <Route path="/settings" element={<Screen><Settings /></Screen>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {/* Dive wipe — hoisted OUT of AnimusMenu so it survives the navigation at
-          the wipe's cover point (AnimusMenu unmounts there). It sits below the
-          CRT slot and above the routed screen; provider owns its lifecycle. */}
-      <MenuWipe active={wipeActive} runId={wipeRunId} />
+      {/* White dive flash — hoisted here so it OUTLIVES the Animus during the
+          route swap (Animus unmounts at the flash's cover point). ./flash.ts
+          drives its opacity; the element is always present so the cover works
+          whether we're on "/" or over a mounted screen. */}
+      <AnimusFlash />
 
-      {/* Baked CRT on top — suspended during the dive AND while the wipe is still
-          sweeping so it never re-composites mid-sweep / competes with the
-          transition's GPU layer (#5). */}
-      <BakedCrt suspended={mode === "diving" || wipeActive} />
+      {/* Baked CRT on top of data screens only (route !== "/"). Inert, static. */}
+      {!onMenu && <BakedCrt />}
     </>
   );
 }
@@ -74,9 +74,7 @@ function Shell() {
 export default function App() {
   return (
     <HashRouter>
-      <AnimusProvider>
-        <Shell />
-      </AnimusProvider>
+      <Shell />
     </HashRouter>
   );
 }
