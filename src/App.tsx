@@ -1,44 +1,35 @@
 import "./index.css";
 import "./theme/tokens.css";
 import { HashRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import type { ReactNode } from "react";
 import Frame from "./shell/Frame";
 import BakedCrt from "./shell/BakedCrt";
 import Animus, { AnimusFlash } from "./animus/Animus";
-import Dashboard from "./screens/dashboard/Dashboard";
-import Positions from "./screens/positions/Positions";
-import Watchlist from "./screens/watchlist/Watchlist";
-import Performance from "./screens/performance/Performance";
-import Compare from "./screens/compare/Compare";
-import Journal from "./screens/journal/Journal";
 import Settings from "./screens/settings/Settings";
+import Terminal from "./terminal/Terminal";
 
 /**
- * App — Actuality's shell after the Animus pivot. Home ("/") is now a single,
- * faithful raw-WebGL2 port of the AC-II "Animus 2.0" menu (src/animus/Animus.tsx),
- * living in its own pale-void world — NO dark Frame, NO baked CRT on that route.
+ * App — Actuality's shell after the TERMINAL-77 pivot. Home ("/") is still the
+ * verbatim raw-WebGL2 "Animus 2.0" menu (src/animus/Animus.tsx) in its pale
+ * void — untouched. The data world is now the MDN terminal (src/terminal/):
+ * ONE persistent shell mounted at "/:screenId" that hosts all ten screens
+ * (dashboard/positions/watchlist/performance/orders/scanner/alerts/news/
+ * compare/journal) and swaps between them under its own CRT power-off —
+ * navigating between terminal screens changes only the param, so <Terminal/>
+ * NEVER remounts and the desktop chrome/engine clock persist.
  *
- * The seven data screens render inside the dark cinematic <Frame> + <BakedCrt/>,
- * exactly as they did pre-3a. A dive from a menu leaf runs the Animus's white
- * flash (hoisted to <AnimusFlash/> so it survives the route swap) and navigates
- * to the screen under the cover.
+ * The old Frame+Chrome data screens (src/screens/*) are UNROUTED here but
+ * their files remain in place (cleanup is a later stage). Only Settings keeps
+ * the legacy Frame + BakedCrt treatment; the static "/settings" route is
+ * matched by the router ahead of the ":screenId" param automatically.
  *
- * Chrome (src/shell/Chrome.tsx) still gives every data screen its top page-nav
- * + Esc/wordmark return to "/". The Animus's own Esc only fires while it's
- * mounted (route "/"), and Chrome only mounts on data screens — so the two Esc
- * handlers never coexist.
+ * BakedCrt renders ONLY on /settings now: the terminal carries its OWN CRT
+ * overlay stack (scanlines/vignette/bezel/roll inside the .t77 root), and the
+ * Animus's overexposed white void was never allowed a dark tube. Stacking the
+ * legacy baked curve over the terminal would double-expose the glass.
  */
 
-/** Wrap a data screen in the dark Frame (screens render their own <Chrome/>). */
-function Screen({ children }: { children: ReactNode }) {
-  return <Frame>{children}</Frame>;
-}
-
 function Shell() {
-  // BakedCrt renders on every data screen but NOT on the Animus route — the
-  // reference's overexposed white void is its own world and must not sit under
-  // a dark CRT curve.
-  const onMenu = useLocation().pathname === "/";
+  const onSettings = useLocation().pathname === "/settings";
 
   return (
     <>
@@ -47,14 +38,12 @@ function Shell() {
             viewport; no Frame, no CRT. */}
         <Route path="/" element={<Animus />} />
 
-        {/* The seven data screens — dark Frame + Chrome (self-wrapped). */}
-        <Route path="/dashboard" element={<Screen><Dashboard /></Screen>} />
-        <Route path="/positions" element={<Screen><Positions /></Screen>} />
-        <Route path="/watchlist" element={<Screen><Watchlist /></Screen>} />
-        <Route path="/performance" element={<Screen><Performance /></Screen>} />
-        <Route path="/compare" element={<Screen><Compare /></Screen>} />
-        <Route path="/journal" element={<Screen><Journal /></Screen>} />
-        <Route path="/settings" element={<Screen><Settings /></Screen>} />
+        {/* Settings — the one legacy data screen kept (Frame + Chrome inside). */}
+        <Route path="/settings" element={<Frame><Settings /></Frame>} />
+
+        {/* The terminal — every other top-level segment is a screen id;
+            Terminal validates it and bounces unknowns to /dashboard. */}
+        <Route path="/:screenId" element={<Terminal />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -65,8 +54,9 @@ function Shell() {
           whether we're on "/" or over a mounted screen. */}
       <AnimusFlash />
 
-      {/* Baked CRT on top of data screens only (route !== "/"). Inert, static. */}
-      {!onMenu && <BakedCrt />}
+      {/* Baked CRT ONLY over the legacy Settings screen — the terminal brings
+          its own tube, the Animus keeps its void. */}
+      {onSettings && <BakedCrt />}
     </>
   );
 }

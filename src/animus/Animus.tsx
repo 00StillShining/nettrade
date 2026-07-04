@@ -524,7 +524,7 @@ export default function Animus() {
     const ROUTES: any = {
       story: ["/dashboard", "/positions", "/watchlist"],
       extras: ["/performance", "/compare", "/journal"],
-      options: ["/settings", null, null, null, null],
+      options: ["/settings", "/orders", "/news", "/alerts", "/scanner"],
     };
     const PLACEHOLDER_TOAST = ["", "ORDERS — READY SOON", "NEWS — READY SOON", "ALERTS — READY SOON", "SCANNER — READY SOON"];
 

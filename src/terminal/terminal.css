@@ -1,0 +1,1685 @@
+/* =========================================================================
+   TERMINAL 77 — terminal.css (the prototype stylesheet, scoped under .t77)
+   -------------------------------------------------------------------------
+   MECHANICAL PORT of prototypes/terminal-77/index.html's single <style>
+   block. Every selector is prefixed with `.t77 ` so nothing here can leak
+   into (or be clobbered by) theme/tokens.css / index.css — the prototype's
+   token names (--paper/--ink/--teal/--gain/--loss/--paper-grain) COLLIDE
+   with the legacy Actuality tokens, so the whole token block lives on the
+   .t77 root element instead of :root: custom properties inherit downward,
+   so every terminal descendant sees the Terminal-77 values while legacy
+   screens (Settings, the Animus) keep the old ones. Keyframes are global
+   namespace in CSS, so each is renamed with a t77- prefix (t77-flick,
+   t77-crtRoll, t77-winOpen, t77-marq, t77-rpulse, t77-curblink) and every
+   animation: shorthand updated to match.
+
+   Transform map (everything else is byte-identical to the prototype):
+     :root{tokens}        -> .t77{tokens}
+     body{...}            -> .t77{...}      (the fixed-inset root div)
+     body.tips ...        -> .t77.tips ...
+     html,body{height}    -> replaced by the .t77 root rule below
+     *{reset}             -> .t77 *{reset}
+     @keyframes X         -> @keyframes t77-X
+     <sel>                -> .t77 <sel>
+
+   The body-level CRT overlay divs (#crtBend/#crtVig/#crtRoll/#crtScan/
+   #crtGlass/#crtBezel) are rendered by Terminal.tsx INSIDE the .t77 root;
+   they keep position:fixed (the root covers the viewport, so fixed and
+   absolute coincide — fixed is kept verbatim from the prototype).
+   ========================================================================= */
+
+/* THE ROOT — Terminal.tsx renders one <div class="t77"> covering the
+   viewport; everything (desk, window, overlays) lives inside it. */
+.t77{ position:fixed; inset:0; z-index:0; }
+
+
+/* =========================================================================
+   TERMINAL 77 — MDN / MARKET DISPATCH NETWORK
+   A Dispatch-style trading terminal. Single file. Runs on file://.
+   -------------------------------------------------------------------------
+   SAFE-TECHNIQUE SUBSTITUTIONS (WKWebView-safe; look-identical to the brief):
+   [S1] Scanlines: plain repeating-linear-gradient of rgba(0,0,0) bands.
+        NO mix-blend-mode (bricked v1 in WKWebView). See body::before below.
+   [S2] Chart glow: drawn IN-CANVAS (multi-pass strokes / shadowBlur), never
+        CSS filter:drop-shadow on chart elements. See drawGlowLine() in JS.
+   [S3] CRT power-off: brightness ramp via a WHITE overlay div (opacity),
+        collapse/dot/power-on use ONLY transform + opacity. No filter:brightness.
+        See #crtFx + runPowerOff() in JS.
+   [S4] Whole-screen flicker: opacity-only keyframes. See @keyframes flick.
+   [S5] Chromatic fringe on large display type: static text-shadow paint. OK.
+   ========================================================================= */
+
+/* ---------- TOKENS (brief §1, non-negotiable palette) ---------- */
+.t77{
+  --crt-desktop:#101B17;      /* the machine: desktop, window voids, chart bg */
+  --crt-desktop-2:#16241F;    /* secondary dark panels, inset wells */
+  --paper:#EDE4CE;            /* content: every card/dossier/ticket surface */
+  --paper-dark:#E2D7BD;       /* paper hover/alt rows */
+  --ink:#23201A;             /* borders (2px), headers, text on paper */
+  --ink-soft:#4C463A;         /* secondary text on paper */
+  --orange:#D9942B;           /* A VERB: active/staged/pending/confirm/demand */
+  --teal:#5D8B80;             /* info layer: inactive tabs, labels, links */
+  --gain:#4CAF6E;             /* market UP only (phosphor green, desaturated) */
+  --loss:#B23A2F;             /* market DOWN only (brick red) */
+  --phosphor:#4CAF6E;         /* CRT tube glow for NON-market chrome (boot text/cursor, dot halo) — keeps --gain semantically market-only */
+
+  --paper-grain:inset 0 0 60px rgba(120,100,60,.12);
+  --card-shadow:6px 6px 0 rgba(0,0,0,.5);   /* hard offset, NO blur ever */
+  --f-cond:'Barlow Condensed',sans-serif;   /* structural, all-caps */
+  --f-mono:'IBM Plex Mono',monospace;        /* all numerals, telemetry */
+  --f-prose:'Barlow',sans-serif;             /* bios, notes */
+}
+
+
+.t77 *{box-sizing:border-box;margin:0;padding:0;}
+
+
+.t77{
+  background:var(--crt-desktop);
+  color:var(--paper);
+  font-family:var(--f-cond);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  animation:t77-flick 7s steps(60) infinite;   /* [S4]/[S6+] opacity-only flicker (strengthened) */
+}
+
+@keyframes t77-flick{           /* [S4]/[S6+] whole-screen idle flicker, opacity only — slightly stronger dips */
+  0%,100%{opacity:1;}
+  8%{opacity:.992;}
+  9%{opacity:1;}
+  47%{opacity:.988;}
+  50%{opacity:.994;}
+  53%{opacity:1;}
+  78%{opacity:.991;}
+  80%{opacity:1;}
+  92%{opacity:.986;}
+  94%{opacity:1;}
+}
+
+@media (prefers-reduced-motion:reduce){
+
+    .t77{animation:none;}
+
+}
+
+
+/* ---------- CRT OVERLAY STACK (over ENTIRE viewport, above everything) ----------
+   [S6+] CRT "TUNED UP GREATLY". Every layer is pointer-events:none, transform/
+   opacity/gradient-only, and z-ordered ABOVE modals (>=8990). ABSOLUTE BANS still
+   hold: no mix-blend-mode, no CSS filter:, no backdrop-filter (the app port depends
+   on it). Law: degradation is polish — THE DATA MUST STAY PERFECTLY LEGIBLE.
+   Squint => "failing tube"; read => every numeral crisp. Layer order bottom→top:
+     #crtBend  z8990  4-edge inward compression shading (tube-face curvature read)
+     #crtVig   z8998  barrel vignette (radial, noticeably stronger than before)
+     #crtRoll  z8999  slow rolling brightness band (transform:translateY loop)
+     #crtScan  z9000  BOWED scanlines (repeating-RADIAL centred far below)
+     #crtGlass z9001  curved specular sheen (upper) + faint edge chromatic fringe
+     #crtBezel z9002  dark bezel ring + corner shadow pools (inset box-shadows)     */
+
+/* [S6+] BOWED SCANLINES — a repeating-RADIAL-gradient centred far off-screen BELOW
+   the picture so each dark band ARCS across the glass instead of ruling flat.
+   The flat-glass giveaway (repeating-linear) is gone; this is the技 BakedCrt uses. */
+.t77 #crtScan{
+  position:fixed; inset:0; z-index:9000; pointer-events:none;
+  /* SEAMLESS BOW: the ring apex used to sit at x=50%, so the arc pattern MIRRORED
+     around the centre column — that phase-flip read as a vertical gap/seam down the
+     middle (user-reported). Pushing the centre off-glass (118% right, far below)
+     keeps every line gently bowed but leaves NO mirror column anywhere on screen. */
+  background:repeating-radial-gradient(circle at 118% 640%,
+    rgba(0,0,0,.20) 0 1.15px, rgba(0,0,0,0) 1.15px 3px);
+  opacity:.9;
+}
+
+/* [S6+] BARREL VIGNETTE — stronger corners + a tighter falloff so the picture reads
+   as bulging toward the viewer. Radial-gradient is WKWebView-safe. */
+.t77 #crtVig{
+  position:fixed; inset:0; z-index:8998; pointer-events:none;
+  background:
+    radial-gradient(ellipse 78% 74% at 50% 48%, transparent 42%, rgba(0,0,0,.34) 74%, rgba(0,0,0,.72) 100%);
+}
+
+/* [S6+] 4-EDGE INWARD COMPRESSION — linear gradients on each edge darken the last
+   few % of the picture, the way a curved tube compresses the image toward its rim.
+   Layered as one element via multiple backgrounds (all transform-free). */
+.t77 #crtBend{
+  position:fixed; inset:0; z-index:8990; pointer-events:none;
+  background:
+    linear-gradient(to right,  rgba(0,0,0,.30) 0, transparent 4.5%, transparent 95.5%, rgba(0,0,0,.30) 100%),
+    linear-gradient(to bottom, rgba(0,0,0,.26) 0, transparent 4%,   transparent 96%,   rgba(0,0,0,.30) 100%);
+}
+
+/* [S6+] CURVED SPECULAR SHEEN + EDGE CHROMATIC FRINGE.
+   sheen: a soft off-centre highlight in the upper glass (the room light on the tube).
+   fringe: two 1px opposing tinted gradients pinned to the extreme L/R edges — the
+   red/cyan mis-convergence a failing tube shows at its rim. Both stay off the data. */
+.t77 #crtGlass{
+  position:fixed; inset:0; z-index:9001; pointer-events:none;
+  background:
+    linear-gradient(to right, rgba(255,0,64,.10) 0 1px, transparent 1px 2px),
+    linear-gradient(to left,  rgba(0,224,255,.10) 0 1px, transparent 1px 2px),
+    radial-gradient(ellipse 62% 40% at 38% 12%, rgba(230,242,220,.10) 0%, rgba(230,242,220,.04) 34%, transparent 62%);
+}
+
+/* [S6+] DARK BEZEL RING + CORNER SHADOW POOLS — hard-edged inset box-shadows draw an
+   ink rim just inside the viewport and pool shadow into the four corners, so the
+   picture sits INSIDE a tube face. No blur budget on data; this is on the glass only. */
+.t77 #crtBezel{
+  position:fixed; inset:0; z-index:9002; pointer-events:none;
+  border-radius:14px;
+  box-shadow:
+    inset 0 0 0 2px rgba(0,0,0,.55),
+    inset 0 0 14px 3px rgba(0,0,0,.60),
+    inset 34px 26px 46px -30px rgba(0,0,0,.85),
+    inset -34px 26px 46px -30px rgba(0,0,0,.85),
+    inset 34px -26px 46px -30px rgba(0,0,0,.85),
+    inset -34px -26px 46px -30px rgba(0,0,0,.85);
+}
+
+/* [S6+] SLOW ROLLING BAND — a soft horizontal brightness band drifting down the
+   glass on a long loop (the classic tube "roll"). transform:translateY + low opacity
+   only. Sits under the scanlines so the lines still cross it. */
+.t77 #crtRoll{
+  position:fixed; left:0; right:0; top:0; height:26%; z-index:8999; pointer-events:none;
+  background:linear-gradient(to bottom, transparent 0%, rgba(210,228,205,.05) 42%, rgba(210,228,205,.07) 50%, rgba(210,228,205,.05) 58%, transparent 100%);
+  opacity:.9; will-change:transform;
+  animation:t77-crtRoll 8.5s linear infinite;
+}
+
+@keyframes t77-crtRoll{ from{ transform:translateY(-30%); } to{ transform:translateY(430%); } }
+
+
+@media (prefers-reduced-motion:reduce){
+
+    .t77 #crtScan{ opacity:.6; }
+
+    .t77 #crtRoll{ display:none; animation:none; }
+   /* [S6+] rolling band OFF entirely */
+}
+
+
+/* ---------- DESKTOP FIELD ---------- */
+.t77 #desk{
+  position:fixed; inset:0;
+  background:
+    radial-gradient(ellipse 120% 90% at 42% 30%, #17271F 0%, var(--crt-desktop) 60%, #0B140F 100%);
+  display:flex; flex-direction:column;
+}
+
+/* faint facet / grid lines on the desktop (worldbuilding, low contrast) */
+.t77 #desk::before{
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:.5;
+  background-image:
+    linear-gradient(rgba(93,139,128,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(93,139,128,.05) 1px, transparent 1px);
+  background-size:44px 44px;
+}
+
+
+/* ---------- TOP BAR ---------- */
+.t77 #topbar{
+  flex:0 0 auto; height:24px; z-index:60;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 12px;
+  background:linear-gradient(#0C1511,#0A120E);
+  border-bottom:1px solid rgba(93,139,128,.35);
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.05em;
+}
+
+.t77 #topbar .tb-logo{color:var(--teal); font-weight:600; letter-spacing:.08em;}
+
+.t77 #topbar .tb-logo b{color:var(--paper);}
+
+.t77 #topbar .tb-ctrl{display:flex; gap:14px; color:#59756B;}
+
+.t77 #topbar .tb-ctrl span{cursor:default; transition:color .1s;}
+
+.t77 #topbar .tb-ctrl span:hover{color:var(--paper);}
+
+.t77 #topbar .tb-sess{color:#6E8C81;}
+
+.t77 #topbar .tb-sess b{color:var(--teal);}
+
+
+/* ---------- WORKSPACE (window + desktop icons) ---------- */
+.t77 #work{ flex:1 1 auto; position:relative; min-height:0; display:flex; }
+
+
+/* window */
+.t77 #window{
+  position:absolute; z-index:20;
+  top:8px; left:58px; right:8px; bottom:8px; /* rail lives LEFT now; thin bezel all round */
+  display:flex; flex-direction:column; min-height:0;
+  background:var(--crt-desktop);
+  border:2px solid var(--ink);
+  box-shadow:8px 8px 0 rgba(0,0,0,.55);
+  animation:t77-winOpen .12s ease-out;
+}
+
+@keyframes t77-winOpen{ from{transform:scale(.975); opacity:.4;} to{transform:scale(1); opacity:1;} }
+
+.t77 #winTitle{
+  flex:0 0 auto; height:20px; display:flex; align-items:center; justify-content:space-between;
+  padding:0 9px; background:var(--ink); color:var(--paper);
+  font-family:var(--f-cond); font-weight:700; letter-spacing:.12em; font-size:12px; text-transform:uppercase;
+}
+
+.t77 #winTitle .wid{ font-family:var(--f-mono); font-weight:500; font-size:11px; color:#B8AF98; letter-spacing:.04em; }
+
+/* the picture element that dies during power-off */
+/* [S6+] TUBE GEOMETRY on the picture region: generous corner rounding gives the
+   window a tube read. overflow:hidden clips the rounded corners. */
+.t77 #screenWrap{ flex:1 1 auto; position:relative; min-height:0; overflow:hidden; border-radius:10px; }
+
+/* [S6+] per-window tube shading: an inset bezel ring + corner shadow pools + a faint
+   inward compression, painted ABOVE the picture but pointer-events:none so hit-testing
+   stays sacred and the content underneath is never transformed. z:120 keeps it under
+   the CRT power-off fx (z:400) and the boot/global CRT stack. */
+.t77 #screenWrap::before{
+  content:''; position:absolute; inset:0; z-index:120; pointer-events:none; border-radius:10px;
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,.5),
+    inset 0 0 10px 2px rgba(0,0,0,.5),
+    inset 22px 18px 34px -22px rgba(0,0,0,.7),
+    inset -22px 18px 34px -22px rgba(0,0,0,.7),
+    inset 22px -18px 34px -22px rgba(0,0,0,.7),
+    inset -22px -18px 34px -22px rgba(0,0,0,.7);
+}
+
+/* [S6+] a very faint upper specular curve inside the window glass, off the data */
+.t77 #screenWrap::after{
+  content:''; position:absolute; inset:0; z-index:121; pointer-events:none; border-radius:10px;
+  background:radial-gradient(ellipse 58% 34% at 40% 8%, rgba(226,240,214,.06) 0%, transparent 60%);
+}
+
+/* #screen is the JITTER TARGET (translateX one-frame twitch, timer-driven). It already
+   carries the power-off transform; jitter is applied only while idle & fx hidden. */
+.t77 #screen{ position:absolute; inset:0; overflow:hidden; transform-origin:center center; }
+
+
+/* ---------- DESKTOP ICONS (LEFT edge — compact, glyph-only) ---------- */
+.t77 #icons{
+  position:absolute; z-index:30; top:8px; left:8px; width:42px;
+  display:flex; flex-direction:column; gap:7px; align-items:center;
+}
+
+.t77 .dicon{
+  width:38px; display:flex; flex-direction:column; align-items:center; gap:0;
+  cursor:pointer; padding:5px 0; border:1px solid transparent; border-radius:2px;
+  transition:background .1s, border-color .1s;
+}
+
+.t77 .dicon .glyph{
+  width:28px; height:24px; display:flex; align-items:center; justify-content:center;
+  color:var(--teal);
+}
+
+.t77 .dicon .glyph svg{width:21px; height:21px;}
+
+.t77 .dicon .lbl{ display:none; }
+ /* glyph-only rail — the window title names the screen */
+.t77 .dicon:hover{ background:rgba(93,139,128,.08); }
+
+.t77 .dicon.sel{ background:rgba(93,139,128,.14); border-color:rgba(93,139,128,.5);
+  box-shadow:0 0 12px rgba(93,139,128,.35); }
+
+.t77 .dicon.sel .glyph{ color:#7FBBAD; }
+
+.t77 .dicon.sel .lbl{ color:var(--paper); }
+
+
+/* ---------- TASKBAR ---------- */
+.t77 #taskbar{
+  flex:0 0 auto; height:23px; z-index:60;
+  display:flex; align-items:center; gap:14px;
+  padding:0 10px;
+  background:linear-gradient(#0A120E,#0C1511);
+  border-top:1px solid rgba(93,139,128,.35);
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.02em; color:#7E9A8F;
+  white-space:nowrap; overflow:hidden;
+}
+
+.t77 #taskbar .seg b{color:var(--teal); font-weight:500;}
+
+.t77 #taskbar .seg{flex:0 0 auto;}
+
+.t77 #taskbar .feed.live{color:var(--teal);}
+
+.t77 #taskbar .feed.offline{color:var(--orange); font-weight:600;}
+
+.t77 #taskbar .mkt.open{color:var(--teal);}
+
+.t77 #taskbar .mkt.closed{color:#9a8a5a;}
+
+.t77 #taskbar .disc{color:var(--teal); letter-spacing:.06em; font-weight:500;}
+
+.t77 #taskbar .spacer{flex:1 1 auto;}
+
+.t77 #taskbar .clock{color:var(--paper);}
+
+
+/* ---------- SHARED PAPER COMPONENTS ---------- */
+.t77 .card{
+  position:relative; background:var(--paper); border:2px solid var(--ink);
+  box-shadow:var(--card-shadow), var(--paper-grain);
+  color:var(--ink);
+}
+
+.t77 .card::after{ /* inner 1px rule inset 4px */
+  content:''; position:absolute; inset:4px; border:1px solid rgba(35,32,26,.28); pointer-events:none;
+}
+
+.t77 .card > *{ position:relative; z-index:1; }
+
+/* panel label tag overlapping top border */
+.t77 .plabel{
+  position:absolute; top:-11px; left:12px; z-index:3;
+  background:var(--ink); color:var(--paper);
+  font-family:var(--f-mono); font-size:10px; font-weight:500; letter-spacing:.14em;
+  padding:2px 8px; text-transform:uppercase;
+}
+
+/* header chip: ink-on-orange (or paper-on-teal), clipped corner */
+.t77 .chip{
+  display:inline-flex; align-items:center; gap:5px;
+  font-family:var(--f-cond); font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  font-size:12px; padding:3px 12px 3px 9px; color:var(--ink); background:var(--orange);
+  clip-path:polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+
+.t77 .chip.teal{ background:var(--teal); color:var(--paper); }
+
+.t77 .chip.ink{ background:var(--ink); color:var(--paper); }
+
+/* tag chips (sector/style) */
+.t77 .tag{
+  display:inline-block; font-family:var(--f-cond); font-weight:700; font-size:11px;
+  letter-spacing:.1em; text-transform:uppercase; padding:2px 8px;
+  border:1.5px solid var(--ink); color:var(--ink); background:transparent;
+}
+
+.t77 .tag.on{ background:var(--teal); color:var(--paper); border-color:var(--teal); }
+
+
+/* keycap chips */
+.t77 kbd{
+  display:inline-flex; align-items:center; justify-content:center;
+  font-family:var(--f-mono); font-weight:600; font-size:11px; letter-spacing:.02em;
+  min-width:18px; height:20px; padding:0 6px;
+  background:var(--orange); color:var(--ink); border:1.5px solid var(--ink);
+  box-shadow:0 2px 0 var(--ink); border-radius:2px; text-transform:uppercase;
+}
+
+.t77 kbd.dim{ background:var(--paper-dark); color:var(--ink-soft); box-shadow:0 2px 0 var(--ink-soft); }
+
+.t77 .hintbar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-family:var(--f-mono);
+  font-size:11px; color:#9CB4A9; }
+
+.t77 .hintbar .h{ display:inline-flex; align-items:center; gap:5px; }
+
+.t77 .hintbar .h .t{ color:#9CB4A9; letter-spacing:.04em; }
+
+
+/* ESC BACK affordance, bottom-center of each screen */
+.t77 .escback{
+  position:absolute; bottom:8px; left:50%; transform:translateX(-50%); z-index:40;
+  display:inline-flex; align-items:center; gap:7px;
+  font-family:var(--f-mono); font-size:11px; color:#9CB4A9; letter-spacing:.06em;
+  cursor:pointer; user-select:none;
+}
+
+.t77 .escback:hover{ color:var(--paper); }
+
+/* diegetic "you are home" marker on the dashboard — a status, not an action */
+.t77 .escback.root{ cursor:default; }
+
+.t77 .escback.root:hover{ color:#9CB4A9; }
+
+/* per-screen keycap hint bar, bottom-left so it clears the centered esc marker */
+.t77 .screen-hints{ position:absolute; bottom:8px; left:20px; z-index:40; }
+
+
+/* numbers */
+.t77 .mono{ font-family:var(--f-mono); font-variant-numeric:tabular-nums; }
+
+.t77 .gain{ color:var(--gain); }
+ .t77 .loss{ color:var(--loss); }
+
+
+/* ---------- SCREEN SCAFFOLD ---------- */
+.t77 .appscreen{ position:absolute; inset:0; display:none; flex-direction:column; min-height:0; }
+
+.t77 .appscreen.active{ display:flex; }
+
+.t77 .screenbody{ flex:1 1 auto; min-height:0; overflow:hidden; padding:12px 14px 30px; }
+ /* thinned — info owns the glass; bottom keeps the hint/esc overlay lane */
+
+/* ============================ DASHBOARD ============================= */
+.t77 #dash .screenbody{
+  display:grid; gap:14px;
+  grid-template-columns:minmax(340px,1.15fr) minmax(0,2fr) minmax(240px,.9fr);
+  grid-template-rows:auto 1fr auto;
+  grid-template-areas:
+    "acct   chart  movers"
+    "idx    chart  movers"
+    "roster roster roster";
+}
+
+.t77 #dashAcct{ grid-area:acct; padding:16px 16px 14px; }
+
+.t77 #dashIdx{ grid-area:idx; align-self:stretch; grid-auto-rows:1fr; }
+ /* index cards fill col-1 — no dead band under them */
+.t77 #dashChart{ grid-area:chart; display:flex; flex-direction:column; padding:14px; min-height:0; }
+
+.t77 #dashMovers{ grid-area:movers; display:flex; flex-direction:column; padding:14px 14px 12px; min-height:0; align-self:start; }
+ /* content-height card — no 60%-empty paper (squint test) */
+/* TAB panel focus — teal ring, the info-layer colour (orange stays a verb) */
+.t77 .panel-focus{ outline:2px solid var(--teal); outline-offset:3px; }
+
+.t77 #dashRoster{ grid-area:roster; }
+
+
+/* account masthead */
+.t77 .acct-val{ font-family:var(--f-cond); font-weight:800; font-size:clamp(38px,4.4vw,58px);
+  line-height:.9; letter-spacing:.01em; color:var(--ink);
+  text-shadow:1.3px 0 rgba(255,0,64,.5), -1.3px 0 rgba(0,232,255,.5), 0 0 6px rgba(120,150,110,.16); }
+ /* [S5]/[S6+] strengthened static phosphor fringe */
+.t77 .acct-row{ display:flex; align-items:baseline; gap:14px; margin-top:8px; }
+
+.t77 .acct-day{ font-family:var(--f-mono); font-weight:600; font-size:18px; }
+
+.t77 .acct-sub{ display:flex; gap:22px; margin-top:12px; }
+
+.t77 .acct-sub .lab{ font-family:var(--f-cond); font-weight:700; font-size:11px; letter-spacing:.1em;
+  color:var(--ink-soft); text-transform:uppercase; }
+
+.t77 .acct-sub .num{ font-family:var(--f-mono); font-size:15px; color:var(--ink); margin-top:1px; }
+
+.t77 .margin-wrap{ margin-top:12px; }
+
+.t77 .margin-bar{ height:10px; background:var(--paper-dark); border:1.5px solid var(--ink); position:relative; overflow:hidden; }
+
+.t77 .margin-bar>i{ position:absolute; left:0; top:0; bottom:0; background:var(--ink); }
+
+.t77 .margin-cap{ display:flex; justify-content:space-between; font-family:var(--f-mono); font-size:10px;
+  color:var(--ink-soft); margin-top:3px; letter-spacing:.02em; }
+
+
+/* indices strip */
+.t77 #dashIdx{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+/* idx cards stretch to fill col-1 (no dead band) — the SPARK grows to absorb the extra
+   height (preserveAspectRatio=none + non-scaling-stroke), so a taller card means a
+   bigger chart, never empty paper. */
+.t77 .idxchip{ position:relative; background:var(--paper); border:2px solid var(--ink); padding:8px 9px 7px;
+  box-shadow:4px 4px 0 rgba(0,0,0,.45); display:flex; flex-direction:column; min-height:0; }
+
+.t77 .idxchip .nm{ order:1; font-family:var(--f-cond); font-weight:800; font-size:15px; letter-spacing:.06em; color:var(--ink); }
+
+.t77 .idxchip .pr{ order:2; font-family:var(--f-mono); font-size:13px; color:var(--ink); margin-top:1px; }
+
+.t77 .idxchip .pc{ order:3; font-family:var(--f-mono); font-size:11px; font-weight:600; }
+
+.t77 .idxchip .spk{ order:4; position:static; flex:1 1 auto; width:100%; height:auto; min-height:20px; margin-top:6px; }
+
+.t77 .idxchip .spk path{ vector-effect:non-scaling-stroke; }
+
+
+/* main chart */
+.t77 .chart-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+
+.t77 .chart-head .who{ display:flex; align-items:baseline; gap:10px; }
+
+.t77 .chart-head .sym{ font-family:var(--f-cond); font-weight:800; font-size:26px; letter-spacing:.04em; color:var(--ink); }
+
+.t77 .chart-head .nm{ font-family:var(--f-prose); font-size:12px; color:var(--ink-soft); }
+
+.t77 .chart-head .last{ font-family:var(--f-mono); font-weight:600; font-size:20px; color:var(--ink); }
+
+.t77 .rangetog{ display:flex; gap:6px; }
+
+.t77 .rangetog button{ font-family:var(--f-mono); font-weight:600; font-size:11px; letter-spacing:.04em;
+  padding:3px 9px; border:1.5px solid var(--ink); background:var(--paper-dark); color:var(--ink-soft);
+  cursor:pointer; box-shadow:0 2px 0 var(--ink-soft); text-transform:uppercase; }
+
+.t77 .rangetog button.on{ background:var(--orange); color:var(--ink); box-shadow:0 2px 0 var(--ink); }
+
+.t77 .chartwell{ flex:1 1 auto; position:relative; background:var(--crt-desktop); border:2px solid var(--ink);
+  min-height:0; overflow:hidden; }
+
+.t77 .chartwell canvas{ position:absolute; inset:0; width:100%; height:100%; }
+
+.t77 .chart-alerts{ margin-top:12px; }
+
+
+/* alerts marquee */
+.t77 .marquee{ background:var(--ink); color:var(--paper); overflow:hidden; height:24px;
+  display:flex; align-items:center; border:2px solid var(--ink); }
+
+.t77 .marquee .track{ display:inline-flex; white-space:nowrap; font-family:var(--f-mono); font-size:12px;
+  letter-spacing:.03em; will-change:transform; animation:t77-marq 38s linear infinite; }
+
+.t77 .marquee .track span{ padding:0 6px; }
+
+.t77 .marquee .track .fl{ color:var(--orange); }
+
+@keyframes t77-marq{ from{transform:translateX(0);} to{transform:translateX(-50%);} }
+
+@media (prefers-reduced-motion:reduce){
+   .t77 .marquee .track{ animation-duration:120s; }
+ }
+
+
+/* movers */
+.t77 .movers-col{ margin-bottom:12px; }
+
+.t77 .movers-col h4{ font-family:var(--f-cond); font-weight:800; font-size:13px; letter-spacing:.1em;
+  color:var(--ink); text-transform:uppercase; margin-bottom:6px; padding-bottom:3px;
+  border-bottom:1.5px solid var(--ink); }
+
+.t77 .mover{ display:flex; justify-content:space-between; align-items:center; font-family:var(--f-mono);
+  font-size:13px; padding:3px 2px; }
+
+.t77 .mover .t{ font-family:var(--f-cond); font-weight:700; font-size:14px; letter-spacing:.05em; color:var(--ink); }
+
+
+/* ---------- ROSTER STRIP (signature; appears on every screen) ---------- */
+.t77 .roster{ display:flex; gap:8px; padding:8px 3px 3px; align-items:stretch; }
+
+.t77 .roster.dim .rcard{ opacity:.62; }
+   /* watchlist civilian variant (opacity + darker paper carry the desaturated look) */
+.t77 .roster.dim .rcard.sel{ opacity:1; }
+
+.t77 .rcard{
+  position:relative; flex:1 1 0; min-width:0; background:var(--paper); border:2px solid var(--ink);
+  box-shadow:3px 3px 0 rgba(0,0,0,.5); padding:4px 6px 5px; cursor:pointer;
+  display:flex; flex-direction:column; gap:2px; transition:transform .08s;
+}
+
+.t77 .roster.dim .rcard{ background:#DCD3BC; }
+
+.t77 .roster.dim .rcard.sel{ background:var(--paper); }
+
+.t77 .rcard:hover{ transform:translateY(-2px); }
+
+.t77 .rcard.sel{ box-shadow:0 0 0 2px var(--teal), 4px 4px 0 rgba(0,0,0,.5), 0 0 14px rgba(93,139,128,.55); }
+
+.t77 .roster.dim .rcard.sel{ box-shadow:0 0 0 2px var(--orange), 4px 4px 0 rgba(0,0,0,.5), 0 0 14px rgba(217,148,43,.5); }
+
+.t77 .rcard.pulse{ animation:t77-rpulse .5s ease-out; }
+
+@keyframes t77-rpulse{ 0%{box-shadow:0 0 0 2px var(--teal),4px 4px 0 rgba(0,0,0,.5),0 0 4px rgba(93,139,128,.3);}
+  50%{box-shadow:0 0 0 3px var(--teal),4px 4px 0 rgba(0,0,0,.5),0 0 22px rgba(93,139,128,.85);}
+  100%{box-shadow:0 0 0 2px var(--teal),4px 4px 0 rgba(0,0,0,.5),0 0 14px rgba(93,139,128,.55);} }
+
+.t77 .rcard .rtop{ display:flex; align-items:baseline; justify-content:space-between; }
+
+.t77 .rcard .rsym{ font-family:var(--f-cond); font-weight:800; font-size:13px; letter-spacing:.03em; color:var(--ink); }
+
+.t77 .rcard .rpc{ font-family:var(--f-mono); font-weight:600; font-size:10px; }
+
+.t77 .rcard .rport{ height:18px; margin:1px 0; }
+
+.t77 .rcard .rlast{ font-family:var(--f-mono); font-size:9px; color:var(--ink-soft); }
+
+.t77 .rcard .star{ position:absolute; top:-6px; right:-6px; width:16px; height:16px;
+  background:var(--orange); border:1.5px solid var(--ink); color:var(--ink);
+  display:none; align-items:center; justify-content:center; font-size:12px; z-index:3;
+  clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%); }
+
+.t77 .rcard.flag .star{ display:flex; }
+
+
+/* ============================ POSITIONS ============================= */
+.t77 #pos .screenbody{ display:flex; flex-direction:column; min-height:0; }
+
+.t77 .pos-dossier{ flex:1 1 auto; position:relative; display:grid; gap:22px;
+  grid-template-columns:1.15fr .85fr; min-height:0; }
+
+/* screened-back duotone portrait behind the card */
+.t77 #posSilhouette{ position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.5; }
+
+.t77 .pos-col{ position:relative; z-index:1; min-height:0; overflow:auto; }
+
+.t77 .pos-left .phead{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+
+.t77 .pos-left .psym{ font-family:var(--f-cond); font-weight:800; font-size:clamp(40px,4.6vw,60px); line-height:.85;
+  color:var(--ink); text-shadow:1.3px 0 rgba(255,0,64,.5), -1.3px 0 rgba(0,232,255,.5), 0 0 6px rgba(120,150,110,.16); }
+ /* [S5]/[S6+] strengthened phosphor fringe */
+.t77 .pos-left .pnm{ font-family:var(--f-prose); font-size:14px; color:var(--ink-soft); }
+
+.t77 .pos-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:2px; }
+
+.t77 .budget-chip{ display:inline-flex; align-items:center; gap:8px; margin:6px 0 14px;
+  background:var(--crt-desktop); color:var(--paper); font-family:var(--f-mono); font-weight:600;
+  font-size:14px; padding:6px 12px; border:2px solid var(--ink); }
+
+.t77 .budget-chip .lab{ font-family:var(--f-cond); font-weight:700; letter-spacing:.1em; font-size:12px; color:#9CB4A9; }
+
+.t77 .budget-chip .num.staged{ color:var(--orange); }
+
+.t77 .statrow{ display:flex; align-items:center; gap:10px; padding:7px 4px; border-bottom:1px solid rgba(35,32,26,.16); }
+
+.t77 .statrow .ic{ width:18px; height:18px; color:var(--ink-soft); flex:0 0 auto; }
+
+.t77 .statrow .lab{ font-family:var(--f-cond); font-weight:700; letter-spacing:.08em; font-size:13px;
+  color:var(--ink-soft); text-transform:uppercase; flex:1 1 auto; }
+
+.t77 .statrow .val{ font-family:var(--f-mono); font-weight:500; font-size:15px; color:var(--ink); text-align:right; }
+
+.t77 .statrow .val .delta{ color:var(--orange); }
+
+.t77 .statrow .val .arrow{ color:var(--orange); padding:0 4px; }
+
+
+/* stepper */
+.t77 .stepper-wrap{ margin-top:14px; border-top:2px solid var(--ink); padding-top:12px; }
+
+.t77 .stepper-wrap h4{ font-family:var(--f-cond); font-weight:800; font-size:14px; letter-spacing:.09em;
+  color:var(--ink); text-transform:uppercase; margin-bottom:8px; }
+
+.t77 .stepper{ display:flex; align-items:center; gap:10px; }
+
+.t77 .stepper button{ width:34px; height:34px; font-family:var(--f-cond); font-weight:800; font-size:22px;
+  line-height:1; border:2px solid var(--ink); background:var(--paper-dark); color:var(--ink);
+  cursor:pointer; box-shadow:0 3px 0 var(--ink); }
+
+.t77 .stepper button:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--ink); }
+
+.t77 .stepper input{ width:90px; height:34px; text-align:center; font-family:var(--f-mono); font-weight:600;
+  font-size:17px; border:2px solid var(--ink); background:var(--paper); color:var(--ink); }
+
+.t77 .stepper .qlab{ font-family:var(--f-cond); font-weight:700; font-size:12px; letter-spacing:.1em;
+  color:var(--ink-soft); }
+
+.t77 .est-line{ margin-top:10px; font-family:var(--f-mono); font-size:13px; color:var(--ink); min-height:18px; }
+
+.t77 .est-line b{ color:var(--orange); }
+
+.t77 .order-btns{ display:flex; gap:10px; margin-top:12px; }
+
+.t77 .obtn{ font-family:var(--f-cond); font-weight:800; letter-spacing:.09em; font-size:14px; text-transform:uppercase;
+  padding:8px 16px; border:2px solid var(--ink); cursor:pointer; box-shadow:0 3px 0 var(--ink);
+  display:inline-flex; align-items:center; gap:8px; }
+
+.t77 .obtn[disabled]{ opacity:.4; cursor:default; box-shadow:0 3px 0 rgba(35,32,26,.4); }
+
+.t77 .obtn.reset{ background:var(--paper-dark); color:var(--ink-soft); }
+
+.t77 .obtn.confirm{ background:var(--orange); color:var(--ink); }
+
+.t77 .obtn:not([disabled]):active{ transform:translateY(2px); box-shadow:0 1px 0 var(--ink); }
+
+
+/* radar */
+/* padding-top clears the FINGERPRINT .plabel (top:-11px above the first child);
+   without it .pos-col's overflow:auto clips the tag ~9px — negative overflow
+   can't scroll into view. Every .plabel must overlap its border whole. */
+.t77 .pos-right{ display:flex; flex-direction:column; padding-top:13px; }
+
+.t77 .radar-card{ padding:12px; }
+
+.t77 .radar-wrap{ position:relative; }
+
+.t77 .radar-wrap svg{ width:100%; height:auto; display:block; }
+
+.t77 .strategy{ margin-top:12px; display:flex; align-items:center; gap:16px; }
+
+.t77 .strat-opt{ display:inline-flex; align-items:center; gap:6px; font-family:var(--f-cond); font-weight:700;
+  font-size:14px; letter-spacing:.08em; color:var(--ink-soft); text-transform:uppercase; cursor:pointer; }
+
+.t77 .strat-opt.on{ color:var(--ink); }
+
+.t77 .strat-opt .box{ width:16px; height:16px; border:2px solid var(--ink); display:inline-flex;
+  align-items:center; justify-content:center; font-size:11px; }
+
+.t77 .strat-opt.on .box{ background:var(--orange); color:var(--ink); }
+
+
+/* first-run tutorial */
+.t77 #tutorial{ position:absolute; inset:0; z-index:200; display:none; align-items:center; justify-content:center;
+  background:rgba(8,14,11,.7); }
+
+.t77 #tutorial.show{ display:flex; }
+
+.t77 .tut-card{ width:min(420px,84%); background:var(--paper); border:2px solid var(--ink);
+  box-shadow:8px 8px 0 rgba(0,0,0,.6), var(--paper-grain); padding:18px; position:relative; color:var(--ink); }
+
+  /* §1 surface language: interactive content panels stay straight (only decorative
+     panels may rotate). The tutorial card is an interactive dismiss target, so no tilt. */
+.t77 .tut-card .tut-top{ display:flex; gap:12px; align-items:center; margin-bottom:10px; }
+
+.t77 .tut-portrait{ width:46px; height:46px; flex:0 0 auto; border:2px solid var(--ink); background:var(--crt-desktop-2); }
+
+.t77 .tut-card h3{ font-family:var(--f-cond); font-weight:800; font-size:18px; letter-spacing:.06em; color:var(--ink); }
+
+.t77 .tut-card p{ font-family:var(--f-prose); font-size:14px; line-height:1.5; color:var(--ink-soft); font-style:italic; }
+
+.t77 .tut-card .tut-cta{ margin-top:14px; text-align:right; font-family:var(--f-mono); font-size:12px; color:var(--ink-soft); }
+
+
+/* ============================ WATCHLIST ============================= */
+.t77 #watch .screenbody{ display:grid; gap:22px; grid-template-columns:1.1fr .9fr; min-height:0; }
+
+.t77 .watch-portrait-card{ display:flex; flex-direction:column; padding:14px; min-height:0; }
+
+.t77 .watch-well{ flex:1 1 auto; position:relative; background:var(--crt-desktop); border:2px solid var(--ink);
+  min-height:0; overflow:hidden; }
+
+.t77 .watch-well canvas{ position:absolute; inset:0; width:100%; height:100%; }
+
+.t77 .watch-right{ display:flex; flex-direction:column; min-height:0; }
+
+.t77 .watch-name-row{ display:flex; align-items:baseline; gap:12px; margin-bottom:4px; }
+
+.t77 .watch-sym{ font-family:var(--f-cond); font-weight:800; font-size:clamp(34px,4vw,48px); line-height:.85;
+  color:var(--ink); text-shadow:1.3px 0 rgba(255,0,64,.5), -1.3px 0 rgba(0,232,255,.5), 0 0 6px rgba(120,150,110,.16); }
+ /* [S5]/[S6+] strengthened phosphor fringe */
+.t77 .watch-nm{ font-family:var(--f-prose); font-size:13px; color:var(--ink-soft); }
+
+.t77 .watch-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+
+
+/* stat sheet w/ visible scrollbar */
+.t77 .statsheet{ flex:1 1 auto; min-height:150px; overflow-y:auto; padding-right:10px; }
+ /* bios must survive 720p — the radar shrinks instead */
+.t77 .statsheet::-webkit-scrollbar{ width:12px; }
+
+.t77 .statsheet::-webkit-scrollbar-track{ background:var(--paper-dark); border:1.5px solid var(--ink); }
+
+.t77 .statsheet::-webkit-scrollbar-thumb{ background:var(--ink); border:2px solid var(--paper-dark); }
+
+.t77 .ssrow{ position:relative; display:flex; justify-content:space-between; align-items:center;
+  padding:6px 2px; border-bottom:1px solid rgba(35,32,26,.15); }
+
+.t77 .ssrow .k{ font-family:var(--f-cond); font-weight:700; letter-spacing:.07em; font-size:13px;
+  color:var(--ink-soft); text-transform:uppercase; }
+
+.t77 .ssrow .v{ font-family:var(--f-mono); font-size:14px; color:var(--ink); text-align:right; }
+
+.t77 .ss-tip{ display:none; position:absolute; right:0; top:50%; transform:translateY(-50%); z-index:5;
+  background:var(--teal); color:var(--paper); font-family:var(--f-prose); font-size:11px; line-height:1.35;
+  padding:4px 8px; max-width:220px; box-shadow:3px 3px 0 rgba(0,0,0,.4); }
+
+.t77.tips .ss-tip{ display:block; }
+
+.t77.tips .ssrow .v{ padding-right:230px; }
+
+.t77 .bio-block{ margin-top:14px; }
+
+.t77 .bio-block h4{ font-family:var(--f-cond); font-weight:800; font-size:14px; letter-spacing:.1em; color:var(--ink);
+  text-transform:uppercase; margin:12px 0 4px; padding-bottom:3px; border-bottom:1.5px solid var(--ink); }
+
+.t77 .bio-block p{ font-family:var(--f-prose); font-size:14px; line-height:1.55; color:var(--ink-soft); }
+
+.t77 .watch-radar{ margin-top:8px; }
+
+.t77 .watch-radar svg{ width:100%; max-width:340px; max-height:34vh; height:auto; display:block; margin:0 auto; }
+
+
+/* ============================ ORDERS (UPGRADE 3) ============================= */
+.t77 #orders .screenbody{ display:flex; flex-direction:column; min-height:0; }
+
+.t77 .orders-card{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:16px 16px 12px; }
+
+.t77 .orders-head{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+
+.t77 .orders-count{ font-size:12px; color:var(--ink-soft); letter-spacing:.04em; }
+
+.t77 .orders-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; padding-right:6px; }
+
+.t77 .orders-scroll::-webkit-scrollbar{ width:12px; }
+
+.t77 .orders-scroll::-webkit-scrollbar-track{ background:var(--paper-dark); border:1.5px solid var(--ink); }
+
+.t77 .orders-scroll::-webkit-scrollbar-thumb{ background:var(--ink); border:2px solid var(--paper-dark); }
+
+.t77 table.ledger{ width:100%; border-collapse:collapse; font-family:var(--f-mono); }
+
+.t77 table.ledger thead th{
+  position:sticky; top:0; z-index:2; background:var(--ink); color:var(--paper);
+  font-family:var(--f-cond); font-weight:700; letter-spacing:.1em; font-size:11px; text-transform:uppercase;
+  padding:6px 10px; text-align:right; white-space:nowrap;
+}
+
+.t77 table.ledger thead th.l{ text-align:left; }
+
+.t77 table.ledger tbody td{
+  font-size:13px; color:var(--ink); padding:6px 10px; text-align:right; white-space:nowrap;
+  border-bottom:1px solid rgba(35,32,26,.16); font-variant-numeric:tabular-nums;
+}
+
+.t77 table.ledger tbody td.l{ text-align:left; }
+
+.t77 table.ledger tbody tr:nth-child(even) td{ background:var(--paper-dark); }
+
+.t77 table.ledger .sym{ font-family:var(--f-cond); font-weight:800; letter-spacing:.04em; font-size:14px; }
+
+.t77 table.ledger .side{ font-family:var(--f-cond); font-weight:800; letter-spacing:.06em; }
+
+.t77 table.ledger .side.gain{ color:var(--gain); }
+ .t77 table.ledger .side.loss{ color:var(--loss); }
+
+.t77 .orders-empty{ font-family:var(--f-mono); font-size:13px; color:var(--ink-soft); letter-spacing:.03em;
+  padding:22px 8px; border:1.5px dashed rgba(35,32,26,.4); background:var(--paper-dark); text-align:center; }
+
+.t77 .orders-empty b{ color:var(--ink); font-weight:600; }
+
+.t77 .orders-roster-wrap{ margin-top:14px; }
+
+
+/* ============================ PERFORMANCE (UPGRADE 4) ============================= */
+.t77 #perf .screenbody{ display:flex; flex-direction:column; min-height:0; }
+
+.t77 .perf-main{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:10px 12px 8px; }
+
+.t77 .perf-head{ display:flex; align-items:center; gap:14px; margin-bottom:10px; flex-wrap:wrap; }
+
+.t77 .perf-src{ display:flex; align-items:center; gap:7px; }
+
+.t77 .perf-srcbtn{ font-family:var(--f-mono); font-weight:600; font-size:11px; letter-spacing:.03em;
+  padding:3px 9px; border:1.5px solid var(--ink); background:var(--paper-dark); color:var(--ink-soft);
+  cursor:pointer; box-shadow:0 2px 0 var(--ink-soft); text-transform:uppercase; }
+
+.t77 .perf-srcbtn.on{ background:var(--orange); color:var(--ink); box-shadow:0 2px 0 var(--ink); }
+
+.t77 .perf-syminput{ display:inline-flex; align-items:center; gap:5px; border:1.5px solid var(--ink);
+  background:var(--paper); padding:2px 6px; box-shadow:0 2px 0 var(--ink-soft); }
+
+.t77 .perf-syminput .pfx{ font-family:var(--f-mono); font-size:11px; color:var(--teal); font-weight:600; }
+
+.t77 .perf-syminput input{ width:78px; border:none; background:transparent; color:var(--ink);
+  font-family:var(--f-mono); font-weight:600; font-size:13px; letter-spacing:.06em; text-transform:uppercase; outline:none; }
+
+.t77 .perf-syminput input::placeholder{ color:var(--ink-soft); opacity:.6; letter-spacing:.04em; }
+
+.t77 .perf-who{ display:flex; align-items:baseline; gap:10px; flex:1 1 auto; min-width:0; }
+
+.t77 .perf-who .sym{ font-family:var(--f-cond); font-weight:800; font-size:24px; letter-spacing:.04em; color:var(--ink); }
+
+.t77 .perf-who .nm{ font-family:var(--f-prose); font-size:12px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.t77 .perf-who .last{ font-family:var(--f-mono); font-weight:600; font-size:18px; color:var(--ink); margin-left:auto; }
+
+.t77 .perf-tag{ font-family:var(--f-cond); font-weight:700; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+  padding:2px 7px; border:1.5px solid var(--ink); color:var(--ink); }
+
+.t77 .perf-tag.sim{ background:var(--teal); color:var(--paper); border-color:var(--teal); }
+
+.t77 .perf-tag.mock{ background:var(--paper-dark); color:var(--ink-soft); }
+
+.t77 .perf-tag.live{ background:var(--teal); color:var(--paper); border-color:var(--teal); }
+
+.t77 .perf-tag:empty{ display:none; }
+
+
+/* ===================== WAVE-2 SHARED HELPERS (Scanner/Alerts/News/Compare) =====================
+   Landed FIRST so all five wave-2 screens consume ONE palette-safe surface each.
+   §1 PALETTE LAW enforced structurally here:
+     - .segrow/.segbtn  → segmented toggle; EXACTLY one .on carries --orange (the active VERB).
+     - .statuschip      → ink/teal WORD + SHAPE severity; NEVER green/red/orange. Severity by
+                          filled-vs-hollow PIPS + weight + border, not by hue.  */
+
+/* 1) segToggle — orange-active-only segmented control (reuses the .perf-srcbtn look) */
+.t77 .segrow{ display:inline-flex; align-items:stretch; gap:0; }
+
+.t77 .segbtn{ font-family:var(--f-mono); font-weight:600; font-size:11px; letter-spacing:.03em;
+  padding:3px 10px; border:1.5px solid var(--ink); border-left-width:0.75px; border-right-width:0.75px;
+  background:var(--paper-dark); color:var(--ink-soft); cursor:pointer; text-transform:uppercase;
+  box-shadow:0 2px 0 var(--ink-soft); position:relative; }
+
+.t77 .segrow .segbtn:first-child{ border-left-width:1.5px; }
+
+.t77 .segrow .segbtn:last-child{ border-right-width:1.5px; }
+
+.t77 .segbtn .segcount{ font-size:9px; vertical-align:super; margin-left:3px; opacity:.75; letter-spacing:0; }
+
+.t77 .segbtn.on{ background:var(--orange); color:var(--ink); box-shadow:0 2px 0 var(--ink); font-weight:700; z-index:1; }
+
+
+/* 2) statusChip — ink/teal WORD + SHAPE classification (severity by PIPS, never colour) */
+.t77 .statuschip{ display:inline-flex; align-items:center; gap:5px; font-family:var(--f-cond);
+  font-weight:700; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  padding:2px 7px 2px 6px; border:1.5px solid var(--ink); color:var(--ink); background:transparent; white-space:nowrap; }
+
+.t77 .statuschip.na{ color:var(--ink-soft); border-color:var(--ink-soft); border-style:dashed; }
+
+.t77 .statuschip .pips{ display:inline-flex; gap:2px; }
+
+.t77 .statuschip .pip{ width:6px; height:6px; border:1px solid var(--ink); box-sizing:border-box; }
+
+.t77 .statuschip .pip.f{ background:var(--ink); }
+               /* filled = met/severe */
+.t77 .statuschip.na .pip{ border-color:var(--ink-soft); }
+
+/* severity by WEIGHT/BORDER, not hue: higher severity → heavier frame (still ink/teal only) */
+.t77 .statuschip.sev-ok{ }
+
+.t77 .statuschip.sev-warn{ }
+
+.t77 .statuschip.sev-high{ border-width:2px; }
+
+.t77 .statuschip.sev-severe{ border-width:2px; background:var(--ink); color:var(--paper); }
+
+.t77 .statuschip.sev-severe .pip{ border-color:var(--paper); }
+
+.t77 .statuschip.sev-severe .pip.f{ background:var(--paper); }
+
+
+/* ============================== SCANNER (wave-2, id=scan) ============================== */
+.t77 #scan .screenbody{ display:flex; flex-direction:column; min-height:0; gap:8px; }
+
+.t77 .scan-card{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:14px 14px 12px; }
+
+.t77 .scan-presetbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+
+.t77 .scan-presets{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+
+.t77 .scan-badge{ margin-left:auto; font-family:var(--f-mono); font-size:10px; letter-spacing:.1em;
+  color:var(--teal); border:1.5px solid var(--teal); padding:2px 7px; text-transform:uppercase; }
+
+.t77 .scan-badge.cached{ color:var(--orange); border-color:var(--orange); }
+
+.t77 .scan-method{ font-family:var(--f-mono); font-size:10px; line-height:1.5; color:var(--teal);
+  letter-spacing:.02em; border-left:2px solid var(--teal); padding:3px 0 3px 8px; margin-bottom:8px; }
+
+.t77 .scan-method b{ color:#8FB8AD; font-weight:600; }
+
+.t77 .scan-sortbar{ display:flex; align-items:center; gap:8px; margin-bottom:6px; font-family:var(--f-mono);
+  font-size:10px; letter-spacing:.08em; color:var(--ink-soft); }
+
+.t77 .scan-sortbar .lbl{ color:var(--teal); }
+
+.t77 .scan-ledwrap{ flex:1 1 auto; min-height:0; overflow-y:auto; border:1px solid rgba(35,32,26,.28); }
+
+.t77 .scan-ledwrap::-webkit-scrollbar{ width:10px; }
+
+.t77 .scan-ledwrap::-webkit-scrollbar-thumb{ background:var(--ink-soft); }
+
+/* the LOOK-HERE marker: a 3px orange LEFT-BORDER + ▲ glyph on the top-ranked matched row.
+   Orange is a POSITION cue here, never a fill on a value cell (§1). */
+.t77 table.ledger tr.scan-top td:first-child{ border-left:3px solid var(--orange); }
+
+.t77 table.ledger tr.scan-dim td{ opacity:.46; }
+
+.t77 table.ledger td.scan-score{ font-weight:700; }
+
+.t77 table.ledger .rsi-rail{ display:inline-flex; align-items:center; gap:5px; }
+
+.t77 table.ledger .rsi-rail .rr-track{ position:relative; width:34px; height:3px; background:rgba(35,32,26,.22); }
+
+.t77 table.ledger .rsi-rail .rr-dot{ position:absolute; top:-2px; width:3px; height:7px; background:var(--ink); }
+
+.t77 table.ledger .rsi-rail .rr-os, .t77 table.ledger .rsi-rail .rr-ob{ position:absolute; top:-1px; width:1px; height:5px; background:var(--ink-soft); }
+
+.t77 table.ledger .scan-spark{ display:block; }
+
+.t77 .scan-empty{ padding:26px 16px; text-align:center; font-family:var(--f-mono); font-size:11px;
+  color:var(--ink-soft); line-height:1.6; letter-spacing:.04em; }
+
+.t77 .scan-roster-wrap{ margin-top:14px; }
+
+
+/* ============================== NEWS (wave-2, id=news) ============================== */
+/* Two-col grid mirroring #watch (line 535): the WIRE FEED hero wins ~62%, dossier ~38%.
+   Both cards run the full-height flex chain so the wire LIST is the single internal-scroll
+   region (SCREEN_PATTERNS internal-scroll + viewport-lock law) — the card never spills. */
+.t77 #news .screenbody{ display:grid; gap:22px; grid-template-columns:minmax(0,1.62fr) minmax(0,1fr); min-height:0; }
+
+.t77 .news-feed-card{ min-width:0; flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:16px 14px 12px; }
+
+.t77 .news-feedhead{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+
+.t77 .news-lanes{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+
+.t77 .news-badge{ margin-left:auto; font-family:var(--f-mono); font-size:10px; letter-spacing:.1em;
+  color:var(--teal); border:1.5px solid var(--teal); padding:2px 7px; text-transform:uppercase; }
+
+.t77 .news-badge.cached{ color:var(--orange); border-color:var(--orange); }
+  /* OFFLINE // CACHED reads orange (already the taskbar convention) */
+.t77 .news-tape{ margin-bottom:8px; flex:0 0 auto; }
+
+.t77 .news-feedscroll{ flex:1 1 auto; min-height:0; overflow-y:auto; border:1px solid rgba(35,32,26,.28); }
+
+.t77 .news-feedscroll::-webkit-scrollbar{ width:10px; }
+
+.t77 .news-feedscroll::-webkit-scrollbar-thumb{ background:var(--ink-soft); }
+
+/* one wire row = timing/impact chip + ticker/event + when + one-line consequence */
+.t77 .news-wire{ display:grid; grid-template-columns:auto 1fr auto; gap:4px 12px; align-items:baseline;
+  padding:10px 12px; border-bottom:1px solid rgba(35,32,26,.16); cursor:pointer; }
+
+.t77 .news-wire:nth-child(even){ background:var(--paper-dark); }
+
+.t77 .news-wire.sel{ outline:1.5px solid var(--teal); outline-offset:-1.5px; }
+
+/* the LOOK-HERE marker: 3px orange LEFT-BORDER on a genuinely imminent catalyst (§1 — position cue, never a fill) */
+.t77 .news-wire.imminent{ border-left:3px solid var(--orange); padding-left:9px; }
+
+.t77 .news-wire .w-badges{ grid-row:1 / span 2; display:flex; flex-direction:column; gap:5px; align-items:flex-start; }
+
+.t77 .news-wire .w-head{ font-family:var(--f-cond); font-weight:800; letter-spacing:.03em; font-size:15px; color:var(--ink); }
+
+.t77 .news-wire .w-head .w-sym{ color:var(--ink); }
+
+.t77 .news-wire .w-when{ font-family:var(--f-mono); font-size:10px; letter-spacing:.06em; color:var(--ink-soft);
+  text-align:right; white-space:nowrap; }
+
+.t77 .news-wire .w-when.now{ color:var(--orange); }
+  /* ink-on-orange 'imminent' word only — never red (§1) */
+.t77 .news-wire .w-line{ grid-column:2 / span 2; font-family:var(--f-mono); font-size:11px; line-height:1.5;
+  color:var(--ink-soft); letter-spacing:.01em; }
+
+.t77 .news-wire .w-line b{ color:var(--ink); font-weight:600; }
+
+.t77 .news-wire .w-num{ font-family:var(--f-mono); font-weight:600; }
+
+.t77 .news-wire .w-num.gain{ color:var(--gain); }
+ .t77 .news-wire .w-num.loss{ color:var(--loss); }
+  /* market NUMBERS only */
+.t77 .news-empty{ padding:26px 16px; text-align:center; font-family:var(--f-mono); font-size:11px;
+  color:var(--ink-soft); line-height:1.7; letter-spacing:.04em; }
+
+/* imminent chip: ink-on-orange VERB — the one place orange marks a row in the feed (§1) */
+.t77 .news-immchip{ display:inline-block; font-family:var(--f-cond); font-weight:700; font-size:10px;
+  letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; background:var(--orange); color:var(--ink); }
+
+
+/* right column: dossier + this-week strip, stacked, each flex so nothing overflows */
+.t77 .news-side{ min-width:0; display:flex; flex-direction:column; gap:22px; min-height:0; }
+
+.t77 .news-dossier{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:16px 16px 14px; overflow:hidden; }
+
+.t77 .news-dosbody{ flex:1 1 auto; min-height:0; overflow-y:auto; }
+
+.t77 .news-doshero{ display:flex; align-items:flex-end; gap:12px; margin-bottom:6px; }
+
+.t77 .news-dossym{ font-family:var(--f-cond); font-weight:800; letter-spacing:.02em; font-size:42px; line-height:.92; color:var(--ink); }
+
+.t77 .news-dosbig{ font-family:var(--f-mono); font-weight:700; font-size:34px; line-height:.95; color:var(--ink); }
+
+.t77 .news-dosco{ font-family:var(--f-cond); font-weight:700; letter-spacing:.04em; font-size:15px; color:var(--ink-soft); text-transform:uppercase; margin-bottom:10px; }
+
+.t77 .news-dostags{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+
+.t77 .news-doschips{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+
+.t77 .news-blurb{ font-family:var(--f-mono); font-size:11.5px; line-height:1.6; color:var(--ink);
+  border-left:2px solid var(--teal); padding:2px 0 2px 10px; }
+
+.t77 .news-week{ flex:0 0 auto; padding:16px 14px 12px; }
+
+.t77 .news-weekstrip{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:2px; }
+
+.t77 .news-daycol{ display:flex; flex-direction:column; align-items:center; gap:5px; padding:6px 2px 5px;
+  border:1px solid rgba(35,32,26,.22); background:transparent; }
+
+.t77 .news-daycol.wknd{ opacity:.42; }
+             /* Sat/Sun de-emphasised (Mon–Fri emphasised) */
+.t77 .news-daycol.peak{ border-left-color:var(--orange); border-left-width:3px; }
+  /* heavy day: orange 3px LEFT tick only (the "look here" verb) — not the full 1px frame, not a fill (§1) */
+.t77 .news-daycol .d-lbl{ font-family:var(--f-mono); font-size:9px; letter-spacing:.08em; color:var(--ink-soft); }
+
+.t77 .news-daycol .d-cnt{ font-family:var(--f-cond); font-weight:800; font-size:20px; line-height:1; color:var(--ink); }
+
+.t77 .news-daycol .d-cnt.zero{ color:var(--ink-soft); font-weight:600; }
+
+.t77 .news-weekfoot{ margin-top:9px; font-size:10px; letter-spacing:.04em; color:var(--ink-soft); }
+
+.t77 .news-roster-wrap{ margin-top:14px; grid-column:1 / -1; }
+
+/* Under ~1100px collapse to single column: hero WIRE FEED first + full-width, dossier below
+   (mirrors #dash's collapse; hero keeps winning). */
+@media (max-width:1100px){
+
+    .t77 #news .screenbody{ grid-template-columns:1fr; }
+
+    .t77 .news-feed-card{ min-height:280px; }
+
+    .t77 .news-side{ flex-direction:row; flex-wrap:wrap; }
+
+    .t77 .news-dossier, .t77 .news-week{ flex:1 1 300px; }
+
+}
+
+@media (max-height:760px){
+   .t77 .news-dossym{ font-size:34px; }
+   .t77 .news-dosbig{ font-size:28px; }
+ }
+
+/* narrow viewport: ledger already single-column, nothing to drop — keep it dominating */
+
+/* ============================== ALERTS (wave-2, id=alerts) ==============================
+   Board is the hero (armed-watch ledger). Regime strip + ticket are a fixed-height row.
+   PALETTE LAW: TRIGGERED reads via orange LEFT-BAR + word + ▲/▼ shape — NEVER colour-alone.
+   Regime classification (NORMAL/CAUTION/HIGH/SEVERE, FTD state) is ink/teal WORD+SHAPE
+   via statusChip — NEVER green/red/orange. Market NUMBERS keep gain/loss only. */
+.t77 #alerts .screenbody{ display:flex; flex-direction:column; min-height:0; gap:8px; }
+
+.t77 .al-board-card{ flex:1 1 auto; display:flex; flex-direction:column; min-height:200px; padding:14px 14px 12px; }
+ /* hero must not collapse to 0 on a short viewport (Performance/Compare lesson); .al-watch-scroll handles overflow */
+.t77 .al-boardhead{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+
+.t77 .al-note{ margin-left:auto; font-size:9.5px; letter-spacing:.09em; color:var(--ink-soft);
+  border:1px solid var(--ink-soft); padding:2px 7px; }
+
+.t77 .al-watch-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; border:1px solid rgba(35,32,26,.28); }
+
+.t77 .al-watch-scroll::-webkit-scrollbar{ width:10px; }
+
+.t77 .al-watch-scroll::-webkit-scrollbar-track{ background:var(--paper-dark); border-left:1px solid var(--ink); }
+
+.t77 .al-watch-scroll::-webkit-scrollbar-thumb{ background:var(--ink-soft); }
+
+/* TRIGGERED row: orange 3px LEFT-BAR (the "look here" verb) — colour carries attention,
+   never classification. The STATE word + ▲/▼ shape carry the meaning independently. */
+.t77 table.ledger tr.al-fire td:first-child{ border-left:3px solid var(--orange); }
+
+/* NO orange fill on the row's cells — the 3px left-bar + TRIGGERED chip + ▲/▼ shape carry
+   attention (palette law: orange = "look here" verb via border/glyph, never a status/value fill). */
+.t77 .al-cond{ font-family:var(--f-mono); font-size:11px; letter-spacing:.02em; }
+
+.t77 .al-statechip{ display:inline-flex; align-items:center; font-family:var(--f-cond); font-weight:800;
+  font-size:11px; letter-spacing:.09em; padding:2px 8px; border:1.5px solid var(--ink); text-transform:uppercase; }
+
+.t77 .al-statechip.armed{ color:var(--ink-soft); border-color:var(--ink-soft); }
+
+.t77 .al-statechip.fire{ color:var(--ink); border-color:var(--orange); border-width:2px; }
+
+.t77 .al-nowfire{ font-weight:700; }
+
+/* REGIME STRIP + TICKET — fixed-height grid row on the 8px rhythm */
+.t77 .al-strip{ flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr 0.9fr; gap:12px; }
+
+.t77 .al-reg, .t77 .al-ticket{ padding:12px 14px 12px; display:flex; flex-direction:column; }
+
+.t77 .al-regtop{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-top:2px; }
+
+.t77 .al-regbig{ font-family:var(--f-mono); font-weight:600; font-size:22px; color:var(--ink); letter-spacing:.01em; }
+
+.t77 .al-ftdstate{ font-family:var(--f-cond); font-weight:800; font-size:16px; letter-spacing:.05em; text-transform:uppercase; }
+
+.t77 .al-reglbl{ font-family:var(--f-cond); font-weight:700; font-size:10px; letter-spacing:.1em;
+  color:var(--ink-soft); text-transform:uppercase; }
+
+.t77 .al-regchip{ margin-left:auto; }
+
+.t77 .al-regsub{ font-size:10px; letter-spacing:.06em; color:var(--ink-soft); margin-top:6px; }
+
+.t77 .al-ftdlvls{ display:flex; gap:16px; font-size:10px; letter-spacing:.04em; color:var(--ink-soft); margin-top:8px; }
+
+.t77 .al-ftdlvls b{ color:var(--ink); font-weight:600; }
+
+.t77 .al-reghint{ font-family:var(--f-cond); font-weight:700; font-size:12px; letter-spacing:.06em;
+  color:var(--teal); text-transform:uppercase; margin-top:8px; }
+
+.t77 .al-regfoot{ font-size:9px; letter-spacing:.07em; color:var(--ink-soft); margin-top:auto; padding-top:8px; opacity:.85; }
+
+/* NEW WATCH TICKET — quiet until focused; reuses the Positions .stepper verbatim */
+.t77 .al-tickrow{ display:flex; align-items:center; gap:10px; margin-top:8px; }
+
+.t77 .al-tickrow:first-of-type{ margin-top:6px; }
+
+.t77 .al-ticklbl{ font-family:var(--f-cond); font-weight:700; font-size:11px; letter-spacing:.1em;
+  color:var(--ink-soft); text-transform:uppercase; width:52px; flex:0 0 auto; }
+
+.t77 .al-ticket .stepper{ margin-top:0; }
+
+.t77 .al-ticket .stepper input{ width:96px; }
+
+.t77 .al-arm{ margin-top:12px; width:100%; }
+
+.t77 .al-tickfoot{ font-size:9px; line-height:1.5; letter-spacing:.03em; color:var(--ink-soft); margin-top:auto; padding-top:10px; }
+
+.t77 .al-empty{ padding:30px 18px; text-align:center; font-family:var(--f-cond); font-weight:800;
+  font-size:15px; letter-spacing:.08em; color:var(--ink-soft); text-transform:uppercase; }
+
+.t77 .al-empty-sub{ display:block; margin-top:10px; font-family:var(--f-prose); font-weight:400; font-size:12px;
+  letter-spacing:.01em; text-transform:none; font-style:italic; line-height:1.55; color:var(--ink-soft); }
+
+.t77 .al-roster-wrap{ margin-top:14px; }
+
+/* narrow viewport: board wins — regime strip collapses to one row, ticket tucks under */
+@media (max-height:760px){
+   .t77 .al-regbig{ font-size:18px; }
+   .t77 .al-board-card{ padding-top:12px; }
+ }
+
+@media (max-width:900px){
+   .t77 .al-strip{ grid-template-columns:1fr 1fr; }
+   .t77 .al-ticket{ grid-column:1 / -1; }
+ }
+
+
+.t77 .perf-stage{ flex:1 1 auto; display:flex; gap:14px; min-height:0; }
+
+.t77 .perf-canvaswrap{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; min-width:0; overflow:hidden; }
+
+.t77 .perf-chartcol{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; gap:6px; }
+
+/* the price well OWNS the column: candles 75% / panes capped at 25% (user spec).
+   min-height:0 lets the column shrink under pressure (never spills onto the roster). */
+.t77 .perf-well{ position:relative; background:var(--crt-desktop); border:2px solid var(--ink); flex:3 1 0;
+  min-height:0; overflow:hidden; }
+
+.t77 .perf-well canvas{ position:absolute; inset:0; width:100%; height:100%; }
+
+.t77 #perfOverlay{ pointer-events:none; }
+ /* crosshair overlay: base+overlay stacked, pointer handled on well */
+.t77 .perf-panes{ flex:1 1 0; max-height:25%; display:flex; flex-direction:column; gap:5px; min-height:0; }
+
+.t77 .perf-pane{ position:relative; background:var(--crt-desktop); border:2px solid var(--ink); flex:1 1 0; min-height:0; overflow:hidden; }
+
+.t77 .perf-pane canvas{ position:absolute; inset:0; width:100%; height:100%; }
+
+.t77 .perf-panes:empty{ display:none; }
+
+.t77 .perf-legend{ flex:0 0 auto; margin-top:6px; font-size:11px; color:#9CB4A9; letter-spacing:.02em;
+  min-height:16px; max-height:34px; overflow-x:auto; overflow-y:hidden; white-space:nowrap;
+  display:flex; flex-wrap:nowrap; gap:4px 14px; align-items:center; }
+
+.t77 .perf-legend .lg{ flex:0 0 auto; }
+
+.t77 .perf-legend .lg{ display:inline-flex; align-items:center; gap:5px; }
+
+.t77 .perf-legend .sw{ width:9px; height:9px; border:1px solid rgba(0,0,0,.4); flex:0 0 auto; }
+
+.t77 .perf-legend .lk{ color:#7E9A8F; }
+
+.t77 .perf-legend .lv{ color:var(--paper); font-variant-numeric:tabular-nums; }
+
+
+/* indicators side-rail — compact (user spec) */
+.t77 .perf-rail{ flex:0 0 148px; background:var(--paper); border:2px solid var(--ink);
+  box-shadow:var(--card-shadow); display:flex; flex-direction:column; min-height:0; }
+
+.t77 .perf-rail.hidden{ display:none; }
+
+.t77 .perf-railhead{ flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+  padding:6px 7px 5px; border-bottom:2px solid var(--ink); }
+
+.t77 .perf-railscroll{ flex:1 1 auto; min-height:0; overflow-y:auto; padding:6px; }
+
+.t77 .perf-railscroll::-webkit-scrollbar{ width:10px; }
+
+.t77 .perf-railscroll::-webkit-scrollbar-track{ background:var(--paper-dark); border:1px solid var(--ink); }
+
+.t77 .perf-railscroll::-webkit-scrollbar-thumb{ background:var(--ink); border:2px solid var(--paper-dark); }
+
+.t77 .perf-group{ margin-bottom:8px; }
+
+.t77 .perf-group > .glab{ display:inline-block; font-family:var(--f-mono); font-size:9px; font-weight:600;
+  letter-spacing:.1em; color:var(--paper); background:var(--teal); padding:1px 5px; margin-bottom:4px; text-transform:uppercase; }
+
+.t77 .perf-toggles{ display:flex; flex-direction:column; gap:3px; }
+
+.t77 .perf-chip{ display:flex; align-items:center; gap:5px; font-family:var(--f-cond); font-weight:700;
+  font-size:10.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft);
+  border:1.5px solid var(--ink); background:var(--paper-dark); padding:2px 5px; cursor:pointer;
+  box-shadow:0 2px 0 var(--ink); user-select:none; }
+
+.t77 .perf-chip:active{ transform:translateY(1px); box-shadow:0 1px 0 var(--ink); }
+
+.t77 .perf-chip .num{ font-family:var(--f-mono); font-size:8px; font-weight:600; color:var(--ink-soft);
+  min-width:11px; height:11px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--ink-soft); flex:0 0 auto; }
+
+.t77 .perf-chip .lbl{ flex:1 1 auto; }
+
+.t77 .perf-chip .dot{ width:7px; height:7px; border:1px solid var(--ink); flex:0 0 auto; }
+
+.t77 .perf-chip.on{ background:var(--orange); color:var(--ink); border-color:var(--ink); }
+
+.t77 .perf-chip.on .num{ color:var(--ink); border-color:var(--ink); }
+
+.t77 .perf-roster-wrap{ margin-top:14px; }
+
+@media (max-width:1100px){
+
+    .t77 .perf-rail{ flex-basis:132px; }
+
+}
+
+
+/* ============================== COMPARE (wave-2, id=compare) ==============================
+   Side-by-side value fingerprint. Layout is Performance's exact vertical-budget lesson:
+   the hero (price well + radar band) wins vertical space; the delta table internal-scrolls
+   and never pushes the roster off. Line identity uses PAPER/BROWN/GREY neutrals only —
+   teal is info, orange is verb, gain/loss stay market-numbers-only. BEST cell = 3px orange
+   LEFT-BORDER + ▲ marker (a "look-here" flag), never an orange fill. */
+.t77 #compare .screenbody{ display:flex; flex-direction:column; min-height:0; }
+
+.t77 .cmp-main{ flex:2 1 auto; display:flex; flex-direction:column; min-height:300px; padding:14px 14px 12px; }
+ /* hero dominates ~62% — the well+radars keep vertical priority (Performance's lesson) */
+.t77 .cmp-head{ display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+
+.t77 .cmp-slots{ display:flex; align-items:stretch; gap:8px; flex:1 1 auto; min-width:0; flex-wrap:wrap; }
+
+/* a slot = the Performance SYM⌐ input pattern + a colour key + an assign affordance */
+.t77 .cmp-slot{ display:flex; align-items:center; gap:7px; border:1.5px solid var(--ink);
+  background:var(--paper); padding:3px 8px; box-shadow:0 2px 0 var(--ink-soft); cursor:pointer;
+  min-width:0; }
+
+.t77 .cmp-slot.empty{ background:var(--paper-dark); border-style:dashed; }
+
+.t77 .cmp-slot.active{ box-shadow:0 0 0 2px var(--orange), 0 2px 0 var(--ink); }
+ /* orange focus ring = active VERB (legal) */
+.t77 .cmp-slot .swatch{ width:12px; height:12px; border:1.5px solid var(--ink); flex:0 0 auto; }
+
+.t77 .cmp-slot .slotno{ font-family:var(--f-mono); font-size:9px; font-weight:600; color:var(--ink-soft);
+  letter-spacing:.06em; flex:0 0 auto; }
+
+.t77 .cmp-slot .sym{ font-family:var(--f-cond); font-weight:800; font-size:15px; letter-spacing:.04em;
+  color:var(--ink); white-space:nowrap; }
+
+.t77 .cmp-slot .nm{ font-family:var(--f-prose); font-size:11px; color:var(--ink-soft);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px; }
+
+.t77 .cmp-slot .empt{ font-family:var(--f-mono); font-size:10px; letter-spacing:.03em; color:var(--ink-soft);
+  text-transform:uppercase; }
+
+.t77 .cmp-slot .pct{ font-family:var(--f-mono); font-weight:600; font-size:12px; margin-left:auto; }
+
+.t77 .cmp-slot input{ width:64px; border:none; background:transparent; color:var(--ink);
+  font-family:var(--f-mono); font-weight:600; font-size:12px; letter-spacing:.05em;
+  text-transform:uppercase; outline:none; }
+
+.t77 .cmp-slot input::placeholder{ color:var(--ink-soft); opacity:.6; }
+
+.t77 .cmp-slot .pfx{ font-family:var(--f-mono); font-size:10px; color:var(--teal); font-weight:600; flex:0 0 auto; }
+
+
+.t77 .cmp-stage{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; gap:8px; overflow:hidden; }
+ /* clip — never let the well/radars bleed onto the delta card below */
+/* TOP: shared normalized price well — flex 1 1 60%, min-height keeps it alive at 720p */
+.t77 .cmp-wellhead{ flex:0 0 auto; display:flex; align-items:center; gap:10px; }
+
+.t77 .cmp-welltag{ font-family:var(--f-cond); font-weight:700; font-size:10px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-soft); }
+
+.t77 .cmp-welllegend{ display:flex; align-items:center; gap:12px; margin-left:auto; flex-wrap:wrap; }
+
+.t77 .cmp-lg{ display:inline-flex; align-items:center; gap:5px; font-family:var(--f-mono); font-size:11px;
+  letter-spacing:.02em; color:var(--ink-soft); }
+
+.t77 .cmp-lg .sw{ width:14px; height:3px; flex:0 0 auto; }
+
+.t77 .cmp-lg .lgsym{ color:var(--ink); font-weight:600; }
+
+.t77 .cmp-lg .lgend{ font-variant-numeric:tabular-nums; }
+
+.t77 .cmp-well{ position:relative; background:var(--crt-desktop); border:2px solid var(--ink);
+  flex:1 1 52%; min-height:110px; overflow:hidden; }
+
+.t77 .cmp-well canvas{ position:absolute; inset:0; width:100%; height:100%; }
+
+/* BOTTOM: horizontal radar band, one pentagon per slot — needs real height so the pentagon reads */
+.t77 .cmp-radarband{ flex:1 1 48%; display:flex; gap:12px; min-height:130px; }
+
+.t77 .cmp-radarcell{ flex:1 1 0; display:flex; flex-direction:column; min-width:0; min-height:0;
+  background:var(--paper-dark); border:1.5px solid var(--ink); overflow:hidden; }
+
+.t77 .cmp-radarcell.empty{ border-style:dashed; align-items:center; justify-content:center; }
+
+.t77 .cmp-radartop{ flex:0 0 auto; display:flex; align-items:center; gap:6px; padding:5px 8px;
+  border-bottom:1.5px solid var(--ink); }
+
+.t77 .cmp-radartop .swatch{ width:11px; height:11px; border:1.5px solid var(--ink); flex:0 0 auto; }
+
+.t77 .cmp-radartop .sym{ font-family:var(--f-cond); font-weight:800; font-size:14px; color:var(--ink); }
+
+.t77 .cmp-radartop .verdict{ margin-left:auto; }
+
+.t77 .cmp-radarsvg{ flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; }
+
+.t77 .cmp-radarsvg svg{ width:100%; height:100%; }
+
+.t77 .cmp-radarcap{ flex:0 0 auto; text-align:center; font-family:var(--f-mono); font-size:10px;
+  letter-spacing:.03em; color:var(--ink-soft); padding:3px 4px 5px; }
+
+.t77 .cmp-radarcap b{ color:var(--ink); }
+
+.t77 .cmp-radar-empt{ font-family:var(--f-mono); font-size:11px; letter-spacing:.03em; color:var(--ink-soft);
+  text-transform:uppercase; text-align:center; padding:14px; line-height:1.5; }
+
+.t77 .cmp-radar-empt b{ color:var(--ink); }
+
+
+/* SUPPORTING: delta table, capped ~34vh, internal scroll (Actuality internal-scroll law) */
+.t77 .cmp-deltacard{ flex:0 1 auto; max-height:30vh; display:flex; flex-direction:column; min-height:96px;
+  margin-top:14px; padding:0; }
+ /* internal-scroll (Actuality law) — yields to the hero, never pushes the roster off */
+.t77 .cmp-deltahead{ flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:10px 14px 8px; }
+
+.t77 .cmp-deltascroll{ flex:1 1 auto; min-height:0; overflow-y:auto; padding:0 14px 12px; }
+
+.t77 .cmp-deltascroll::-webkit-scrollbar{ width:10px; }
+
+.t77 .cmp-deltascroll::-webkit-scrollbar-track{ background:var(--paper-dark); border:1px solid var(--ink); }
+
+.t77 .cmp-deltascroll::-webkit-scrollbar-thumb{ background:var(--ink); border:2px solid var(--paper-dark); }
+
+.t77 table.ledger td.cmp-metric{ font-family:var(--f-cond); font-weight:700; letter-spacing:.05em;
+  color:var(--ink); }
+
+.t77 table.ledger td.cmp-sub{ font-family:var(--f-mono); font-size:10px; color:var(--ink-soft); }
+
+/* BEST cell: a 3px orange LEFT-border + ▲ glyph flags the winning cell — NEVER an orange fill */
+.t77 table.ledger td.cmp-best{ border-left:3px solid var(--orange); font-weight:700; }
+
+.t77 table.ledger td.cmp-best .bmark{ color:var(--orange); font-weight:700; margin-right:3px; }
+
+.t77 .cmp-empty{ font-family:var(--f-mono); font-size:13px; color:var(--ink-soft); letter-spacing:.03em;
+  padding:22px 8px; border:1.5px dashed rgba(35,32,26,.4); background:var(--paper-dark); text-align:center; line-height:1.5; }
+
+.t77 .cmp-empty b{ color:var(--ink); font-weight:600; }
+
+.t77 .cmp-roster-wrap{ margin-top:14px; }
+
+@media (max-width:1100px){
+
+  /* Narrow: radars stay ONE row but shrink + the band scrolls horizontally rather than wrapping
+     to a 2nd row — wrapping would blow past the hero's height and overlap the delta table.
+     The price well always keeps its full vertical share (Performance's lesson: the chart wins). */
+    .t77 .cmp-radarband{ overflow-x:auto; overflow-y:hidden; }
+
+    .t77 .cmp-radarcell{ flex:1 0 240px; }
+
+}
+
+
+/* ============================ BOOT SPLASH ============================= */
+.t77 #boot{ position:fixed; inset:0; z-index:8500; background:#05090A; display:flex; flex-direction:column;
+  justify-content:center; padding:0 8vw; font-family:var(--f-mono); }
+
+.t77 #boot .bl{ font-size:15px; line-height:1.9; color:var(--phosphor); letter-spacing:.03em; text-shadow:0 0 6px rgba(76,175,110,.4); }
+
+.t77 #boot .cur{ display:inline-block; width:9px; height:16px; background:var(--phosphor); vertical-align:-2px;
+  animation:t77-curblink .7s steps(1) infinite; }
+
+@keyframes t77-curblink{ 50%{opacity:0;} }
+
+.t77 #boot .skip{ position:absolute; bottom:6vh; left:0; right:0; text-align:center; color:#3c5a4e; font-size:12px; }
+
+.t77 #boot.gone{ display:none; }
+
+
+/* ============================ CRT POWER-OFF FX ============================= */
+/* [S3] White overlay carries the brightness ramp; #screen carries transform only. */
+.t77 #crtFx{ position:absolute; inset:0; z-index:400; pointer-events:none; display:none; }
+
+.t77 #crtFxWhite{ position:absolute; inset:0; background:#fff; opacity:0; }
+
+.t77 #crtFxDot{ position:absolute; left:50%; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px;
+  background:#fff; border-radius:50%; opacity:0;
+  /* phosphor halo (--phosphor #4CAF6E) — CRT chrome, not a market colour; kept as
+     rgba literals because box-shadow needs the alpha ramp a hex var can't carry. */
+  box-shadow:0 0 10px 4px rgba(76,175,110,.9), 0 0 22px 8px rgba(76,175,110,.5); }
+
+
+/* generic scrollbars inside dark areas */
+.t77 .pos-col::-webkit-scrollbar{ width:10px; }
+
+.t77 .pos-col::-webkit-scrollbar-track{ background:transparent; }
+
+.t77 .pos-col::-webkit-scrollbar-thumb{ background:rgba(35,32,26,.4); border-radius:4px; }
+
+
+/* ============================== JOURNAL (wave-2, id=journal, WND-0x9C) ==============================
+   Calm paper diary is the HERO. Two-col grid: the FEED (grid-col 1) owns the ONLY scroll
+   (overflow-y:auto; min-height:0 — same viewport-lock law as .statsheet/.orders-scroll);
+   the SESSION LEDGER sidebar (grid-col 2) is content-sized and never scrolls. Each fill is a
+   dated paper card carrying a humanist-body <textarea> note + four TEAL tag chips + optional
+   forward-only lifecycle pill. §1 palette: tags/pills stay ink/teal; green/red touch ONLY the
+   @price and NET BP DELTA numerals. Bottom .roster strip is reused verbatim. */
+.t77 #journal .screenbody{ display:grid; gap:16px; grid-template-columns:minmax(0,1fr) 320px;
+  grid-template-areas:"feed side""roster roster"; align-items:start; min-height:0; }
+
+.t77 .jn-feedcard{ grid-area:feed; min-width:0; display:flex; flex-direction:column; min-height:0;
+  align-self:stretch; padding:16px 14px 12px; }
+
+.t77 .jn-feedhead{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+
+.t77 .jn-feednote{ margin-left:auto; font-family:var(--f-mono); font-size:10px; letter-spacing:.06em;
+  color:var(--ink-soft); text-transform:uppercase; }
+
+.t77 .jn-feedscroll{ flex:1 1 auto; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px;
+  padding-right:4px; }
+
+.t77 .jn-feedscroll::-webkit-scrollbar{ width:10px; }
+
+.t77 .jn-feedscroll::-webkit-scrollbar-track{ background:var(--paper-dark); border:1.5px solid var(--ink); }
+
+.t77 .jn-feedscroll::-webkit-scrollbar-thumb{ background:var(--ink); border:2px solid var(--paper-dark); }
+
+/* one journal card = a warm-paper page */
+.t77 .jn-card{ position:relative; background:var(--paper); border:1.5px solid var(--ink);
+  box-shadow:3px 3px 0 rgba(35,32,26,.16); padding:11px 12px 12px; }
+
+.t77 .jn-card.sample{ border-style:dashed; opacity:.92; }
+
+.t77 .jn-cardhead{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.03em; color:var(--ink-soft); }
+
+.t77 .jn-cardhead .jn-time{ color:var(--ink); font-weight:600; }
+
+.t77 .jn-cardhead .jn-side{ display:inline-flex; align-items:center; gap:3px; font-weight:700; }
+
+.t77 .jn-cardhead .jn-qty{ color:var(--ink); font-weight:600; }
+
+.t77 .jn-cardhead .jn-sym{ font-family:var(--f-cond); font-weight:800; font-size:14px; letter-spacing:.04em;
+  color:var(--ink); }
+
+.t77 .jn-cardhead .jn-at{ color:var(--ink-soft); }
+
+.t77 .jn-cardhead .jn-price{ font-weight:600; }
+             /* market numeral — gain/loss class applied */
+.t77 .jn-sampletag{ margin-left:auto; font-family:var(--f-cond); font-weight:700; font-size:10px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft);
+  border:1.5px dashed var(--ink-soft); padding:1px 7px; }
+
+.t77 .jn-note{ display:block; width:100%; box-sizing:border-box; margin:9px 0 9px; resize:vertical; min-height:52px;
+  font-family:var(--f-prose); font-size:14px; line-height:1.55; color:var(--ink);
+  background:var(--paper-dark); border:1.5px solid rgba(35,32,26,.35); padding:8px 9px; }
+
+.t77 .jn-note::placeholder{ color:var(--ink-soft); font-style:italic; }
+
+.t77 .jn-note:focus{ outline:none; border-color:var(--teal); background:var(--paper); }
+
+.t77 .jn-cardfoot{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+
+.t77 .jn-tags{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+
+/* tag chips reuse the global .tag/.tag.on look (ink outline -> TEAL fill when on); clickable */
+.t77 .jn-tags .tag{ cursor:pointer; user-select:none; }
+
+/* forward-only lifecycle pill — ink/teal WORD + SHAPE, never a market colour */
+.t77 .jn-pill{ display:inline-flex; align-items:center; gap:5px; cursor:pointer; user-select:none;
+  font-family:var(--f-cond); font-weight:700; font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+  border:1.5px solid var(--teal); color:var(--teal); background:transparent; padding:1px 8px; }
+
+.t77 .jn-pill .jn-pillarrow{ font-size:9px; opacity:.7; }
+
+.t77 .jn-pill.closed{ background:var(--teal); color:var(--paper); }
+
+.t77 .jn-review{ margin-left:auto; font-family:var(--f-mono); font-size:10px; letter-spacing:.04em;
+  color:var(--ink-soft); }
+
+.t77 .jn-review b{ color:var(--ink); font-weight:600; }
+
+/* SESSION LEDGER sidebar (non-scroll, content-sized) */
+.t77 .jn-sidecard{ grid-area:side; align-self:start; padding:16px 14px 14px; }
+
+.t77 .jn-sampletag{ color:var(--ink-soft); font-weight:600; letter-spacing:.08em; }
+ /* "· SAMPLE" until first real fill (honest sidebar) */
+.t77 .jn-statrow{ display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+  padding:6px 0; border-bottom:1px solid rgba(35,32,26,.16); }
+
+.t77 .jn-statrow:last-of-type{ border-bottom:none; }
+
+.t77 .jn-statrow .k{ font-family:var(--f-mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ink-soft); }
+
+.t77 .jn-statrow .v{ font-family:var(--f-mono); font-weight:600; font-size:13px; color:var(--ink); }
+
+.t77 .jn-statrow .v.split{ font-size:12px; }
+
+/* NET BP DELTA is a market numeral (signed capital moved) — legit gain/loss colour on the
+   numeral, atop the honest sign+▲/▼. Raised specificity so it beats the base .v ink rule. */
+.t77 .jn-statrow .v.gain{ color:var(--gain); }
+
+.t77 .jn-statrow .v.loss{ color:var(--loss); }
+
+.t77 .jn-siderule{ border:none; border-top:1.5px solid var(--ink); margin:12px 0 8px; }
+
+.t77 .jn-closedhead{ font-family:var(--f-cond); font-weight:800; font-size:12px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink); margin-bottom:2px; }
+
+.t77 .jn-closedrow{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:4px 0; }
+
+.t77 .jn-closedrow .k{ font-family:var(--f-mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--ink-soft); }
+
+.t77 .jn-closedrow .v{ font-family:var(--f-mono); font-size:14px; color:var(--ink-soft); }
+  /* em-dash placeholders */
+.t77 .jn-closedcap{ margin-top:8px; font-family:var(--f-prose); font-size:11px; line-height:1.5; font-style:italic;
+  color:var(--teal); border-left:2px solid var(--teal); padding:2px 0 2px 8px; }
+
+.t77 .jn-roster-wrap{ grid-area:roster; margin-top:2px; }
+
+/* empty state reuses .orders-empty look, fills the feed card */
+.t77 #journal .orders-empty{ margin:auto 0; }
+
+/* 720p / narrow: sidebar collapses to a compact horizontal strip ABOVE the feed so the diary
+   keeps vertical dominance (mirrors Performance letting the chart win on small viewports). */
+@media (max-width:900px){
+
+    .t77 #journal .screenbody{ grid-template-columns:1fr; grid-template-areas:"side""feed""roster";
+    grid-template-rows:auto minmax(0,1fr) auto; }
+
+    .t77 .jn-sidecard{ align-self:stretch; padding:12px 14px 10px; }
+
+    .t77 .jn-statgrid{ display:flex; flex-wrap:wrap; gap:0 22px; }
+
+    .t77 .jn-statgrid .jn-statrow{ border-bottom:none; padding:3px 0; }
+
+    .t77 .jn-siderule{ margin:8px 0 6px; }
+
+  /* the closed-trade placeholders fold into a compact inline strip so the diary keeps the height */
+    .t77 .jn-closedhead{ display:inline; margin-right:12px; }
+
+    .t77 .jn-sidecard .jn-closedrow{ display:inline-flex; gap:5px; padding:3px 10px 3px 0; }
+
+    .t77 .jn-closedcap{ margin-top:4px; }
+
+    .t77 .jn-feedcard{ min-height:180px; }
+
+}
+
+
+/* responsive guard: keep body from scrolling horizontally */
+@media (max-width:1100px){
+
+    .t77 #dash .screenbody{ grid-template-columns:1fr 1fr; grid-template-areas:"acct chart""idx movers""roster roster"; }
+
+}
+

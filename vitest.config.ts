@@ -11,6 +11,9 @@ export default defineConfig({
     environment: "node",
     include: [
       "src/engine/**/*.test.ts",
+      // Terminal-77 port: the pure engine layer (src/terminal/engine/**) is
+      // DOM-free by law — same node environment, same suite.
+      "src/terminal/**/*.test.ts",
     ],
   },
 });
