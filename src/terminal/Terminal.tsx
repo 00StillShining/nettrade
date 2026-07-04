@@ -171,7 +171,13 @@ export default function Terminal() {
         // correctly despite the squash. flushSync so the new screen's DOM
         // exists before the tube powers back on.
         flushSync(swapFn);
-        runRedraws();
+        // The incoming screen's own mount/after-render effect draws its canvases
+        // (fitCanvas's offsetWidth fallback sizes them correctly under the collapse).
+        // Defer a belt-and-suspenders redraw to the next macrotask — AFTER React's
+        // passive effects have swapped the redraw registry to the new screen's
+        // closures. (An immediate runRedraws() here would only hit the OUTGOING
+        // screen's already-nulled refs and no-op.)
+        s.timers.push(window.setTimeout(runRedraws, 0));
         scr.style.transform = "scaleY(0.006) scaleX(0.001)";
         // lingering dot then fade
         s.timers.push(window.setTimeout(() => {
@@ -212,13 +218,21 @@ export default function Terminal() {
     if (id === State.screen || shell.current.switching) return;
     const doNav = () => navigate("/" + routeOf(id));
     if (prefersReduced) {
-      // reduced motion: simple 100ms fade
+      // reduced motion: simple 100ms fade. Mirror runPowerOff's bookkeeping so the
+      // switching-lock debounces rapid presses AND the unmount cleanup can clear the
+      // timers (else an ESC-to-Animus within 100ms leaves an orphaned nav that yanks
+      // the user back into the terminal and remounts the shell).
+      const s = shell.current;
+      s.switching = true;
       const scr = screenRef.current!;
       scr.style.transition = "opacity .1s"; scr.style.opacity = "0";
-      window.setTimeout(() => {
-        flushSync(doNav); runRedraws();
-        scr.style.opacity = "1"; window.setTimeout(() => { scr.style.transition = ""; }, 120);
-      }, 100);
+      s.timers.push(window.setTimeout(() => {
+        flushSync(doNav);
+        s.timers.push(window.setTimeout(runRedraws, 0));
+        scr.style.opacity = "1";
+        s.timers.push(window.setTimeout(() => { scr.style.transition = ""; }, 120));
+        s.switching = false;
+      }, 100));
       return;
     }
     runPowerOff(doNav);

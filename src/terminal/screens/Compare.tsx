@@ -294,7 +294,12 @@ export default function CompareScreen() {
     // shell calls on window-resize (debounced) AND mid power-off + at settle — the exact
     // prototype resize handler: re-fit the well, redraw each filled pentagon.
     const unsubRedraw = registerRedraw(() => { drawWell(); drawRadars(); });
-    return () => { unsubState(); unsubTick(); unsubRedraw(); };
+    return () => {
+      unsubState(); unsubTick(); unsubRedraw();
+      // cancel any in-flight pentagon tweens so they don't write into detached SVG
+      // nodes through the CRT power-off (matches Radar.tsx's cleanup discipline).
+      Object.keys(cmpRadarRaf).forEach((k) => cancelAnimationFrame(cmpRadarRaf[k] || 0));
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -345,7 +350,7 @@ export default function CompareScreen() {
                             const raw = e.currentTarget.value.trim().toUpperCase();
                             if (raw) { Compare.picker.set(i, cmpResolveSym(raw)); e.currentTarget.blur(); notifyState(); }
                           }
-                          e.stopPropagation();
+                          if (e.key !== "Escape") e.stopPropagation(); // let ESC bubble to blur the field
                         }}
                       />
                       <span className="empt">{active ? "· ACTIVE" : "PRESS C"}</span>

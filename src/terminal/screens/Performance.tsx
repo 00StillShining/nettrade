@@ -464,7 +464,7 @@ export default function Performance() {
                       Perf.typed = raw; Perf.source = "TYPED"; Perf.symbol = raw;
                       e.currentTarget.blur(); perfLoadSeries();
                     }
-                    e.stopPropagation(); // don't let letters trigger Q/E/number-toggles while typing
+                    if (e.key !== "Escape") e.stopPropagation(); // don't let letters trigger Q/E/number-toggles while typing (but let ESC bubble to blur the field)
                   }}
                 />
               </div>

@@ -183,8 +183,9 @@ export default function Journal() {
                          'input' handler wrote c.note and did not re-render). */
                       onChange={(e) => { c.note = e.currentTarget.value; }}
                       onBlur={(e) => { c.note = e.currentTarget.value; renderStats(cards); }}
-                      /* the shell's global keymap (Q/E/N/W/arrows) must never swallow typing */
-                      onKeyDown={(e) => { e.stopPropagation(); }}
+                      /* the shell's global keymap (Q/E/N/W/arrows) must never swallow typing —
+                         but let Escape bubble so the shell's ESC-blurs-the-field contract still runs */
+                      onKeyDown={(e) => { if (e.key !== "Escape") e.stopPropagation(); }}
                     />
                     <div className="jn-cardfoot">
                       <div className="jn-tags">

@@ -517,16 +517,14 @@ export default function Animus() {
       };
     }
 
-    // Route map for confirm(): which real screen each selectable leaf dives to,
-    // and which are "ready soon" placeholders (SFX.deny + toast). MARKETS +
-    // ANALYSIS leaves + SYSTEM/SETTINGS are real; the other SYSTEM towers show a
-    // "READY SOON" notification.
+    // Route map for confirm(): which real screen each selectable leaf dives to.
+    // Every tower is now live — the ten Terminal-77 screens (MARKETS + ANALYSIS +
+    // all five SYSTEM towers). No "ready soon" placeholders remain.
     const ROUTES: any = {
       story: ["/dashboard", "/positions", "/watchlist"],
       extras: ["/performance", "/compare", "/journal"],
       options: ["/settings", "/orders", "/news", "/alerts", "/scanner"],
     };
-    const PLACEHOLDER_TOAST = ["", "ORDERS — READY SOON", "NEWS — READY SOON", "ALERTS — READY SOON", "SCANNER — READY SOON"];
 
     /* ═══════════════ CAMERA ═══════════════ */
     const cam: any = {
@@ -612,11 +610,10 @@ export default function Animus() {
         cardEl.classList.remove("show");
         later(() => { setNode(to); state = "IDLE"; }, 730);
       } else {
-        // Leaf level (story / extras / options) — dive to the mapped screen, or
-        // show the "ready soon" notification for a placeholder tower.
+        // Leaf level (story / extras / options) — dive to the mapped screen. Every
+        // leaf maps to a real route now; the deny/toast only guards a malformed index.
         const route = ROUTES[current] ? ROUTES[current][sel] : undefined;
         if (route) { loadMemory(route); }
-        else if (current === "options") { SFX.deny(); toast(PLACEHOLDER_TOAST[sel] || "READY SOON"); }
         else { SFX.deny(); toast("READY SOON"); }
       }
     }
