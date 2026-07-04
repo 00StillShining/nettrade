@@ -55,32 +55,102 @@ body{
   font-family:var(--f-cond);
   overflow:hidden;
   -webkit-font-smoothing:antialiased;
-  animation:flick 7s steps(60) infinite;   /* [S4] opacity-only flicker */
+  animation:flick 7s steps(60) infinite;   /* [S4]/[S6+] opacity-only flicker (strengthened) */
 }
-@keyframes flick{           /* [S4] subtle whole-screen flicker, opacity only */
+@keyframes flick{           /* [S4]/[S6+] whole-screen idle flicker, opacity only — slightly stronger dips */
   0%,100%{opacity:1;}
-  50%{opacity:.995;}
+  8%{opacity:.992;}
+  9%{opacity:1;}
+  47%{opacity:.988;}
+  50%{opacity:.994;}
   53%{opacity:1;}
-  92%{opacity:.997;}
+  78%{opacity:.991;}
+  80%{opacity:1;}
+  92%{opacity:.986;}
+  94%{opacity:1;}
 }
 @media (prefers-reduced-motion:reduce){
   body{animation:none;}
 }
 
-/* ---------- CRT OVERLAY (over ENTIRE viewport, above everything) ---------- */
-/* [S1] scanlines as plain gradient bands — darkened 1px line every 3px.
-        NO mix-blend-mode. Same visual read as the brief. */
+/* ---------- CRT OVERLAY STACK (over ENTIRE viewport, above everything) ----------
+   [S6+] CRT "TUNED UP GREATLY". Every layer is pointer-events:none, transform/
+   opacity/gradient-only, and z-ordered ABOVE modals (>=8990). ABSOLUTE BANS still
+   hold: no mix-blend-mode, no CSS filter:, no backdrop-filter (the app port depends
+   on it). Law: degradation is polish — THE DATA MUST STAY PERFECTLY LEGIBLE.
+   Squint => "failing tube"; read => every numeral crisp. Layer order bottom→top:
+     #crtBend  z8990  4-edge inward compression shading (tube-face curvature read)
+     #crtVig   z8998  barrel vignette (radial, noticeably stronger than before)
+     #crtRoll  z8999  slow rolling brightness band (transform:translateY loop)
+     #crtScan  z9000  BOWED scanlines (repeating-RADIAL centred far below)
+     #crtGlass z9001  curved specular sheen (upper) + faint edge chromatic fringe
+     #crtBezel z9002  dark bezel ring + corner shadow pools (inset box-shadows)     */
+
+/* [S6+] BOWED SCANLINES — a repeating-RADIAL-gradient centred far off-screen BELOW
+   the picture so each dark band ARCS across the glass instead of ruling flat.
+   The flat-glass giveaway (repeating-linear) is gone; this is the技 BakedCrt uses. */
 #crtScan{
-  content:''; position:fixed; inset:0; z-index:9000; pointer-events:none;
-  background:repeating-linear-gradient(to bottom,
-    rgba(0,0,0,.16) 0 1px, rgba(0,0,0,0) 1px 3px);
-  opacity:.85;
+  position:fixed; inset:0; z-index:9000; pointer-events:none;
+  background:repeating-radial-gradient(circle at 50% 340%,
+    rgba(0,0,0,.22) 0 1.15px, rgba(0,0,0,0) 1.15px 3px);
+  opacity:.92;
 }
-#crtVig{  /* vignette — as brief writes it (radial-gradient is WKWebView-safe) */
-  content:''; position:fixed; inset:0; z-index:8999; pointer-events:none;
-  background:radial-gradient(ellipse at center, transparent 52%, rgba(0,0,0,.5) 100%);
+/* [S6+] BARREL VIGNETTE — stronger corners + a tighter falloff so the picture reads
+   as bulging toward the viewer. Radial-gradient is WKWebView-safe. */
+#crtVig{
+  position:fixed; inset:0; z-index:8998; pointer-events:none;
+  background:
+    radial-gradient(ellipse 78% 74% at 50% 48%, transparent 42%, rgba(0,0,0,.34) 74%, rgba(0,0,0,.72) 100%);
 }
-@media (prefers-reduced-motion:reduce){ #crtScan{opacity:.55;} }
+/* [S6+] 4-EDGE INWARD COMPRESSION — linear gradients on each edge darken the last
+   few % of the picture, the way a curved tube compresses the image toward its rim.
+   Layered as one element via multiple backgrounds (all transform-free). */
+#crtBend{
+  position:fixed; inset:0; z-index:8990; pointer-events:none;
+  background:
+    linear-gradient(to right,  rgba(0,0,0,.30) 0, transparent 4.5%, transparent 95.5%, rgba(0,0,0,.30) 100%),
+    linear-gradient(to bottom, rgba(0,0,0,.26) 0, transparent 4%,   transparent 96%,   rgba(0,0,0,.30) 100%);
+}
+/* [S6+] CURVED SPECULAR SHEEN + EDGE CHROMATIC FRINGE.
+   sheen: a soft off-centre highlight in the upper glass (the room light on the tube).
+   fringe: two 1px opposing tinted gradients pinned to the extreme L/R edges — the
+   red/cyan mis-convergence a failing tube shows at its rim. Both stay off the data. */
+#crtGlass{
+  position:fixed; inset:0; z-index:9001; pointer-events:none;
+  background:
+    linear-gradient(to right, rgba(255,0,64,.10) 0 1px, transparent 1px 2px),
+    linear-gradient(to left,  rgba(0,224,255,.10) 0 1px, transparent 1px 2px),
+    radial-gradient(ellipse 62% 40% at 38% 12%, rgba(230,242,220,.10) 0%, rgba(230,242,220,.04) 34%, transparent 62%);
+}
+/* [S6+] DARK BEZEL RING + CORNER SHADOW POOLS — hard-edged inset box-shadows draw an
+   ink rim just inside the viewport and pool shadow into the four corners, so the
+   picture sits INSIDE a tube face. No blur budget on data; this is on the glass only. */
+#crtBezel{
+  position:fixed; inset:0; z-index:9002; pointer-events:none;
+  border-radius:14px;
+  box-shadow:
+    inset 0 0 0 2px rgba(0,0,0,.55),
+    inset 0 0 14px 3px rgba(0,0,0,.60),
+    inset 34px 26px 46px -30px rgba(0,0,0,.85),
+    inset -34px 26px 46px -30px rgba(0,0,0,.85),
+    inset 34px -26px 46px -30px rgba(0,0,0,.85),
+    inset -34px -26px 46px -30px rgba(0,0,0,.85);
+}
+/* [S6+] SLOW ROLLING BAND — a soft horizontal brightness band drifting down the
+   glass on a long loop (the classic tube "roll"). transform:translateY + low opacity
+   only. Sits under the scanlines so the lines still cross it. */
+#crtRoll{
+  position:fixed; left:0; right:0; top:0; height:26%; z-index:8999; pointer-events:none;
+  background:linear-gradient(to bottom, transparent 0%, rgba(210,228,205,.05) 42%, rgba(210,228,205,.07) 50%, rgba(210,228,205,.05) 58%, transparent 100%);
+  opacity:.9; will-change:transform;
+  animation:crtRoll 8.5s linear infinite;
+}
+@keyframes crtRoll{ from{ transform:translateY(-30%); } to{ transform:translateY(430%); } }
+
+@media (prefers-reduced-motion:reduce){
+  #crtScan{ opacity:.6; }
+  #crtRoll{ display:none; animation:none; }   /* [S6+] rolling band OFF entirely */
+}
 
 /* ---------- DESKTOP FIELD ---------- */
 #desk{
@@ -136,7 +206,30 @@ body{
 }
 #winTitle .wid{ font-family:var(--f-mono); font-weight:500; font-size:11px; color:#B8AF98; letter-spacing:.04em; }
 /* the picture element that dies during power-off */
-#screenWrap{ flex:1 1 auto; position:relative; min-height:0; overflow:hidden; }
+/* [S6+] TUBE GEOMETRY on the picture region: generous corner rounding gives the
+   window a tube read. overflow:hidden clips the rounded corners. */
+#screenWrap{ flex:1 1 auto; position:relative; min-height:0; overflow:hidden; border-radius:10px; }
+/* [S6+] per-window tube shading: an inset bezel ring + corner shadow pools + a faint
+   inward compression, painted ABOVE the picture but pointer-events:none so hit-testing
+   stays sacred and the content underneath is never transformed. z:120 keeps it under
+   the CRT power-off fx (z:400) and the boot/global CRT stack. */
+#screenWrap::before{
+  content:''; position:absolute; inset:0; z-index:120; pointer-events:none; border-radius:10px;
+  box-shadow:
+    inset 0 0 0 1px rgba(0,0,0,.5),
+    inset 0 0 10px 2px rgba(0,0,0,.5),
+    inset 22px 18px 34px -22px rgba(0,0,0,.7),
+    inset -22px 18px 34px -22px rgba(0,0,0,.7),
+    inset 22px -18px 34px -22px rgba(0,0,0,.7),
+    inset -22px -18px 34px -22px rgba(0,0,0,.7);
+}
+/* [S6+] a very faint upper specular curve inside the window glass, off the data */
+#screenWrap::after{
+  content:''; position:absolute; inset:0; z-index:121; pointer-events:none; border-radius:10px;
+  background:radial-gradient(ellipse 58% 34% at 40% 8%, rgba(226,240,214,.06) 0%, transparent 60%);
+}
+/* #screen is the JITTER TARGET (translateX one-frame twitch, timer-driven). It already
+   carries the power-off transform; jitter is applied only while idle & fx hidden. */
 #screen{ position:absolute; inset:0; overflow:hidden; transform-origin:center center; }
 
 /* ---------- DESKTOP ICONS (right edge) ---------- */
@@ -273,7 +366,7 @@ kbd.dim{ background:var(--paper-dark); color:var(--ink-soft); box-shadow:0 2px 0
 /* account masthead */
 .acct-val{ font-family:var(--f-cond); font-weight:800; font-size:clamp(38px,4.4vw,58px);
   line-height:.9; letter-spacing:.01em; color:var(--ink);
-  text-shadow:1px 0 rgba(255,0,60,.35), -1px 0 rgba(0,255,220,.35); } /* [S5] static fringe */
+  text-shadow:1.3px 0 rgba(255,0,64,.5), -1.3px 0 rgba(0,232,255,.5), 0 0 6px rgba(120,150,110,.16); } /* [S5]/[S6+] strengthened static phosphor fringe */
 .acct-row{ display:flex; align-items:baseline; gap:14px; margin-top:8px; }
 .acct-day{ font-family:var(--f-mono); font-weight:600; font-size:18px; }
 .acct-sub{ display:flex; gap:22px; margin-top:12px; }
@@ -368,7 +461,7 @@ kbd.dim{ background:var(--paper-dark); color:var(--ink-soft); box-shadow:0 2px 0
 .pos-col{ position:relative; z-index:1; min-height:0; overflow:auto; }
 .pos-left .phead{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
 .pos-left .psym{ font-family:var(--f-cond); font-weight:800; font-size:clamp(40px,4.6vw,60px); line-height:.85;
-  color:var(--ink); text-shadow:1px 0 rgba(255,0,60,.35), -1px 0 rgba(0,255,220,.35); } /* [S5] */
+  color:var(--ink); text-shadow:1.3px 0 rgba(255,0,64,.5), -1.3px 0 rgba(0,232,255,.5), 0 0 6px rgba(120,150,110,.16); } /* [S5]/[S6+] strengthened phosphor fringe */
 .pos-left .pnm{ font-family:var(--f-prose); font-size:14px; color:var(--ink-soft); }
 .pos-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:2px; }
 .budget-chip{ display:inline-flex; align-items:center; gap:8px; margin:6px 0 14px;
@@ -447,7 +540,7 @@ kbd.dim{ background:var(--paper-dark); color:var(--ink-soft); box-shadow:0 2px 0
 .watch-right{ display:flex; flex-direction:column; min-height:0; }
 .watch-name-row{ display:flex; align-items:baseline; gap:12px; margin-bottom:4px; }
 .watch-sym{ font-family:var(--f-cond); font-weight:800; font-size:clamp(34px,4vw,48px); line-height:.85;
-  color:var(--ink); text-shadow:1px 0 rgba(255,0,60,.35), -1px 0 rgba(0,255,220,.35); } /* [S5] */
+  color:var(--ink); text-shadow:1.3px 0 rgba(255,0,64,.5), -1.3px 0 rgba(0,232,255,.5), 0 0 6px rgba(120,150,110,.16); } /* [S5]/[S6+] strengthened phosphor fringe */
 .watch-nm{ font-family:var(--f-prose); font-size:13px; color:var(--ink-soft); }
 .watch-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
 
@@ -472,6 +565,115 @@ body.tips .ssrow .v{ padding-right:230px; }
 .bio-block p{ font-family:var(--f-prose); font-size:14px; line-height:1.55; color:var(--ink-soft); }
 .watch-radar{ margin-top:8px; }
 .watch-radar svg{ width:100%; max-width:340px; max-height:34vh; height:auto; display:block; margin:0 auto; }
+
+/* ============================ ORDERS (UPGRADE 3) ============================= */
+#orders .screenbody{ display:flex; flex-direction:column; min-height:0; }
+.orders-card{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:16px 16px 12px; }
+.orders-head{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.orders-count{ font-size:12px; color:var(--ink-soft); letter-spacing:.04em; }
+.orders-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; padding-right:6px; }
+.orders-scroll::-webkit-scrollbar{ width:12px; }
+.orders-scroll::-webkit-scrollbar-track{ background:var(--paper-dark); border:1.5px solid var(--ink); }
+.orders-scroll::-webkit-scrollbar-thumb{ background:var(--ink); border:2px solid var(--paper-dark); }
+table.ledger{ width:100%; border-collapse:collapse; font-family:var(--f-mono); }
+table.ledger thead th{
+  position:sticky; top:0; z-index:2; background:var(--ink); color:var(--paper);
+  font-family:var(--f-cond); font-weight:700; letter-spacing:.1em; font-size:11px; text-transform:uppercase;
+  padding:6px 10px; text-align:right; white-space:nowrap;
+}
+table.ledger thead th.l{ text-align:left; }
+table.ledger tbody td{
+  font-size:13px; color:var(--ink); padding:6px 10px; text-align:right; white-space:nowrap;
+  border-bottom:1px solid rgba(35,32,26,.16); font-variant-numeric:tabular-nums;
+}
+table.ledger tbody td.l{ text-align:left; }
+table.ledger tbody tr:nth-child(even) td{ background:var(--paper-dark); }
+table.ledger .sym{ font-family:var(--f-cond); font-weight:800; letter-spacing:.04em; font-size:14px; }
+table.ledger .side{ font-family:var(--f-cond); font-weight:800; letter-spacing:.06em; }
+table.ledger .side.gain{ color:var(--gain); } table.ledger .side.loss{ color:var(--loss); }
+.orders-empty{ font-family:var(--f-mono); font-size:13px; color:var(--ink-soft); letter-spacing:.03em;
+  padding:22px 8px; border:1.5px dashed rgba(35,32,26,.4); background:var(--paper-dark); text-align:center; }
+.orders-empty b{ color:var(--ink); font-weight:600; }
+.orders-roster-wrap{ margin-top:14px; }
+
+/* ============================ PERFORMANCE (UPGRADE 4) ============================= */
+#perf .screenbody{ display:flex; flex-direction:column; min-height:0; }
+.perf-main{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:14px 14px 12px; }
+.perf-head{ display:flex; align-items:center; gap:14px; margin-bottom:10px; flex-wrap:wrap; }
+.perf-src{ display:flex; align-items:center; gap:7px; }
+.perf-srcbtn{ font-family:var(--f-mono); font-weight:600; font-size:11px; letter-spacing:.03em;
+  padding:3px 9px; border:1.5px solid var(--ink); background:var(--paper-dark); color:var(--ink-soft);
+  cursor:pointer; box-shadow:0 2px 0 var(--ink-soft); text-transform:uppercase; }
+.perf-srcbtn.on{ background:var(--orange); color:var(--ink); box-shadow:0 2px 0 var(--ink); }
+.perf-syminput{ display:inline-flex; align-items:center; gap:5px; border:1.5px solid var(--ink);
+  background:var(--paper); padding:2px 6px; box-shadow:0 2px 0 var(--ink-soft); }
+.perf-syminput .pfx{ font-family:var(--f-mono); font-size:11px; color:var(--teal); font-weight:600; }
+.perf-syminput input{ width:78px; border:none; background:transparent; color:var(--ink);
+  font-family:var(--f-mono); font-weight:600; font-size:13px; letter-spacing:.06em; text-transform:uppercase; outline:none; }
+.perf-syminput input::placeholder{ color:var(--ink-soft); opacity:.6; letter-spacing:.04em; }
+.perf-who{ display:flex; align-items:baseline; gap:10px; flex:1 1 auto; min-width:0; }
+.perf-who .sym{ font-family:var(--f-cond); font-weight:800; font-size:24px; letter-spacing:.04em; color:var(--ink); }
+.perf-who .nm{ font-family:var(--f-prose); font-size:12px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.perf-who .last{ font-family:var(--f-mono); font-weight:600; font-size:18px; color:var(--ink); margin-left:auto; }
+.perf-tag{ font-family:var(--f-cond); font-weight:700; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+  padding:2px 7px; border:1.5px solid var(--ink); color:var(--ink); }
+.perf-tag.sim{ background:var(--teal); color:var(--paper); border-color:var(--teal); }
+.perf-tag.mock{ background:var(--paper-dark); color:var(--ink-soft); }
+.perf-tag.live{ background:var(--teal); color:var(--paper); border-color:var(--teal); }
+.perf-tag:empty{ display:none; }
+
+.perf-stage{ flex:1 1 auto; display:flex; gap:14px; min-height:0; }
+.perf-canvaswrap{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; min-width:0; overflow:hidden; }
+.perf-chartcol{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; gap:6px; }
+/* the price well keeps the lion's share; panes share the rest. min-height:0 lets the
+   whole column shrink under pressure (never spills past the card onto the roster). */
+.perf-well{ position:relative; background:var(--crt-desktop); border:2px solid var(--ink); flex:5 1 0;
+  min-height:0; overflow:hidden; }
+.perf-well canvas{ position:absolute; inset:0; width:100%; height:100%; }
+#perfOverlay{ pointer-events:none; } /* crosshair overlay: base+overlay stacked, pointer handled on well */
+.perf-panes{ flex:4 1 0; display:flex; flex-direction:column; gap:6px; min-height:0; }
+.perf-pane{ position:relative; background:var(--crt-desktop); border:2px solid var(--ink); flex:1 1 0; min-height:0; overflow:hidden; }
+.perf-pane canvas{ position:absolute; inset:0; width:100%; height:100%; }
+.perf-panes:empty{ display:none; }
+.perf-legend{ flex:0 0 auto; margin-top:6px; font-size:11px; color:#9CB4A9; letter-spacing:.02em;
+  min-height:16px; max-height:34px; overflow-x:auto; overflow-y:hidden; white-space:nowrap;
+  display:flex; flex-wrap:nowrap; gap:4px 14px; align-items:center; }
+.perf-legend .lg{ flex:0 0 auto; }
+.perf-legend .lg{ display:inline-flex; align-items:center; gap:5px; }
+.perf-legend .sw{ width:9px; height:9px; border:1px solid rgba(0,0,0,.4); flex:0 0 auto; }
+.perf-legend .lk{ color:#7E9A8F; }
+.perf-legend .lv{ color:var(--paper); font-variant-numeric:tabular-nums; }
+
+/* indicators side-rail */
+.perf-rail{ flex:0 0 210px; background:var(--paper); border:2px solid var(--ink);
+  box-shadow:var(--card-shadow); display:flex; flex-direction:column; min-height:0; }
+.perf-rail.hidden{ display:none; }
+.perf-railhead{ flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+  padding:10px 10px 8px; border-bottom:2px solid var(--ink); }
+.perf-railscroll{ flex:1 1 auto; min-height:0; overflow-y:auto; padding:10px; }
+.perf-railscroll::-webkit-scrollbar{ width:10px; }
+.perf-railscroll::-webkit-scrollbar-track{ background:var(--paper-dark); border:1px solid var(--ink); }
+.perf-railscroll::-webkit-scrollbar-thumb{ background:var(--ink); border:2px solid var(--paper-dark); }
+.perf-group{ margin-bottom:12px; }
+.perf-group > .glab{ display:inline-block; font-family:var(--f-mono); font-size:10px; font-weight:600;
+  letter-spacing:.12em; color:var(--paper); background:var(--teal); padding:2px 7px; margin-bottom:7px; text-transform:uppercase; }
+.perf-toggles{ display:flex; flex-direction:column; gap:5px; }
+.perf-chip{ display:flex; align-items:center; gap:7px; font-family:var(--f-cond); font-weight:700;
+  font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-soft);
+  border:1.5px solid var(--ink); background:var(--paper-dark); padding:4px 7px; cursor:pointer;
+  box-shadow:0 2px 0 var(--ink); user-select:none; }
+.perf-chip:active{ transform:translateY(1px); box-shadow:0 1px 0 var(--ink); }
+.perf-chip .num{ font-family:var(--f-mono); font-size:9px; font-weight:600; color:var(--ink-soft);
+  min-width:13px; height:13px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--ink-soft); flex:0 0 auto; }
+.perf-chip .lbl{ flex:1 1 auto; }
+.perf-chip .dot{ width:9px; height:9px; border:1px solid var(--ink); flex:0 0 auto; }
+.perf-chip.on{ background:var(--orange); color:var(--ink); border-color:var(--ink); }
+.perf-chip.on .num{ color:var(--ink); border-color:var(--ink); }
+.perf-roster-wrap{ margin-top:14px; }
+@media (max-width:1100px){
+  .perf-rail{ flex-basis:170px; }
+}
 
 /* ============================ BOOT SPLASH ============================= */
 #boot{ position:fixed; inset:0; z-index:8500; background:#05090A; display:flex; flex-direction:column;
@@ -505,9 +707,13 @@ body.tips .ssrow .v{ padding-right:230px; }
 </style>
 </head>
 <body>
-<!-- CRT overlays (above everything, pointer-events none) -->
-<div id="crtScan"></div>
+<!-- CRT overlays (above everything, pointer-events none) — [S6+] amplified analog stack -->
+<div id="crtBend"></div>
 <div id="crtVig"></div>
+<div id="crtRoll"></div>
+<div id="crtScan"></div>
+<div id="crtGlass"></div>
+<div id="crtBezel"></div>
 
 <!-- BOOT SPLASH -->
 <div id="boot"><div class="bl" id="bootText"></div><div class="skip">[ PRESS ANY KEY TO SKIP ]</div></div>
@@ -518,7 +724,7 @@ body.tips .ssrow .v{ padding-right:230px; }
   <div id="topbar">
     <div class="tb-logo">&#9670; <b>MDN</b> // MARKET DISPATCH NETWORK</div>
     <div class="tb-ctrl"><span>&#94;</span><span>&#8964;</span><span>&#215;</span></div>
-    <div class="tb-sess">OPERATOR: <b id="opName">R. VANCE</b> &middot; DESK 07</div>
+    <div class="tb-sess">OPERATOR: <b id="opName">STILLSHINING</b> &middot; DESK 07</div>
   </div>
 
   <!-- WORKSPACE -->
@@ -675,6 +881,83 @@ body.tips .ssrow .v{ padding-right:230px; }
                 <div class="watch-radar" id="wRadarWrap"></div>
               </div>
               <div style="grid-column:1/-1;"><div class="roster dim" data-roster></div></div>
+            </div>
+            <div class="hintbar screen-hints">
+              <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
+              <span class="h"><kbd>TAB</kbd><span class="t">PANELS</span></span>
+              <span class="h"><kbd>&#9664;</kbd><kbd>&#9654;</kbd><span class="t">ROSTER</span></span>
+            </div>
+            <div class="escback" data-esc><kbd>ESC</kbd><span>BACK</span></div>
+          </section>
+
+          <!-- ===== PERFORMANCE (UPGRADE 4 — analysis deck) ===== -->
+          <section id="perf" class="appscreen">
+            <div class="screenbody perf-body">
+              <div class="card perf-main">
+                <span class="plabel">PERFORMANCE // ANALYSIS DECK</span>
+                <div class="perf-head">
+                  <div class="perf-src">
+                    <span class="chip teal" style="margin-right:2px;">SOURCE</span>
+                    <button class="perf-srcbtn on" data-src="PORTFOLIO">PORTFOLIO</button>
+                    <button class="perf-srcbtn" data-src="ROSTER">ROSTER</button>
+                    <div class="perf-syminput">
+                      <span class="pfx">SYM&#9002;</span>
+                      <input id="perfSymInput" class="mono" maxlength="9" placeholder="TYPE&hellip;" spellcheck="false" autocomplete="off">
+                    </div>
+                  </div>
+                  <div class="perf-who">
+                    <span class="sym" id="perfSym">&mdash;</span>
+                    <span class="nm" id="perfNm">&mdash;</span>
+                    <span class="perf-tag" id="perfTag"></span>
+                    <span class="last mono" id="perfLast">$0.00</span>
+                  </div>
+                  <div class="rangetog" id="perfRangeTog">
+                    <button data-r="1D" class="on">1D</button>
+                    <button data-r="1W">1W</button>
+                    <button data-r="1M">1M</button>
+                    <button data-r="1Y">1Y</button>
+                  </div>
+                </div>
+                <div class="perf-stage">
+                  <div class="perf-canvaswrap">
+                    <div class="perf-chartcol">
+                      <div class="perf-well" id="perfMainWell">
+                        <canvas id="perfBase"></canvas>
+                        <canvas id="perfOverlay"></canvas>
+                      </div>
+                      <div class="perf-panes" id="perfPanes"><!-- sub-pane canvases injected --></div>
+                    </div>
+                    <div class="perf-legend mono" id="perfLegend"></div>
+                  </div>
+                  <div class="perf-rail" id="perfRail">
+                    <div class="perf-railhead"><span class="chip">INDICATORS</span><kbd class="dim">I</kbd></div>
+                    <div class="perf-railscroll" id="perfRailScroll"><!-- toggle chips injected --></div>
+                  </div>
+                </div>
+              </div>
+              <div class="perf-roster-wrap"><div class="roster" data-roster></div></div>
+            </div>
+            <div class="hintbar screen-hints">
+              <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
+              <span class="h"><kbd>I</kbd><span class="t">RAIL</span></span>
+              <span class="h"><kbd>1</kbd>&hellip;<kbd>9</kbd><span class="t">TOGGLE</span></span>
+              <span class="h"><kbd>&#9664;</kbd><kbd>&#9654;</kbd><span class="t">ROSTER</span></span>
+            </div>
+            <div class="escback" data-esc><kbd>ESC</kbd><span>BACK</span></div>
+          </section>
+
+          <!-- ===== ORDERS (UPGRADE 3 — session fill log) ===== -->
+          <section id="orders" class="appscreen">
+            <div class="screenbody orders-body">
+              <div class="card orders-card">
+                <span class="plabel">ORDERS // SESSION LOG</span>
+                <div class="orders-head">
+                  <span class="chip">ORDERS // SESSION</span>
+                  <span class="orders-count mono" id="ordersCount">0 FILLS</span>
+                </div>
+                <div class="orders-scroll" id="ordersScroll"><!-- ledger table injected --></div>
+              </div>
+              <div class="orders-roster-wrap"><div class="roster" data-roster></div></div>
             </div>
             <div class="hintbar screen-hints">
               <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
@@ -963,7 +1246,9 @@ const State = {
 const SCREENS = [
   {id:'dash', name:'DASHBOARD', wid:'WND-0x2F', icon:'dash', file:'DASHBOARD.exe'},
   {id:'pos',  name:'POSITIONS', wid:'WND-0x3A', icon:'pos',  file:'POSITIONS.dat'},
-  {id:'watch',name:'WATCHLIST', wid:'WND-0x4C', icon:'watch',file:'WATCHLIST.idx'}
+  {id:'watch',name:'WATCHLIST', wid:'WND-0x4C', icon:'watch',file:'WATCHLIST.idx'},
+  {id:'perf', name:'PERFORMANCE', wid:'WND-0x6E', icon:'perf', file:'PERFORMANCE.chz'}, // UPGRADE 4 — analysis deck
+  {id:'orders',name:'ORDERS', wid:'WND-0x5D', icon:'orders',file:'ORDERS.log'}            // UPGRADE 3 — session fill log
 ];
 
 /* ---------------- ICON GLYPHS ---------------- */
@@ -972,7 +1257,7 @@ const GLYPHS = {
   pos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 20h18"/><rect x="4" y="12" width="4" height="7"/><rect x="10" y="7" width="4" height="12"/><rect x="16" y="10" width="4" height="9"/></svg>',
   watch:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M8 4v16"/></svg>',
   orders:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="3" width="14" height="18"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
-  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6h16M9 6V4h6v2M6 6l1 14h10l1-14"/></svg>'
+  perf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><path d="M6 15l4-5 3 3 5-8"/><rect x="6" y="16" width="2" height="3"/><rect x="11" y="14" width="2" height="5"/><rect x="16" y="11" width="2" height="8"/></svg>'
 };
 // stat-row icons (positions)
 const STAT_IC = {
@@ -986,6 +1271,8 @@ const STAT_IC = {
 
 /* ================= 5. RENDER: DESKTOP CHROME ================= */
 function buildIcons(){
+  // Every SCREENS entry is now a REAL app window (ORDERS + PERFORMANCE included).
+  // The decorative trash icon has been REMOVED entirely (UPGRADE 3).
   const wrap = $('#icons'); wrap.innerHTML='';
   SCREENS.forEach(s=>{
     const d=document.createElement('div'); d.className='dicon'+(s.id===State.screen?' sel':'');
@@ -994,24 +1281,6 @@ function buildIcons(){
     d.addEventListener('click',()=>gotoScreen(s.id));
     wrap.appendChild(d);
   });
-  // decorative non-app icons (orders + trash) — cosmetic, but ORDERS shows log count
-  const ord=document.createElement('div'); ord.className='dicon'; ord.dataset.deco='orders';
-  ord.innerHTML=`<div class="glyph">${GLYPHS.orders}</div><div class="lbl">ORDERS.log</div>`;
-  ord.title='Order history';
-  ord.addEventListener('click',()=>flashOrdersLog(ord));
-  wrap.appendChild(ord);
-  const tr=document.createElement('div'); tr.className='dicon';
-  tr.innerHTML=`<div class="glyph">${GLYPHS.trash}</div><div class="lbl">trash</div>`;
-  tr.title='Trash';
-  tr.addEventListener('click',()=>{ pushAlert('▸ TRASH :: EMPTY. KEEP IT THAT WAY, OPERATOR.', true); tr.classList.add('sel'); setTimeout(()=>tr.classList.remove('sel'),400); });
-  wrap.appendChild(tr);
-}
-function flashOrdersLog(el){
-  const n=State.ordersLog.length;
-  const msg = n? `${n} ORDER(S) LOGGED` : 'NO ORDERS THIS SESSION';
-  const last = n? State.ordersLog[n-1] : null;
-  pushAlert('▸ ORDERS.log :: '+msg+(last?` :: LAST ${last}`:''), true);
-  el.classList.add('sel'); setTimeout(()=>el.classList.remove('sel'),400);
 }
 
 function refreshIconsSel(){ $$('.dicon').forEach(d=>d.classList.toggle('sel', d.dataset.screen===State.screen)); }
@@ -1271,11 +1540,23 @@ function confirmStage(){
   }
   const stamp=new Date().toTimeString().slice(0,8);
   const line=`${stamp} ${qty>0?'BUY':'SELL'} ${Math.abs(qty)} ${sym.replace('-USD','')} @ ${fmtUSD(last,last<10?4:2)}`;
-  State.ordersLog.push(line);
+  // ORDERS.log record — a structured fill for the ORDERS screen (wire-format ledger).
+  // est = signed notional: cost (buy, negative to BP) / proceeds (sell, positive to BP).
+  State.ordersLog.push({
+    time: stamp,
+    sym: sym.replace('-USD',''),
+    side: qty>0?'BUY':'SELL',
+    qty: Math.abs(qty),
+    price: last,
+    est: Math.abs(cost),           // magnitude; side carries direction
+    bpAfter: State.cash,           // buying power AFTER this fill
+    line                           // human string reused by the marquee/flash
+  });
   State.alerts[sym]=true; // open order needing attention -> orange star on the card
   pushAlert('▸ ORDER FILLED :: '+line, true);
   State.staged=0;
   renderPositions(); renderRoster(); renderDashAccount();
+  if(State.screen==='orders') renderOrders();
 }
 function toggleStrategy(){ State.strategy = State.strategy==='DIRECTIONAL'?'HEDGED':'DIRECTIONAL'; renderPositions(); }
 
@@ -1311,6 +1592,40 @@ function bioBlock(p){
   return h;
 }
 
+/* ================= ORDERS (UPGRADE 3) ================= */
+// Wire-format ledger of every CONFIRMED fill this session (newest first).
+// Columns: TIME / SYM / SIDE / QTY / EST / BP AFTER — all numerals mono, tabular,
+// right-aligned. BUY green ▲ / SELL brick ▼. Empty state stays in-fiction.
+function renderOrders(){
+  const scroll=$('#ordersScroll'); if(!scroll) return;
+  const log=State.ordersLog;
+  $('#ordersCount').textContent = log.length + (log.length===1?' FILL':' FILLS');
+  if(!log.length){
+    scroll.innerHTML = `<div class="orders-empty">NO FILLS THIS SESSION &mdash; STAGE AND CONFIRM FROM <b>POSITIONS.dat</b></div>`;
+    return;
+  }
+  const rows = log.slice().reverse().map(o=>{
+    const buy = o.side==='BUY';
+    const cls = buy?'gain':'loss';
+    const estLabel = buy? '-'+fmtUSD(o.est) : '+'+fmtUSD(o.est); // signed against buying power
+    return `<tr>
+      <td class="l">${o.time}</td>
+      <td class="l sym">${o.sym}</td>
+      <td class="l"><span class="side ${cls}">${arrow(buy?1:-1)} ${o.side}</span></td>
+      <td>${o.qty}</td>
+      <td>${estLabel}</td><!-- EST stays ink: the +/- prefix carries buying-power direction; colour lives on the SIDE glyph only (§1 palette discipline) -->
+      <td>${fmtUSD(o.bpAfter)}</td>
+    </tr>`;
+  }).join('');
+  scroll.innerHTML = `<table class="ledger">
+    <thead><tr>
+      <th class="l">TIME</th><th class="l">SYM</th><th class="l">SIDE</th>
+      <th>QTY</th><th>EST</th><th>BP AFTER</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
 /* ================= SHARED SELECT ================= */
 function selectInstrument(sym){
   if(sym===State.selected){ renderRoster(); pulseSelectedCard(); return; }
@@ -1320,6 +1635,11 @@ function selectInstrument(sym){
   if(State.screen==='dash') renderDashChart();
   else if(State.screen==='pos') renderPositions();
   else if(State.screen==='watch') renderWatchlist();
+  else if(State.screen==='perf'){
+    // roster jump on the analysis deck retargets the chart when SOURCE=ROSTER.
+    // PORTFOLIO / typed-symbol sources are pinned and ignore roster selection.
+    if(Perf.source==='ROSTER'){ Perf.symbol=sym; perfLoadSeries(); }
+  }
 }
 function moveRoster(dir){
   const i=DEFAULT_ROSTER.indexOf(State.selected);
@@ -1347,6 +1667,7 @@ function redrawActiveCharts(){
   if(State.screen==='dash'){ drawMainChart(); }
   else if(State.screen==='pos'){ drawRadar($('#posRadarWrap'),State.selected,State.staged,true); drawSilhouette(State.selected); }
   else if(State.screen==='watch'){ drawWatchChart(); drawRadar($('#wRadarWrap'),State.selected,0,false); }
+  else if(State.screen==='perf'){ perfResize(); } // re-fit all perf layers to the settled box, then full redraw
 }
 // [S2] phosphor glow drawn IN CANVAS: multi-pass strokes at decreasing alpha /
 // increasing width — no CSS filter:drop-shadow (WKWebView-safe).
@@ -1379,7 +1700,9 @@ function drawMainChart(){
   ctx.clearRect(0,0,w,h);
   const q=DataEngine.get(State.selected);
   const series=q.hist[State.range];
-  const up = series[series.length-1]>=series[0];
+  // On 1D, anchor colour to the roster's fixed prevClose (q.dayPct) so the chart never
+  // shows red beside a green ▲ for the same symbol once the rolling day array shifts.
+  const up = State.range==='1D' ? q.dayPct>=0 : series[series.length-1]>=series[0];
   const col = up? '#4CAF6E' : '#B23A2F';
   const padX=10, padTop=12, padBot=22;
   // dotted teal gridlines
@@ -1621,6 +1944,8 @@ function showScreen(id){
   if(id==='dash') renderDashboard();
   else if(id==='pos'){ renderPositions(); maybeTutorial(); }
   else if(id==='watch') renderWatchlist();
+  else if(id==='orders') renderOrders();
+  else if(id==='perf') renderPerf();
   renderRoster();
 }
 function gotoScreen(id){
@@ -1701,6 +2026,31 @@ function runPowerOff(swapFn){
   beep('off');
 }
 
+/* ================= [S6+] PHOSPHOR LIFE: one-frame horizontal jitter ================= */
+/* Every ~9–15s the picture container twitches translateX ±1–2px for a single frame,
+   the "signal wobble" of a tube losing horizontal lock, then snaps back. Timer-driven,
+   transform-only. GATED: never fires under prefers-reduced-motion, and it self-suppresses
+   during a power-off switch (switching) or while the fx overlay owns #screen's transform,
+   so it can never fight the collapse/expand animation or leave a lingering offset. */
+function scheduleJitter(){
+  if(prefersReduced) return;
+  const wait = 9000 + Math.random()*6000; // 9–15s
+  setTimeout(()=>{
+    const scr=$('#screen'), fx=$('#crtFx');
+    const idle = !switching && scr && (!fx || fx.style.display==='none') && !scr.style.transform;
+    if(idle){
+      const dx = (Math.random()<0.5?-1:1) * (1 + Math.round(Math.random())); // ±1 or ±2px
+      scr.style.transition='transform 0s';
+      scr.style.transform='translateX('+dx+'px)';
+      requestAnimationFrame(()=>{ requestAnimationFrame(()=>{
+        // only clear if we still own the transform (a switch may have started meanwhile)
+        if(scr.style.transform==='translateX('+dx+'px)'){ scr.style.transform=''; scr.style.transition=''; }
+      }); });
+    }
+    scheduleJitter();
+  }, wait);
+}
+
 /* ================= FIRST-RUN TUTORIAL ================= */
 function maybeTutorial(){
   if(State.tutorialShown) return;
@@ -1742,7 +2092,12 @@ document.addEventListener('keydown', e=>{
   const k=e.key;
   if(k==='Shift' && e.location===1){ document.body.classList.add('tips'); return; } // LSHIFT tooltips
   const editing = document.activeElement && document.activeElement.tagName==='INPUT';
+  // PERFORMANCE quick-toggles: number keys 1–9 flip the first nine indicators.
+  if(State.screen==='perf' && !editing && /^[1-9]$/.test(k)){
+    const id=PERF_FLAT[parseInt(k,10)-1]; if(id){ perfToggle(id); } e.preventDefault(); return;
+  }
   switch(k.toLowerCase()){
+    case 'i': if(editing) break; if(State.screen==='perf'){ Perf.railHidden=!Perf.railHidden; $('#perfRail').classList.toggle('hidden',Perf.railHidden); perfResize(); e.preventDefault(); } break;
     case 'q': if(editing) break; cycleApp(-1); e.preventDefault(); break;
     case 'e': if(editing) break; cycleApp(1); e.preventDefault(); break;
     case 'arrowleft': if(!editing){ moveRoster(-1); e.preventDefault(); } break;
@@ -1814,7 +2169,7 @@ const BOOT_LINES=[
   'phosphor tube warmup .. OK',
   'feed handshake ........ negotiating',
   'roster load: NVDA AAPL TSLA SPY BTC ETH AMD GME',
-  'DESK 07 online. operator: R. VANCE',
+  'DESK 07 online. operator: STILLSHINING',
   'booting MARKET DISPATCH NETWORK ...'
 ];
 let bootDone=false;
@@ -1842,6 +2197,7 @@ function tickLoop(){
   updateRosterPrices();
   if(State.screen==='dash'){ renderDashAccount(); renderIndices(); renderMovers(); setTickText($('#chLast'), fmtUSD(DataEngine.get(State.selected).last, DataEngine.get(State.selected).last<10?4:2)); if(State.range==='1D') drawMainChart(); }
   else if(State.screen==='pos'){ renderPositions(); }
+  else if(State.screen==='perf'){ perfTick(); }
   updateTaskbar();
   setTimeout(tickLoop, 1000+Math.random()*1000); // 1–2s
 }
@@ -1854,6 +2210,760 @@ function updateRosterPrices(){
     // between full roster re-renders (colour must track the number).
     const path=card.querySelector('.rport path'); if(path) path.setAttribute('stroke', q.dayPct>=0?'var(--gain)':'var(--loss)');
   });
+}
+
+/* =========================================================================
+   PERFORMANCE / ANALYSIS DECK (UPGRADE 4)
+   -------------------------------------------------------------------------
+   RENDERING CHOICE — hybrid LAYERED CANVASES, no chart library, no CSS filter:
+     • #perfBase    : the "static-ish" layer — candles + volume + all price-pane
+                      overlays (EMA ribbon, Bollinger, SuperTrend, VWAP, signal
+                      markers, divergence lines). Redrawn ONLY on {data tick,
+                      toggle, source/range change, pan, resize}.
+     • .perf-pane   : a separate canvas per ACTIVE sub-pane (RSI / StochRSI /
+                      MACD / ATR). Injected/removed as panes toggle; each carries
+                      its own mini y-axis. Redrawn with the base layer.
+     • #perfOverlay : a lightweight crosshair + hover readout layer, redrawn ONLY
+                      on pointer move — never triggers a base recompute.
+   Glow is drawn IN-CANVAS ([S2] drawGlowLine), never filter:drop-shadow.
+   TRADEOFFS (stated): the ribbon does NOT shimmer per-frame and candles do not
+   animate in — at a 1–2s tick cadence a per-frame requestAnimationFrame loop
+   would burn battery for motion nobody can perceive between ticks, so redraws are
+   strictly event-driven. Downsampling (LTTB) only touches LINE-form series past
+   1500 visible points; candles are drawn at native resolution up to the visible
+   window (a range never exceeds ~240 bars here, so candles never need LTTB).
+   Indicator MATH lives in INDICATOR_CALC (pure, no DOM); RENDERING lives in the
+   PERF_OVERLAYS / PERF_PANES registries. Calc and render are fully separate.
+   NON-REPAINTING IS LAW: every signal/divergence/marker is computed only over
+   CLOSED candles (indices 0 .. closedCount-1). The live-forming last candle can
+   move price but can never add/move/remove a historical signal — enforced by
+   freezing signal arrays at closedCount, not by convention.
+   ========================================================================= */
+
+/* ---- THRESHOLDS: every guessed/tunable number, collected in one place ---- */
+const THRESHOLDS = {
+  EMA_PERIODS:      [8,13,21,34,55,89,144,233], // ribbon periods (configurable const)
+  RIBBON_MIN_EMAS:  4,   // TUNABLE — min FINITE ribbon EMAs before adaptive/squeeze read (slow EMAs never warm up on short ranges)
+  BB_PERIOD:        20,
+  BB_SIGMA_INNER:   1,   // dual Bollinger inner band
+  BB_SIGMA_OUTER:   2,   // dual Bollinger outer band
+  SUPERTREND_ATR:   10,  // ATR lookback for SuperTrend
+  SUPERTREND_MULT:  3,   // TUNABLE — SuperTrend band multiplier (classic 3, but a guess for this feed)
+  ATR_PERIOD:       14,
+  RSI_PERIOD:       14,
+  RSI_MA_PERIOD:    9,   // TUNABLE — smoothing MA the RSI crosses in the cycle engine
+  RSI_OVERBOUGHT:   70,  // TUNABLE — watch-zone upper rail
+  RSI_OVERSOLD:     30,  // TUNABLE — watch-zone lower rail
+  STOCHRSI_PERIOD:  14,
+  STOCHRSI_K:       3,
+  STOCHRSI_D:       3,
+  MACD_FAST:        12,
+  MACD_SLOW:        26,
+  MACD_SIGNAL:      9,
+  EMA_SQUEEZE_LOOKBACK: 100, // TUNABLE — window for the ribbon-width percentile
+  EMA_SQUEEZE_PCTL:  15,     // TUNABLE — below this width-percentile => "compression/squeeze"
+  DIVERGENCE_PIVOT_LOOKBACK: 5, // TUNABLE — bars each side to qualify a price pivot
+  DIVERGENCE_MAX_SPAN: 60,      // TUNABLE — max bars between the two pivots of a divergence
+  SIGNAL_RSI_CONFIRM: 50,       // TUNABLE — RSI must be on the right side of 50 to plot a buy/sell
+  VWAP_ANCHOR: 'RANGE_START'    // TUNABLE — session boundaries unavailable in mock bars; app port should reset pv/vv per trading session
+};
+
+/* ---- INDICATOR_CALC: pure math (no DOM, no canvas). All inputs are arrays. ----
+   Every function returns arrays aligned to the input length; warm-up region is
+   filled with NaN so renderers can skip it honestly (no fabricated early values). */
+const INDICATOR_CALC = {
+  ema(vals, period){
+    const out=new Array(vals.length).fill(NaN);
+    const k=2/(period+1); let prev;
+    for(let i=0;i<vals.length;i++){
+      const v=vals[i]; if(!isFinite(v)) continue;
+      if(prev===undefined){
+        // seed with SMA of the first `period` values
+        if(i>=period-1){ let s=0,c=0; for(let j=i-period+1;j<=i;j++){ s+=vals[j]; c++; } prev=s/c; out[i]=prev; }
+      } else { prev=v*k+prev*(1-k); out[i]=prev; }
+    }
+    return out;
+  },
+  sma(vals, period){
+    const out=new Array(vals.length).fill(NaN); let s=0;
+    for(let i=0;i<vals.length;i++){ s+=vals[i]; if(i>=period) s-=vals[i-period]; if(i>=period-1) out[i]=s/period; }
+    return out;
+  },
+  stdev(vals, period){
+    const out=new Array(vals.length).fill(NaN);
+    for(let i=period-1;i<vals.length;i++){
+      let m=0; for(let j=i-period+1;j<=i;j++) m+=vals[j]; m/=period;
+      let v=0; for(let j=i-period+1;j<=i;j++){ const d=vals[j]-m; v+=d*d; } out[i]=Math.sqrt(v/period);
+    }
+    return out;
+  },
+  // Dual Bollinger: returns {mid, upIn, dnIn, upOut, dnOut}
+  bollinger(closes, period, sIn, sOut){
+    const mid=this.sma(closes,period), sd=this.stdev(closes,period);
+    const upIn=[],dnIn=[],upOut=[],dnOut=[];
+    for(let i=0;i<closes.length;i++){
+      upIn[i]=mid[i]+sIn*sd[i]; dnIn[i]=mid[i]-sIn*sd[i];
+      upOut[i]=mid[i]+sOut*sd[i]; dnOut[i]=mid[i]-sOut*sd[i];
+    }
+    return {mid,upIn,dnIn,upOut,dnOut};
+  },
+  // True Range series
+  trueRange(h,l,c){
+    const out=new Array(c.length).fill(NaN);
+    for(let i=0;i<c.length;i++){
+      if(i===0){ out[i]=h[i]-l[i]; continue; }
+      out[i]=Math.max(h[i]-l[i], Math.abs(h[i]-c[i-1]), Math.abs(l[i]-c[i-1]));
+    }
+    return out;
+  },
+  // Wilder-smoothed ATR
+  atr(h,l,c,period){
+    const tr=this.trueRange(h,l,c); const out=new Array(c.length).fill(NaN);
+    let prev; for(let i=0;i<c.length;i++){
+      if(i<period-1) continue;
+      if(prev===undefined){ let s=0; for(let j=0;j<period;j++) s+=tr[j]; prev=s/period; out[i]=prev; }
+      else { prev=(prev*(period-1)+tr[i])/period; out[i]=prev; }
+    }
+    return out;
+  },
+  // SuperTrend (ATR bands, direction flips). Returns {line, dir[]} dir: +1 up / -1 down
+  superTrend(h,l,c,period,mult){
+    const atr=this.atr(h,l,c,period); const n=c.length;
+    const line=new Array(n).fill(NaN); const dir=new Array(n).fill(NaN);
+    let finalUp=NaN, finalDn=NaN, prevDir=1;
+    for(let i=0;i<n;i++){
+      if(!isFinite(atr[i])){ continue; }
+      const mid=(h[i]+l[i])/2;
+      let basicUp=mid+mult*atr[i], basicDn=mid-mult*atr[i];
+      finalUp = (isFinite(finalUp) && (basicUp<finalUp || c[i-1]>finalUp)) ? basicUp : (isFinite(finalUp)?finalUp:basicUp);
+      finalDn = (isFinite(finalDn) && (basicDn>finalDn || c[i-1]<finalDn)) ? basicDn : (isFinite(finalDn)?finalDn:basicDn);
+      // decide direction
+      if(!isFinite(dir[i-1])) prevDir=1;
+      if(c[i]>finalUp) prevDir=1; else if(c[i]<finalDn) prevDir=-1;
+      dir[i]=prevDir;
+      line[i]= prevDir===1 ? finalDn : finalUp;
+    }
+    return {line,dir};
+  },
+  // Wilder RSI
+  rsi(closes, period){
+    const n=closes.length; const out=new Array(n).fill(NaN);
+    let avgG, avgL;
+    for(let i=1;i<n;i++){
+      const ch=closes[i]-closes[i-1]; const g=Math.max(ch,0), l=Math.max(-ch,0);
+      if(i<period){ continue; }
+      if(avgG===undefined){
+        let sg=0,sl=0; for(let j=1;j<=period;j++){ const d=closes[j]-closes[j-1]; sg+=Math.max(d,0); sl+=Math.max(-d,0); }
+        avgG=sg/period; avgL=sl/period;
+      } else { avgG=(avgG*(period-1)+g)/period; avgL=(avgL*(period-1)+l)/period; }
+      const rs= avgL===0 ? 100 : avgG/avgL;
+      out[i]= avgL===0 ? 100 : 100-100/(1+rs);
+    }
+    return out;
+  },
+  // Stochastic RSI -> {k, d}
+  stochRsi(closes, rsiP, stochP, kP, dP){
+    const r=this.rsi(closes,rsiP); const n=closes.length;
+    const raw=new Array(n).fill(NaN);
+    for(let i=0;i<n;i++){
+      if(i<rsiP+stochP) continue;
+      let lo=Infinity,hi=-Infinity;
+      for(let j=i-stochP+1;j<=i;j++){ if(!isFinite(r[j])) { lo=NaN; break; } lo=Math.min(lo,r[j]); hi=Math.max(hi,r[j]); }
+      if(!isFinite(lo)) continue;
+      raw[i]= hi===lo ? 0 : (r[i]-lo)/(hi-lo)*100;
+    }
+    // sma() runs a rolling sum that NaN-poisons forever off the raw warm-up, so
+    // zero-fill the warm-up for the running sum then re-mask each smoothing's own warm-up.
+    const k=this.sma(raw.map(v=>isFinite(v)?v:0),kP).map((v,i)=> i>=rsiP+stochP+kP-1 ? v : NaN);
+    const d=this.sma(k.map(v=>isFinite(v)?v:0),dP).map((v,i)=> i>=rsiP+stochP+kP+dP-2 ? v : NaN);
+    return {k,d};
+  },
+  // MACD -> {macd, signal, hist}
+  macd(closes, fast, slow, sig){
+    const ef=this.ema(closes,fast), es=this.ema(closes,slow);
+    const macd=closes.map((_,i)=> (isFinite(ef[i])&&isFinite(es[i])) ? ef[i]-es[i] : NaN);
+    // signal = EMA of macd seeded on its finite region ONLY (never over the
+    // NaN-warm-up zero-fill, which would fabricate signal/hist before a 9-EMA exists).
+    const s0=macd.findIndex(isFinite);
+    const sigArr= s0<0 ? [] : this.ema(macd.slice(s0), sig);
+    const signal=macd.map((v,i)=> (s0>=0 && i>=s0 && isFinite(sigArr[i-s0])) ? sigArr[i-s0] : NaN);
+    const hist=macd.map((v,i)=> (isFinite(v)&&isFinite(signal[i]))? v-signal[i] : NaN);
+    return {macd,signal,hist};
+  },
+  // VWAP (cumulative typical-price * vol / cumulative vol). NOTE: pv/vv never reset,
+  // so on 1W/1M/1Y this is anchored-from-range-start, NOT session VWAP — see
+  // THRESHOLDS.VWAP_ANCHOR. Defensible: mock bars carry no session boundaries; the
+  // app port should reset pv/vv per trading session.
+  vwap(h,l,c,vol){
+    const out=new Array(c.length).fill(NaN); let pv=0, vv=0;
+    for(let i=0;i<c.length;i++){ const tp=(h[i]+l[i]+c[i])/3; pv+=tp*vol[i]; vv+=vol[i]; out[i]= vv? pv/vv : NaN; }
+    return out;
+  }
+};
+
+/* ---- LTTB downsample (Largest-Triangle-Three-Buckets) — extrema-preserving,
+        for LINE-form series only. Returns array of {x,y}. ---- */
+function lttb(points, threshold){
+  const n=points.length;
+  if(threshold>=n || threshold===0) return points;
+  const sampled=[points[0]];
+  const bucket=(n-2)/(threshold-2);
+  let a=0;
+  for(let i=0;i<threshold-2;i++){
+    const rangeStart=Math.floor((i+1)*bucket)+1;
+    const rangeEnd=Math.min(Math.floor((i+2)*bucket)+1, n);
+    let avgX=0,avgY=0,cnt=rangeEnd-rangeStart;
+    for(let j=rangeStart;j<rangeEnd;j++){ avgX+=points[j].x; avgY+=points[j].y; }
+    if(cnt>0){ avgX/=cnt; avgY/=cnt; }
+    const rangeOffs=Math.floor(i*bucket)+1;
+    const rangeTo=Math.floor((i+1)*bucket)+1;
+    const pa=points[a]; let maxArea=-1, next=rangeOffs;
+    for(let j=rangeOffs;j<rangeTo;j++){
+      const area=Math.abs((pa.x-avgX)*(points[j].y-pa.y)-(pa.x-points[j].x)*(avgY-pa.y))*0.5;
+      if(area>maxArea){ maxArea=area; next=j; }
+    }
+    sampled.push(points[next]); a=next;
+  }
+  sampled.push(points[n-1]);
+  return sampled;
+}
+
+/* ---- OHLC ENGINE ----------------------------------------------------------
+   The engine's histories are single close-price paths. Here we derive plausible
+   OHLC + volume per bar deterministically (seeded), so candles are reproducible.
+   SEAM: in the app port, PORTFOLIO becomes the real snapshot equity curve and the
+   roster/typed series become real OHLC from the LiveProvider — this generator is
+   the MOCK stand-in only. Kept isolated so swapping it out touches nothing else. */
+function ohlcFromCloses(closes, seed, volBase){
+  const rng=mulberry32(seed>>>0);
+  const bars=[]; let prevClose=closes[0];
+  for(let i=0;i<closes.length;i++){
+    const c=closes[i];
+    const o = i===0 ? c*(0.999+rng()*0.002) : prevClose;
+    const span=Math.abs(c-o) + (Math.abs(c)*0.002*(0.4+rng())); // intrabar range around the move
+    const hi=Math.max(o,c)+span*(0.3+rng()*0.7);
+    const lo=Math.min(o,c)-span*(0.3+rng()*0.7);
+    const vol=Math.max(1, volBase*(0.5+rng()*1.2)*(1+Math.abs(c-o)/(Math.abs(c)||1)*8));
+    bars.push({o,h:hi,l:Math.max(lo,0.0001),c,v:vol});
+    prevClose=c;
+  }
+  return bars;
+}
+// Seeded GBM close path for an ARBITRARY (typed, unknown) symbol — hash for the seed.
+function genSyntheticCloses(sym, points, range){
+  const seed = seedFromString('SYN|'+sym) ^ (range.charCodeAt(0)*197);
+  const rng=mulberry32(seed>>>0);
+  // deterministic personality from the hash so the same ticker always looks the same
+  const h=seedFromString(sym);
+  const base = 20 + (h%480);                 // $20–$500
+  const vol  = 0.012 + ((h>>7)%40)/1000;      // 1.2%–5.2% daily
+  const drift= (((h>>3)%21)-10)/12000;        // small ± drift
+  const vs = RANGE_VOLSCALE[range]||1, ds=RANGE_DRIFTSCALE[range]||1;
+  const v=vol*vs, dr=drift*ds*0.5;
+  const startFactor = range==='1Y'?0.7 : range==='1M'?0.88 : range==='1W'?0.965 : 0.992;
+  let price=base*startFactor; const arr=new Array(points);
+  for(let i=0;i<points;i++){
+    const u1=rng()||1e-9,u2=rng(); const z=Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
+    price=Math.max(price*(1+dr+v*z), base*0.12); arr[i]=price;
+  }
+  return arr;
+}
+// Seeded SIMULATED portfolio equity curve (clearly labelled). Blends roster paths
+// weighted by held qty so it reads like a real book; falls back to a smooth GBM.
+function genPortfolioCloses(points, range){
+  const held=Object.keys(State.positions).filter(s=>State.positions[s].qty>0);
+  const seed = (DataEngine.seed ^ seedFromString('PORTFOLIO|'+range)) >>> 0;
+  if(!held.length) return genSyntheticCloses('PORTFOLIO', points, range);
+  // sum weighted, range-scaled component paths; normalise so the LAST point equals
+  // the current real book equity (cash + market value) for a truthful right edge.
+  const comps=held.map(s=>{
+    const sd=(DataEngine.seed ^ seedFromString(s)) ^ (range.charCodeAt(0)*131);
+    return {series:genHistory(s, points, sd, range), qty:State.positions[s].qty};
+  });
+  const arr=new Array(points).fill(0);
+  for(let i=0;i<points;i++){ let e=State.cash; comps.forEach(c=>{ e+=c.series[i]*c.qty; }); arr[i]=e; }
+  const {total}=computeEquity(); const scale= total/arr[points-1];
+  for(let i=0;i<points;i++) arr[i]*=scale;
+  return arr;
+}
+
+/* ---- CUSTOM SIGNAL ENGINES (approximations; every guess flagged // TUNABLE and
+        gathered in THRESHOLDS). All consume CLOSED candles only. ---- */
+const SIGNAL_CALC = {
+  // RSI-cycle: RSI crossing its own smoothed MA. up-cross in oversold-ish => buy bias.
+  rsiCycle(closes, closedN){
+    const r=INDICATOR_CALC.rsi(closes,THRESHOLDS.RSI_PERIOD);
+    const rma=INDICATOR_CALC.sma(r.map(v=>isFinite(v)?v:0), THRESHOLDS.RSI_MA_PERIOD).map((v,i)=>isFinite(r[i])?v:NaN);
+    const marks=[]; // {i, kind:'buy'|'sell'}
+    for(let i=1;i<closedN;i++){
+      if(!isFinite(r[i])||!isFinite(rma[i])||!isFinite(r[i-1])||!isFinite(rma[i-1])) continue;
+      const upCross = r[i-1]<=rma[i-1] && r[i]>rma[i];
+      const dnCross = r[i-1]>=rma[i-1] && r[i]<rma[i];
+      // TUNABLE — confirm with the 50 rail so we don't fire mid-chop
+      if(upCross && r[i]<THRESHOLDS.SIGNAL_RSI_CONFIRM+10) marks.push({i,kind:'buy'});
+      else if(dnCross && r[i]>THRESHOLDS.SIGNAL_RSI_CONFIRM-10) marks.push({i,kind:'sell'});
+    }
+    return {r,rma,marks};
+  },
+  // EMA-compression: ribbon width (max-min of the EMA set) percentile squeeze.
+  emaCompression(emaSet, closedN){
+    const width=new Array(closedN).fill(NaN);
+    for(let i=0;i<closedN;i++){
+      // Use the FINITE subset of the ribbon — the slow EMAs (144/233) never warm up
+      // on short ranges, so demanding all 8 would zero this signal out entirely.
+      let mn=Infinity,mx=-Infinity,cnt=0;
+      for(const e of emaSet){ const v=e[i]; if(!isFinite(v)) continue; mn=Math.min(mn,v); mx=Math.max(mx,v); cnt++; }
+      if(cnt<THRESHOLDS.RIBBON_MIN_EMAS) continue; // TUNABLE — need a meaningful spread
+      width[i]=mx-mn;
+    }
+    const squeeze=new Array(closedN).fill(false);
+    const LB=THRESHOLDS.EMA_SQUEEZE_LOOKBACK;
+    for(let i=0;i<closedN;i++){
+      if(!isFinite(width[i])) continue;
+      const from=Math.max(0,i-LB+1); const win=[];
+      for(let j=from;j<=i;j++) if(isFinite(width[j])) win.push(width[j]);
+      if(win.length<8) continue;
+      const sorted=win.slice().sort((a,b)=>a-b);
+      const rank=sorted.findIndex(v=>v>=width[i]); const pctl=rank/(sorted.length-1)*100;
+      if(pctl<=THRESHOLDS.EMA_SQUEEZE_PCTL) squeeze[i]=true; // TUNABLE percentile
+    }
+    return {width,squeeze};
+  },
+  // Adaptive candle colouring vs ribbon: bull above whole ribbon / bear below / neutral inside.
+  adaptiveColors(closes, emaSet, n){
+    const col=new Array(n).fill(0); // 1 bull, -1 bear, 0 neutral
+    for(let i=0;i<n;i++){
+      // Colour vs the FINITE subset of the ribbon — requiring all 8 EMAs left every
+      // candle neutral (slow EMAs never warm up on short ranges), erasing the signal.
+      let mn=Infinity,mx=-Infinity,cnt=0;
+      for(const e of emaSet){ const v=e[i]; if(!isFinite(v)) continue; mn=Math.min(mn,v); mx=Math.max(mx,v); cnt++; }
+      if(cnt<THRESHOLDS.RIBBON_MIN_EMAS) continue; // TUNABLE — need a meaningful ribbon
+      if(closes[i]>mx) col[i]=1; else if(closes[i]<mn) col[i]=-1; else col[i]=0;
+    }
+    return col;
+  },
+  // Pivot-based divergence between price and an oscillator (RSI or MACD line).
+  // Classic: bullish = price lower-low + osc higher-low; bearish = price higher-high + osc lower-high.
+  divergence(closes, osc, closedN){
+    const LB=THRESHOLDS.DIVERGENCE_PIVOT_LOOKBACK, SPAN=THRESHOLDS.DIVERGENCE_MAX_SPAN;
+    const isPivotLow=(a,i)=>{ for(let k=1;k<=LB;k++){ if(i-k<0||i+k>=closedN) return false; if(!(a[i]<=a[i-k]&&a[i]<=a[i+k])) return false; } return true; };
+    const isPivotHigh=(a,i)=>{ for(let k=1;k<=LB;k++){ if(i-k<0||i+k>=closedN) return false; if(!(a[i]>=a[i-k]&&a[i]>=a[i+k])) return false; } return true; };
+    const lows=[],highs=[];
+    for(let i=LB;i<closedN-LB;i++){ if(!isFinite(osc[i])) continue; if(isPivotLow(closes,i)) lows.push(i); if(isPivotHigh(closes,i)) highs.push(i); }
+    const out=[]; // {i0,i1,kind:'bull'|'bear'}
+    for(let a=1;a<lows.length;a++){ const p0=lows[a-1],p1=lows[a]; if(p1-p0>SPAN) continue;
+      if(closes[p1]<closes[p0] && osc[p1]>osc[p0]) out.push({i0:p0,i1:p1,kind:'bull'}); }
+    for(let a=1;a<highs.length;a++){ const p0=highs[a-1],p1=highs[a]; if(p1-p0>SPAN) continue;
+      if(closes[p1]>closes[p0] && osc[p1]<osc[p0]) out.push({i0:p0,i1:p1,kind:'bear'}); }
+    return out;
+  }
+};
+
+/* ---- PERF STATE + toggle registry ---- */
+const Perf = {
+  source:'PORTFOLIO',   // PORTFOLIO | ROSTER | TYPED
+  symbol:'PORTFOLIO',   // display key (ROSTER/TYPED carry the ticker)
+  typed:'',             // last typed symbol
+  range:'1D',
+  bars:[],              // [{o,h,l,c,v}] current series
+  closedN:0,            // count of CLOSED candles (the last may be live-forming)
+  tag:'',               // SIMULATED | MOCK | LIVE
+  cache:{},             // memoised calc keyed by toggle set + data version
+  dataV:0,              // bumped every tick/reload so overlays recompute
+  cross:null,           // crosshair bar index (overlay only)
+  railHidden:false,
+  live:false            // whether the last candle is live-forming (extends on tick)
+};
+// toggle definitions — grouped OVERLAYS / PANES / SIGNALS. `on` is default state.
+const PERF_TOGGLES = [
+  {group:'OVERLAYS', items:[
+    {id:'ribbon', label:'EMA RIBBON', on:true,  color:'#D9942B'},
+    {id:'bb',     label:'BOLLINGER×2',on:false, color:'#5D8B80'},
+    {id:'super',  label:'SUPERTREND', on:false, color:'#4CAF6E'},
+    {id:'vwap',   label:'VWAP',       on:false, color:'#7FBBAD'},
+    {id:'vol',    label:'VOLUME',     on:true,  color:'#4C463A'}
+  ]},
+  {group:'PANES', items:[
+    {id:'rsi',    label:'RSI',        on:true,  color:'#D9942B'},
+    {id:'stoch',  label:'STOCH RSI',  on:false, color:'#7FBBAD'},
+    {id:'macd',   label:'MACD',       on:false, color:'#5D8B80'},
+    {id:'atr',    label:'ATR',        on:false, color:'#B23A2F'}
+  ]},
+  {group:'SIGNALS', items:[
+    {id:'adaptive',label:'ADAPTIVE CANDLES',on:false, color:'#D9942B'},
+    {id:'signals', label:'BUY/SELL PLOTS',  on:false, color:'#4CAF6E'},
+    {id:'squeeze', label:'EMA SQUEEZE',     on:false, color:'#D9942B'},
+    {id:'zones',   label:'WATCH ZONES',     on:false, color:'#5D8B80'},
+    {id:'div',     label:'DIVERGENCE',      on:false, color:'#B23A2F'}
+  ]}
+];
+const perfOn = {}; // id -> bool
+PERF_TOGGLES.forEach(g=>g.items.forEach(it=>{ perfOn[it.id]=it.on; }));
+// number-key quick-toggle order (first nine, flat)
+const PERF_FLAT = PERF_TOGGLES.flatMap(g=>g.items.map(it=>it.id));
+
+/* ---- PERF: series load (source/range change) ---- */
+function perfLoadSeries(){
+  const range=Perf.range; const N=HIST_POINTS[range];
+  let closes, seed, volBase, tag, live=false, symLabel, nmLabel;
+  if(Perf.source==='PORTFOLIO'){
+    closes=genPortfolioCloses(N, range); seed=(DataEngine.seed^0x9E37)>>>0; volBase=1;
+    tag='SIMULATED'; symLabel='PORTFOLIO'; nmLabel='Book equity curve';
+  } else {
+    const sym=Perf.symbol; const known=UNIVERSE[sym];
+    if(known){
+      // a real roster instrument — reuse the engine's history for the range
+      const sd=(DataEngine.seed ^ seedFromString(sym)) ^ (range.charCodeAt(0)*131);
+      closes=(range==='1D'? DataEngine.get(sym).hist['1D'].slice() : genHistory(sym, N, sd, range));
+      seed=sd; volBase=Math.max(1, known.avgvol/1e6);
+      live = known.live && DataEngine.live && range==='1D'; // crypto stays live-capable on 1D
+      tag = live?'LIVE':(known.live?'LIVE':'MOCK');
+      symLabel=sym.replace('-USD',''); nmLabel=known.name;
+    } else {
+      closes=genSyntheticCloses(sym, N, range); seed=seedFromString('SYN|'+sym); volBase=8;
+      tag='MOCK'; symLabel=sym; nmLabel='Unlisted / synthetic history';
+    }
+  }
+  Perf.bars = ohlcFromCloses(closes, seed, volBase);
+  Perf.liveFeed = live; // true = crypto real-live tick; false = mock walk. Governs tick SOURCE only.
+  Perf.live = true;     // the LAST candle is ALWAYS live-forming (perfTick extends it every source)
+  // NON-REPAINTING LAW: closedN excludes the live-forming last bar for EVERY source, so no
+  // signal/divergence/marker is ever computed on a bar that can still move. Signals are frozen
+  // to [0 .. closedN-1] architecturally, not by convention.
+  Perf.closedN = Math.max(0, Perf.bars.length-1);
+  Perf.tag = tag;
+  Perf.cache={}; Perf.dataV++;
+  // head chrome
+  $('#perfSym').textContent=symLabel;
+  $('#perfNm').textContent=nmLabel;
+  const tagEl=$('#perfTag'); tagEl.className='perf-tag '+(tag==='SIMULATED'?'sim':tag==='LIVE'?'live':'mock');
+  tagEl.textContent=tag;
+  const last=Perf.bars[Perf.bars.length-1];
+  setTickText($('#perfLast'), fmtUSD(last.c, last.c<10?4:2));
+  $$('#perfRangeTog button').forEach(b=>b.classList.toggle('on', b.dataset.r===Perf.range));
+  $$('.perf-srcbtn').forEach(b=>b.classList.toggle('on', b.dataset.src===Perf.source));
+  perfSyncPanes();
+  perfDrawAll();
+}
+
+/* ---- PERF: memoised calc (recomputed only when dataV or toggles change) ---- */
+function perfCalc(){
+  const key = Perf.dataV+'|'+PERF_FLAT.filter(id=>perfOn[id]).join(',');
+  if(Perf.cache._key===key) return Perf.cache;
+  const bars=Perf.bars, n=bars.length, cN=Perf.closedN;
+  const o=bars.map(b=>b.o), h=bars.map(b=>b.h), l=bars.map(b=>b.l), c=bars.map(b=>b.c), v=bars.map(b=>b.v);
+  const out={_key:key, o,h,l,c,v,n,cN};
+  // overlays
+  out.emaSet = THRESHOLDS.EMA_PERIODS.map(p=>INDICATOR_CALC.ema(c,p));
+  if(perfOn.bb)    out.bb    = INDICATOR_CALC.bollinger(c, THRESHOLDS.BB_PERIOD, THRESHOLDS.BB_SIGMA_INNER, THRESHOLDS.BB_SIGMA_OUTER);
+  if(perfOn.super) out.super = INDICATOR_CALC.superTrend(h,l,c, THRESHOLDS.SUPERTREND_ATR, THRESHOLDS.SUPERTREND_MULT);
+  if(perfOn.vwap)  out.vwap  = INDICATOR_CALC.vwap(h,l,c,v);
+  // panes
+  if(perfOn.rsi || perfOn.signals || perfOn.zones || perfOn.div) out.rsi = INDICATOR_CALC.rsi(c, THRESHOLDS.RSI_PERIOD);
+  if(perfOn.stoch) out.stoch = INDICATOR_CALC.stochRsi(c, THRESHOLDS.RSI_PERIOD, THRESHOLDS.STOCHRSI_PERIOD, THRESHOLDS.STOCHRSI_K, THRESHOLDS.STOCHRSI_D);
+  if(perfOn.macd || perfOn.div) out.macd = INDICATOR_CALC.macd(c, THRESHOLDS.MACD_FAST, THRESHOLDS.MACD_SLOW, THRESHOLDS.MACD_SIGNAL);
+  if(perfOn.atr)   out.atr   = INDICATOR_CALC.atr(h,l,c, THRESHOLDS.ATR_PERIOD);
+  // signals — CLOSED candles only; arrays frozen at cN (non-repainting law)
+  if(perfOn.adaptive) out.adaptive = SIGNAL_CALC.adaptiveColors(c, out.emaSet, n); // colouring may cover live bar (cosmetic, not a signal)
+  if(perfOn.signals){ out.cycle = SIGNAL_CALC.rsiCycle(c, cN); }
+  if(perfOn.squeeze){ out.squeeze = SIGNAL_CALC.emaCompression(out.emaSet, cN); }
+  if(perfOn.div){
+    out.divRsi = out.rsi ? SIGNAL_CALC.divergence(c, out.rsi, cN) : [];
+    out.divMacd = out.macd ? SIGNAL_CALC.divergence(c, out.macd.macd, cN) : [];
+  }
+  Perf.cache=out; return out;
+}
+
+/* ---- PERF: canvas coordinate helpers ---- */
+function perfXOf(i, w, padX){ const n=Perf.bars.length; return padX + (n<=1?0:(i/(n-1))*(w-2*padX)); }
+function perfBarW(w, padX){ const n=Perf.bars.length; return Math.max(1.5, (w-2*padX)/n*0.66); }
+
+/* ---- PERF: which panes are active (drives DOM reflow) ---- */
+function perfActivePanes(){ return ['rsi','stoch','macd','atr'].filter(id=>perfOn[id]); }
+function perfSyncPanes(){
+  const wrap=$('#perfPanes'); if(!wrap) return;
+  const want=perfActivePanes();
+  const have=$$('.perf-pane', wrap).map(p=>p.dataset.pane);
+  if(want.join(',')!==have.join(',')){
+    wrap.innerHTML = want.map(id=>`<div class="perf-pane" data-pane="${id}"><canvas></canvas></div>`).join('');
+  }
+}
+
+/* ---- PERF: DRAW BASE (candles + volume + price overlays + signal marks) ---- */
+function perfDrawBase(){
+  const cv=$('#perfBase'); if(!cv) return;
+  const {ctx,w,h}=fitCanvas(cv); ctx.clearRect(0,0,w,h);
+  const bars=Perf.bars; if(!bars.length) return;
+  const C=perfCalc();
+  const padX=10, padTop=10, padBot=16;
+  const volH = perfOn.vol ? Math.min(46, h*0.22) : 0;
+  const priceBot = h-padBot-volH;
+  // price extent — include visible overlays so bands aren't clipped
+  let mn=Infinity,mx=-Infinity;
+  for(const b of bars){ mn=Math.min(mn,b.l); mx=Math.max(mx,b.h); }
+  if(perfOn.bb && C.bb){ for(let i=0;i<C.bb.upOut.length;i++){ if(isFinite(C.bb.upOut[i])){ mx=Math.max(mx,C.bb.upOut[i]); mn=Math.min(mn,C.bb.dnOut[i]); } } }
+  const rng=(mx-mn)||1;
+  const yOf = p => padTop + (1-(p-mn)/rng)*(priceBot-padTop);
+  // gridlines + axis labels (teal dotted, mono)
+  ctx.strokeStyle='rgba(93,139,128,.24)'; ctx.lineWidth=1; ctx.setLineDash([2,4]);
+  ctx.font='10px "IBM Plex Mono", monospace'; ctx.fillStyle='rgba(93,139,128,.75)';
+  for(let g=0; g<=4; g++){
+    const y=padTop+(g/4)*(priceBot-padTop);
+    ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke();
+    const val=mx-(g/4)*rng; const dp=rng<1?3:rng<8?2:(val<10?3:0);
+    ctx.fillText(fmtNum(val,dp), padX+2, y-2);
+  }
+  ctx.setLineDash([]);
+  // VOLUME histogram (under price)
+  if(perfOn.vol && volH>0){
+    let vmax=0; for(const b of bars) vmax=Math.max(vmax,b.v);
+    const bw=perfBarW(w,padX);
+    for(let i=0;i<bars.length;i++){
+      const x=perfXOf(i,w,padX); const bh=(bars[i].v/vmax)*(volH-4);
+      const up=bars[i].c>=bars[i].o;
+      ctx.fillStyle = up?'rgba(76,175,110,.42)':'rgba(178,58,47,.42)';
+      ctx.fillRect(x-bw/2, h-padBot-bh, bw, bh);
+    }
+    ctx.strokeStyle='rgba(93,139,128,.20)'; ctx.beginPath(); ctx.moveTo(padX,h-padBot); ctx.lineTo(w-padX,h-padBot); ctx.stroke();
+  }
+  // OVERLAYS drawn under candles: Bollinger, VWAP, EMA ribbon, SuperTrend
+  if(perfOn.bb && C.bb) perfDrawBollinger(ctx,C,w,padX,yOf);
+  if(perfOn.ribbon) perfDrawRibbon(ctx,C,w,padX,yOf);
+  if(perfOn.vwap && C.vwap) perfLineSeries(ctx,C.vwap,w,padX,yOf,'#7FBBAD',1.4,[5,3]);
+  if(perfOn.super && C.super) perfDrawSuperTrend(ctx,C,w,padX,yOf);
+  // CANDLES
+  const bw=perfBarW(w,padX);
+  const adaptive = perfOn.adaptive && C.adaptive;
+  for(let i=0;i<bars.length;i++){
+    const b=bars[i]; const x=perfXOf(i,w,padX);
+    let col;
+    if(adaptive){ const a=C.adaptive[i]; col = a>0?'#4CAF6E':a<0?'#B23A2F':'#5D8B80'; } // bull/bear/neutral vs ribbon
+    else col = b.c>=b.o ? '#4CAF6E' : '#B23A2F';
+    ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=1;
+    // wick
+    ctx.beginPath(); ctx.moveTo(x, yOf(b.h)); ctx.lineTo(x, yOf(b.l)); ctx.stroke();
+    // body
+    const yo=yOf(b.o), yc=yOf(b.c); const top=Math.min(yo,yc); const bod=Math.max(1,Math.abs(yc-yo));
+    if(b.c>=b.o){ ctx.fillRect(x-bw/2, top, bw, bod); }
+    else { ctx.globalAlpha=1; ctx.fillRect(x-bw/2, top, bw, bod); }
+  }
+  ctx.globalAlpha=1;
+  // EMA SQUEEZE bands (subtle orange underlay ticks at squeeze bars)
+  if(perfOn.squeeze && C.squeeze){
+    ctx.fillStyle='rgba(217,148,43,.16)';
+    for(let i=0;i<C.squeeze.squeeze.length;i++){ if(C.squeeze.squeeze[i]){ const x=perfXOf(i,w,padX); ctx.fillRect(x-bw/2, padTop, bw, priceBot-padTop); } }
+  }
+  // DIVERGENCE lines (price pane, from RSI + MACD divergences) — closed candles only
+  if(perfOn.div){
+    perfDrawDivergence(ctx, C.divRsi||[], bars.map(b=>b.c), w, padX, yOf, '#B23A2F', 'R');
+    perfDrawDivergence(ctx, C.divMacd||[], bars.map(b=>b.c), w, padX, yOf, '#D9942B', 'M');
+  }
+  // BUY/SELL signal plots (▲▼ at closed candles)
+  if(perfOn.signals && C.cycle){
+    C.cycle.marks.forEach(m=>{
+      const x=perfXOf(m.i,w,padX); const b=bars[m.i];
+      if(m.kind==='buy'){ const y=yOf(b.l)+12; ctx.fillStyle='#4CAF6E'; perfTriangle(ctx,x,y,5,true); }
+      else { const y=yOf(b.h)-12; ctx.fillStyle='#B23A2F'; perfTriangle(ctx,x,y,5,false); }
+    });
+  }
+  // WATCH ZONES marker: dot where RSI enters an extreme rail (closed candles)
+  if(perfOn.zones && C.rsi){
+    for(let i=1;i<Perf.closedN;i++){
+      const cross = (C.rsi[i-1]<THRESHOLDS.RSI_OVERBOUGHT && C.rsi[i]>=THRESHOLDS.RSI_OVERBOUGHT) ||
+                    (C.rsi[i-1]>THRESHOLDS.RSI_OVERSOLD && C.rsi[i]<=THRESHOLDS.RSI_OVERSOLD);
+      if(cross){ const x=perfXOf(i,w,padX); const y=yOf(bars[i].c); ctx.strokeStyle='#5D8B80'; ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.arc(x,y,4,0,7); ctx.stroke(); }
+    }
+  }
+  // live-forming candle hint: a faint vertical tick at the right edge
+  if(Perf.live){ const x=perfXOf(bars.length-1,w,padX); ctx.strokeStyle='rgba(217,148,43,.5)'; ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.moveTo(x,padTop); ctx.lineTo(x,priceBot); ctx.stroke(); ctx.setLineDash([]); }
+}
+function perfTriangle(ctx,x,y,s,up){ ctx.beginPath(); if(up){ ctx.moveTo(x,y-s); ctx.lineTo(x-s,y+s); ctx.lineTo(x+s,y+s); } else { ctx.moveTo(x,y+s); ctx.lineTo(x-s,y-s); ctx.lineTo(x+s,y-s); } ctx.closePath(); ctx.fill(); }
+/* LTTB guard for LINE-form series: past PERF_LTTB_MAX visible finite points, stroke
+   an extrema-preserving downsample keyed on x=index so xOf() still maps correctly. */
+const PERF_LTTB_MAX = 1500;
+function perfStrokeLine(ctx, arr, xOf, yOf){
+  let finite=0; for(let i=0;i<arr.length;i++) if(isFinite(arr[i])) finite++;
+  ctx.beginPath(); let started=false;
+  if(finite>PERF_LTTB_MAX){
+    const pts=[]; for(let i=0;i<arr.length;i++){ if(isFinite(arr[i])) pts.push({x:i,y:arr[i]}); }
+    const s=lttb(pts,PERF_LTTB_MAX);
+    for(const p of s){ const x=xOf(p.x), y=yOf(p.y);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y); }
+  } else {
+    for(let i=0;i<arr.length;i++){ if(!isFinite(arr[i])) continue; const x=xOf(i), y=yOf(arr[i]);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y); }
+  }
+  ctx.stroke();
+}
+function perfLineSeries(ctx, arr, w, padX, yOf, color, lw, dash){
+  ctx.strokeStyle=color; ctx.lineWidth=lw; if(dash) ctx.setLineDash(dash); else ctx.setLineDash([]);
+  perfStrokeLine(ctx, arr, i=>perfXOf(i,w,padX), yOf);
+  ctx.setLineDash([]);
+}
+function perfDrawRibbon(ctx,C,w,padX,yOf){
+  // 8 EMAs, teal→orange gradient by period (in-canvas, no CSS). Fast on top.
+  const set=C.emaSet;
+  for(let k=set.length-1;k>=0;k--){
+    const t=k/(set.length-1); // 0 fast .. 1 slow
+    // interpolate teal(93,139,128) -> orange(217,148,43)
+    const r=Math.round(lerp(217,93,t)), g=Math.round(lerp(148,139,t)), b=Math.round(lerp(43,128,t));
+    perfLineSeries(ctx, set[k], w, padX, yOf, `rgba(${r},${g},${b},.9)`, k<2?1.6:1.1);
+  }
+}
+function perfDrawBollinger(ctx,C,w,padX,yOf){
+  const bb=C.bb;
+  perfLineSeries(ctx, bb.upOut, w, padX, yOf, 'rgba(93,139,128,.7)', 1.2);
+  perfLineSeries(ctx, bb.dnOut, w, padX, yOf, 'rgba(93,139,128,.7)', 1.2);
+  perfLineSeries(ctx, bb.upIn,  w, padX, yOf, 'rgba(93,139,128,.4)', 1);
+  perfLineSeries(ctx, bb.dnIn,  w, padX, yOf, 'rgba(93,139,128,.4)', 1);
+  perfLineSeries(ctx, bb.mid,   w, padX, yOf, 'rgba(93,139,128,.55)', 1, [4,4]);
+}
+function perfDrawSuperTrend(ctx,C,w,padX,yOf){
+  const {line,dir}=C.super; ctx.lineWidth=1.8; let started=false, curDir=null;
+  for(let i=0;i<line.length;i++){
+    if(!isFinite(line[i])) { started=false; continue; }
+    const x=perfXOf(i,w,padX), y=yOf(line[i]);
+    if(!started || dir[i]!==curDir){ ctx.stroke&&started&&ctx.stroke(); ctx.beginPath(); ctx.moveTo(x,y);
+      curDir=dir[i]; ctx.strokeStyle= curDir===1?'#4CAF6E':'#B23A2F'; started=true; }
+    else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+}
+function perfDrawDivergence(ctx, divs, closes, w, padX, yOf, color, tag){
+  ctx.lineWidth=1.4; ctx.font='9px "IBM Plex Mono", monospace';
+  divs.forEach(d=>{
+    const x0=perfXOf(d.i0,w,padX), y0=yOf(closes[d.i0]);
+    const x1=perfXOf(d.i1,w,padX), y1=yOf(closes[d.i1]);
+    ctx.strokeStyle=color; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=color; const lbl=(d.kind==='bull'?'▲':'▼')+tag;
+    ctx.fillText(lbl, x1+3, (y0+y1)/2);
+  });
+}
+
+/* ---- PERF: DRAW PANES (RSI / StochRSI / MACD / ATR — each own mini axis) ---- */
+function perfDrawPanes(){
+  const C=perfCalc();
+  $$('.perf-pane').forEach(pane=>{
+    const id=pane.dataset.pane; const cv=$('canvas',pane); if(!cv) return;
+    const {ctx,w,h}=fitCanvas(cv); ctx.clearRect(0,0,w,h);
+    const padX=10, padT=8, padB=8;
+    ctx.font='9px "IBM Plex Mono", monospace';
+    const drawAxis=(lo,hi,lines)=>{
+      ctx.strokeStyle='rgba(93,139,128,.18)'; ctx.setLineDash([2,4]); ctx.lineWidth=1;
+      lines.forEach(lv=>{ const y=padT+(1-(lv-lo)/(hi-lo))*(h-padT-padB); ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke();
+        ctx.fillStyle='rgba(93,139,128,.7)'; ctx.setLineDash([]); ctx.fillText(String(lv), padX+1, y-1); });
+      ctx.setLineDash([]);
+    };
+    const line=(arr,lo,hi,color,lw)=>{ ctx.strokeStyle=color; ctx.lineWidth=lw||1.4;
+      perfStrokeLine(ctx, arr, i=>perfXOf(i,w,padX), v=>padT+(1-(v-lo)/(hi-lo))*(h-padT-padB)); };
+    const label=(t)=>{ ctx.fillStyle='#7E9A8F'; ctx.font='700 9px "IBM Plex Mono", monospace'; ctx.fillText(t, w-padX-ctx.measureText(t).width, padT+9); };
+    if(id==='rsi' && C.rsi){
+      drawAxis(0,100,[THRESHOLDS.RSI_OVERSOLD,50,THRESHOLDS.RSI_OVERBOUGHT]);
+      // zone shading rails when watch zones on
+      line(C.rsi,0,100,'#D9942B',1.6);
+      if(C.cycle) line(C.cycle.rma,0,100,'rgba(93,139,128,.8)',1);
+      label('RSI '+THRESHOLDS.RSI_PERIOD);
+    } else if(id==='stoch' && C.stoch){
+      drawAxis(0,100,[20,50,80]); line(C.stoch.k,0,100,'#7FBBAD',1.5); line(C.stoch.d,0,100,'#D9942B',1.2); label('STOCH RSI');
+    } else if(id==='macd' && C.macd){
+      const m=C.macd; let lo=Infinity,hi=-Infinity;
+      for(let i=0;i<m.macd.length;i++){ [m.macd[i],m.signal[i],m.hist[i]].forEach(v=>{ if(isFinite(v)){ lo=Math.min(lo,v); hi=Math.max(hi,v);} }); }
+      if(!isFinite(lo)){lo=-1;hi=1;} const pad=(hi-lo)*0.1||1; lo-=pad; hi+=pad;
+      const y0=padT+(1-(0-lo)/(hi-lo))*(h-padT-padB);
+      ctx.strokeStyle='rgba(93,139,128,.25)'; ctx.beginPath(); ctx.moveTo(padX,y0); ctx.lineTo(w-padX,y0); ctx.stroke();
+      const bw=perfBarW(w,padX);
+      for(let i=0;i<m.hist.length;i++){ if(!isFinite(m.hist[i])) continue; const x=perfXOf(i,w,padX); const y=padT+(1-(m.hist[i]-lo)/(hi-lo))*(h-padT-padB);
+        ctx.fillStyle= m.hist[i]>=0?'rgba(76,175,110,.55)':'rgba(178,58,47,.55)'; ctx.fillRect(x-bw/2, Math.min(y,y0), bw, Math.abs(y-y0)); }
+      line(m.macd,lo,hi,'#D9942B',1.4); line(m.signal,lo,hi,'#5D8B80',1.2); label('MACD 12,26,9');
+    } else if(id==='atr' && C.atr){
+      let lo=Infinity,hi=-Infinity; for(const v of C.atr){ if(isFinite(v)){ lo=Math.min(lo,v); hi=Math.max(hi,v);} } if(!isFinite(lo)){lo=0;hi=1;}
+      drawAxis(lo,hi,[+((lo+hi)/2).toFixed(2)]); line(C.atr,lo,hi,'#B23A2F',1.5); label('ATR '+THRESHOLDS.ATR_PERIOD);
+    }
+  });
+}
+
+/* ---- PERF: CROSSHAIR OVERLAY (redrawn only on pointer move) ---- */
+function perfDrawOverlay(){
+  const cv=$('#perfOverlay'); if(!cv) return;
+  const {ctx,w,h}=fitCanvas(cv); ctx.clearRect(0,0,w,h);
+  if(Perf.cross==null){ perfRenderLegend(null); return; }
+  const bars=Perf.bars; const padX=10, padTop=10, padBot=16;
+  const volH = perfOn.vol ? Math.min(46, h*0.22) : 0; const priceBot=h-padBot-volH;
+  const i=clamp(Perf.cross,0,bars.length-1);
+  const x=perfXOf(i,w,padX);
+  ctx.strokeStyle='#D9942B'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(x,padTop); ctx.lineTo(x,priceBot); ctx.stroke(); ctx.setLineDash([]);
+  // price marker dot on close
+  let mn=Infinity,mx=-Infinity; for(const b of bars){ mn=Math.min(mn,b.l); mx=Math.max(mx,b.h); }
+  const C=perfCalc();
+  if(perfOn.bb && C.bb){ for(let k=0;k<C.bb.upOut.length;k++){ if(isFinite(C.bb.upOut[k])){ mx=Math.max(mx,C.bb.upOut[k]); mn=Math.min(mn,C.bb.dnOut[k]); } } }
+  const rng=(mx-mn)||1; const yOf=p=>padTop+(1-(p-mn)/rng)*(priceBot-padTop);
+  const yc=yOf(bars[i].c);
+  ctx.fillStyle='#D9942B'; ctx.beginPath(); ctx.arc(x,yc,3,0,7); ctx.fill();
+  perfRenderLegend(i);
+}
+function perfRenderLegend(i){
+  const el=$('#perfLegend'); if(!el) return;
+  const C=perfCalc();
+  const at = i==null ? Perf.bars.length-1 : i;
+  const b=Perf.bars[at];
+  const parts=[];
+  parts.push(`<span class="lg"><span class="lk">${i==null?'LAST':'BAR '+at}</span> <span class="lv">O ${fmtNum(b.o,2)} H ${fmtNum(b.h,2)} L ${fmtNum(b.l,2)} C ${fmtNum(b.c,2)}</span></span>`);
+  const val=(v,dp=2)=> isFinite(v)? fmtNum(v,dp):'—';
+  if(perfOn.ribbon){ const fast=C.emaSet[0][at]; parts.push(`<span class="lg"><span class="sw" style="background:#D9942B"></span><span class="lk">EMA${THRESHOLDS.EMA_PERIODS[0]}</span> <span class="lv">${val(fast)}</span></span>`); }
+  if(perfOn.bb && C.bb) parts.push(`<span class="lg"><span class="sw" style="background:#5D8B80"></span><span class="lk">BB±2σ</span> <span class="lv">${val(C.bb.dnOut[at])}/${val(C.bb.upOut[at])}</span></span>`);
+  if(perfOn.vwap && C.vwap) parts.push(`<span class="lg"><span class="sw" style="background:#7FBBAD"></span><span class="lk">VWAP</span> <span class="lv">${val(C.vwap[at])}</span></span>`);
+  if(perfOn.super && C.super) parts.push(`<span class="lg"><span class="sw" style="background:${C.super.dir[at]===1?'#4CAF6E':'#B23A2F'}"></span><span class="lk">SUPER</span> <span class="lv">${val(C.super.line[at])}</span></span>`);
+  if(perfOn.rsi && C.rsi) parts.push(`<span class="lg"><span class="sw" style="background:#D9942B"></span><span class="lk">RSI</span> <span class="lv">${val(C.rsi[at],1)}</span></span>`);
+  if(perfOn.stoch && C.stoch) parts.push(`<span class="lg"><span class="sw" style="background:#7FBBAD"></span><span class="lk">STOCH K/D</span> <span class="lv">${val(C.stoch.k[at],1)}/${val(C.stoch.d[at],1)}</span></span>`);
+  if(perfOn.macd && C.macd) parts.push(`<span class="lg"><span class="sw" style="background:#5D8B80"></span><span class="lk">MACD</span> <span class="lv">${val(C.macd.macd[at],3)}</span></span>`);
+  if(perfOn.atr && C.atr) parts.push(`<span class="lg"><span class="sw" style="background:#B23A2F"></span><span class="lk">ATR</span> <span class="lv">${val(C.atr[at],3)}</span></span>`);
+  el.innerHTML=parts.join('');
+}
+
+/* ---- PERF: orchestration ---- */
+function perfDrawAll(){ perfDrawBase(); perfDrawPanes(); perfDrawOverlay(); }
+function renderPerf(){
+  perfBuildRail();
+  if(!Perf.bars.length) perfLoadSeries();
+  else { perfSyncPanes(); perfDrawAll(); }
+}
+function perfResize(){ perfSyncPanes(); perfDrawAll(); }
+function perfToggle(id){
+  perfOn[id]=!perfOn[id];
+  Perf.cache={}; // toggle changes the calc key
+  perfBuildRail(); perfSyncPanes(); perfDrawAll();
+}
+function perfBuildRail(){
+  const scroll=$('#perfRailScroll'); if(!scroll) return;
+  scroll.innerHTML = PERF_TOGGLES.map(g=>`
+    <div class="perf-group"><span class="glab">${g.group}</span><div class="perf-toggles">
+    ${g.items.map(it=>{
+      const idx=PERF_FLAT.indexOf(it.id); const num=idx<9?(idx+1):'';
+      return `<div class="perf-chip${perfOn[it.id]?' on':''}" data-id="${it.id}">
+        <span class="num">${num}</span><span class="dot" style="background:${it.color}"></span><span class="lbl">${it.label}</span></div>`;
+    }).join('')}
+    </div></div>`).join('');
+  $('#perfRail').classList.toggle('hidden', Perf.railHidden);
+}
+// live tick: extend ONLY the last (live-forming) candle — never adds/moves a closed one.
+function perfTick(){
+  if(State.screen!=='perf' || !Perf.bars.length) return;
+  const last=Perf.bars[Perf.bars.length-1];
+  let px;
+  if(Perf.source==='ROSTER' && UNIVERSE[Perf.symbol]){ px=DataEngine.get(Perf.symbol).last; }
+  else if(Perf.source==='PORTFOLIO'){ const {total}=computeEquity(); px=total; }
+  else { // typed/synthetic: gentle random walk on the last close
+    px = last.c*(1+(Math.random()-0.5)*0.004);
+  }
+  // update the live candle's C/H/L (O stays; this is the same bar forming)
+  last.c=px; last.h=Math.max(last.h,px); last.l=Math.min(last.l,px);
+  Perf.dataV++; Perf.cache={};
+  setTickText($('#perfLast'), fmtUSD(px, px<10?4:2));
+  perfDrawBase(); perfDrawPanes(); // overlay only redraws on pointer move
+  if(Perf.cross==null) perfRenderLegend(null);
 }
 
 /* ================= WIRE-UP + INIT ================= */
@@ -1883,11 +2993,47 @@ function wireEvents(){
   const cw=$('#mainChart');
   cw.addEventListener('mousemove', e=>{ const r=cw.getBoundingClientRect(); crossX=e.clientX-r.left; drawMainChart(); });
   cw.addEventListener('mouseleave', ()=>{ crossX=null; drawMainChart(); });
+
+  /* ---- PERFORMANCE screen wiring (UPGRADE 4) ---- */
+  // source buttons
+  $$('.perf-srcbtn').forEach(b=>b.addEventListener('click',()=>{
+    Perf.source=b.dataset.src;
+    if(Perf.source==='ROSTER') Perf.symbol=State.selected;
+    else if(Perf.source==='PORTFOLIO') Perf.symbol='PORTFOLIO';
+    else if(Perf.source==='TYPED' && Perf.typed) Perf.symbol=Perf.typed;
+    perfLoadSeries();
+  }));
+  // range toggles
+  $('#perfRangeTog').addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return; Perf.range=b.dataset.r; perfLoadSeries();
+  });
+  // typed symbol input — Enter commits; unknown symbols get a deterministic MOCK history
+  $('#perfSymInput').addEventListener('keydown', e=>{
+    if(e.key==='Enter'){
+      const raw=e.target.value.trim().toUpperCase(); if(!raw){ return; }
+      Perf.typed=raw; Perf.source='TYPED'; Perf.symbol=raw; e.target.blur(); perfLoadSeries();
+    }
+    e.stopPropagation(); // don't let letters trigger Q/E/number-toggles while typing
+  });
+  // rail toggle chips
+  $('#perfRailScroll').addEventListener('click', e=>{
+    const chip=e.target.closest('.perf-chip'); if(!chip) return; perfToggle(chip.dataset.id);
+  });
+  // crosshair overlay — pointer move on the price well only redraws the overlay layer
+  const pw=$('#perfMainWell');
+  pw.addEventListener('mousemove', e=>{
+    const r=pw.getBoundingClientRect(); const padX=10; const w=r.width;
+    const frac=clamp((e.clientX-r.left-padX)/(w-2*padX),0,1);
+    Perf.cross=Math.round(frac*(Perf.bars.length-1)); perfDrawOverlay();
+  });
+  pw.addEventListener('mouseleave', ()=>{ Perf.cross=null; perfDrawOverlay(); });
+
   // redraw on resize
   let rz; window.addEventListener('resize', ()=>{ clearTimeout(rz); rz=setTimeout(()=>{
     if(State.screen==='dash') drawMainChart();
     else if(State.screen==='pos'){ drawRadar($('#posRadarWrap'),State.selected,State.staged,true); }
     else if(State.screen==='watch'){ drawWatchChart(); drawRadar($('#wRadarWrap'),State.selected,0,false); }
+    else if(State.screen==='perf'){ perfResize(); }
   },120); });
 }
 
@@ -1911,6 +3057,7 @@ function boot(){
   runBoot();
   setInterval(updateTaskbar, 1000);
   setTimeout(tickLoop, 1600);
+  scheduleJitter();   // [S6+] start the idle horizontal-jitter loop
   // attempt live feed (crypto). Diegetic failover on any failure/timeout.
   DataEngine.tryLive().then(ok=>{
     if(ok){ if(State.screen==='dash') renderDashboard(); renderRoster(); }

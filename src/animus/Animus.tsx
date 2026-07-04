@@ -29,6 +29,7 @@ import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "./animus.css";
 import { registerFlashEl, triggerFlash, bootFlash } from "./flash";
+import { getDaySummary } from "./daySummary";
 
 /**
  * AnimusFlash — the persistent white "load memory" cover. Hoisted into App.tsx
@@ -923,6 +924,25 @@ export default function Animus() {
     };
   }, []);
 
+  // The DASHBOARD preview card's readout: the user's 24-hour gain/loss.
+  // getDaySummary() is pure (placeholder under VITE_MOCK; null live — see
+  // ./daySummary.ts). Computed at render; the card's SHOW/HIDE is CSS-driven by
+  // applySelection(), so no React state or the once-run effect is involved.
+  const day = getDaySummary();
+  const dayUp = day ? day.deltaMinor >= 0 : true;
+  // Signed money in the account's minor units → "+£2.10" / "−£3.40". mock is
+  // GBP; kept local (no dependency on the data screens' formatter) so the Animus
+  // world stays self-contained. Percent to 2dp, magnitude only (sign on triangle).
+  const dayAmount = day
+    ? (dayUp ? "+" : "−") +
+      new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 2 })
+        .format(Math.abs(day.deltaMinor) / 100)
+    : "—";
+  const dayPct = day
+    ? new Intl.NumberFormat("en-GB", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        .format(Math.abs(day.pct))
+    : "";
+
   return (
     <div id="animus-root" ref={rootRef}>
       <canvas id="animus-gl" />
@@ -931,8 +951,26 @@ export default function Animus() {
 
       <div id="animus-card">
         <span className="loc">DASHBOARD</span>
-        <div className="shot"><i /><i /><i /><i /><i /></div>
-        <span className="ts">LOCAL&nbsp;&nbsp;·&nbsp;&nbsp;SNAPSHOT</span>
+        <div className={"day" + (day ? (dayUp ? " up" : " down") : " pending")}>
+          <span className="day-lab">24H</span>
+          {day ? (
+            <div className="day-read">
+              {/* drawn ▲/▼ in INK (loss may also read via the world's red) — never an emoji */}
+              <svg className="day-tri" viewBox="0 0 10 10" aria-hidden="true">
+                {dayUp ? <path d="M5 1 L9 8 L1 8 Z" fill="currentColor" /> : <path d="M5 9 L1 2 L9 2 Z" fill="currentColor" />}
+              </svg>
+              <span className="day-amt">{dayAmount}</span>
+              <span className="day-pct">{dayPct}</span>
+            </div>
+          ) : (
+            <div className="day-read">
+              <span className="day-amt">—</span>
+            </div>
+          )}
+        </div>
+        <span className="ts">
+          {day ? <>LOCAL&nbsp;&nbsp;·&nbsp;&nbsp;24H&nbsp;Δ</> : <>LOCAL&nbsp;&nbsp;·&nbsp;&nbsp;SYNC&nbsp;PENDING</>}
+        </span>
       </div>
 
       <div id="animus-bar">

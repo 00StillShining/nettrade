@@ -7,6 +7,12 @@
       "runtimeArgs": ["run", "dev"],
       "port": 1420,
       "env": { "MOCK": "1" }
+    },
+    {
+      "name": "terminal-77-proto",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "7077", "--directory", "prototypes/terminal-77"],
+      "port": 7077
     }
   ]
 }
