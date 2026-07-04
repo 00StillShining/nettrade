@@ -1,0 +1,1925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TERMINAL 77 // MDN</title>
+<!-- inline favicon (data URI) so file:// double-click never throws a 404 -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23101B17'/%3E%3Cpath d='M2 11 L5 6 L8 8 L14 3' stroke='%234CAF6E' stroke-width='1.5' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   TERMINAL 77 — MDN / MARKET DISPATCH NETWORK
+   A Dispatch-style trading terminal. Single file. Runs on file://.
+   -------------------------------------------------------------------------
+   SAFE-TECHNIQUE SUBSTITUTIONS (WKWebView-safe; look-identical to the brief):
+   [S1] Scanlines: plain repeating-linear-gradient of rgba(0,0,0) bands.
+        NO mix-blend-mode (bricked v1 in WKWebView). See body::before below.
+   [S2] Chart glow: drawn IN-CANVAS (multi-pass strokes / shadowBlur), never
+        CSS filter:drop-shadow on chart elements. See drawGlowLine() in JS.
+   [S3] CRT power-off: brightness ramp via a WHITE overlay div (opacity),
+        collapse/dot/power-on use ONLY transform + opacity. No filter:brightness.
+        See #crtFx + runPowerOff() in JS.
+   [S4] Whole-screen flicker: opacity-only keyframes. See @keyframes flick.
+   [S5] Chromatic fringe on large display type: static text-shadow paint. OK.
+   ========================================================================= */
+
+/* ---------- TOKENS (brief §1, non-negotiable palette) ---------- */
+:root{
+  --crt-desktop:#101B17;      /* the machine: desktop, window voids, chart bg */
+  --crt-desktop-2:#16241F;    /* secondary dark panels, inset wells */
+  --paper:#EDE4CE;            /* content: every card/dossier/ticket surface */
+  --paper-dark:#E2D7BD;       /* paper hover/alt rows */
+  --ink:#23201A;             /* borders (2px), headers, text on paper */
+  --ink-soft:#4C463A;         /* secondary text on paper */
+  --orange:#D9942B;           /* A VERB: active/staged/pending/confirm/demand */
+  --teal:#5D8B80;             /* info layer: inactive tabs, labels, links */
+  --gain:#4CAF6E;             /* market UP only (phosphor green, desaturated) */
+  --loss:#B23A2F;             /* market DOWN only (brick red) */
+  --phosphor:#4CAF6E;         /* CRT tube glow for NON-market chrome (boot text/cursor, dot halo) — keeps --gain semantically market-only */
+
+  --paper-grain:inset 0 0 60px rgba(120,100,60,.12);
+  --card-shadow:6px 6px 0 rgba(0,0,0,.5);   /* hard offset, NO blur ever */
+  --f-cond:'Barlow Condensed',sans-serif;   /* structural, all-caps */
+  --f-mono:'IBM Plex Mono',monospace;        /* all numerals, telemetry */
+  --f-prose:'Barlow',sans-serif;             /* bios, notes */
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--crt-desktop);
+  color:var(--paper);
+  font-family:var(--f-cond);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+  animation:flick 7s steps(60) infinite;   /* [S4] opacity-only flicker */
+}
+@keyframes flick{           /* [S4] subtle whole-screen flicker, opacity only */
+  0%,100%{opacity:1;}
+  50%{opacity:.995;}
+  53%{opacity:1;}
+  92%{opacity:.997;}
+}
+@media (prefers-reduced-motion:reduce){
+  body{animation:none;}
+}
+
+/* ---------- CRT OVERLAY (over ENTIRE viewport, above everything) ---------- */
+/* [S1] scanlines as plain gradient bands — darkened 1px line every 3px.
+        NO mix-blend-mode. Same visual read as the brief. */
+#crtScan{
+  content:''; position:fixed; inset:0; z-index:9000; pointer-events:none;
+  background:repeating-linear-gradient(to bottom,
+    rgba(0,0,0,.16) 0 1px, rgba(0,0,0,0) 1px 3px);
+  opacity:.85;
+}
+#crtVig{  /* vignette — as brief writes it (radial-gradient is WKWebView-safe) */
+  content:''; position:fixed; inset:0; z-index:8999; pointer-events:none;
+  background:radial-gradient(ellipse at center, transparent 52%, rgba(0,0,0,.5) 100%);
+}
+@media (prefers-reduced-motion:reduce){ #crtScan{opacity:.55;} }
+
+/* ---------- DESKTOP FIELD ---------- */
+#desk{
+  position:fixed; inset:0;
+  background:
+    radial-gradient(ellipse 120% 90% at 42% 30%, #17271F 0%, var(--crt-desktop) 60%, #0B140F 100%);
+  display:flex; flex-direction:column;
+}
+/* faint facet / grid lines on the desktop (worldbuilding, low contrast) */
+#desk::before{
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:.5;
+  background-image:
+    linear-gradient(rgba(93,139,128,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(93,139,128,.05) 1px, transparent 1px);
+  background-size:44px 44px;
+}
+
+/* ---------- TOP BAR ---------- */
+#topbar{
+  flex:0 0 auto; height:34px; z-index:60;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 14px;
+  background:linear-gradient(#0C1511,#0A120E);
+  border-bottom:1px solid rgba(93,139,128,.35);
+  font-family:var(--f-mono); font-size:12px; letter-spacing:.06em;
+}
+#topbar .tb-logo{color:var(--teal); font-weight:600; letter-spacing:.08em;}
+#topbar .tb-logo b{color:var(--paper);}
+#topbar .tb-ctrl{display:flex; gap:14px; color:#59756B;}
+#topbar .tb-ctrl span{cursor:default; transition:color .1s;}
+#topbar .tb-ctrl span:hover{color:var(--paper);}
+#topbar .tb-sess{color:#6E8C81;}
+#topbar .tb-sess b{color:var(--teal);}
+
+/* ---------- WORKSPACE (window + desktop icons) ---------- */
+#work{ flex:1 1 auto; position:relative; min-height:0; display:flex; }
+
+/* window */
+#window{
+  position:absolute; z-index:20;
+  top:14px; left:14px; right:96px; bottom:14px;
+  display:flex; flex-direction:column; min-height:0;
+  background:var(--crt-desktop);
+  border:2px solid var(--ink);
+  box-shadow:8px 8px 0 rgba(0,0,0,.55);
+  animation:winOpen .12s ease-out;
+}
+@keyframes winOpen{ from{transform:scale(.975); opacity:.4;} to{transform:scale(1); opacity:1;} }
+#winTitle{
+  flex:0 0 auto; height:26px; display:flex; align-items:center; justify-content:space-between;
+  padding:0 10px; background:var(--ink); color:var(--paper);
+  font-family:var(--f-cond); font-weight:700; letter-spacing:.14em; font-size:13px; text-transform:uppercase;
+}
+#winTitle .wid{ font-family:var(--f-mono); font-weight:500; font-size:11px; color:#B8AF98; letter-spacing:.04em; }
+/* the picture element that dies during power-off */
+#screenWrap{ flex:1 1 auto; position:relative; min-height:0; overflow:hidden; }
+#screen{ position:absolute; inset:0; overflow:hidden; transform-origin:center center; }
+
+/* ---------- DESKTOP ICONS (right edge) ---------- */
+#icons{
+  position:absolute; z-index:30; top:14px; right:14px; width:74px;
+  display:flex; flex-direction:column; gap:14px; align-items:center;
+}
+.dicon{
+  width:66px; display:flex; flex-direction:column; align-items:center; gap:4px;
+  cursor:pointer; padding:6px 2px 4px; border:1px solid transparent; border-radius:2px;
+  transition:background .1s, border-color .1s;
+}
+.dicon .glyph{
+  width:38px; height:34px; display:flex; align-items:center; justify-content:center;
+  color:var(--teal);
+}
+.dicon .glyph svg{width:30px; height:30px;}
+.dicon .lbl{ font-family:var(--f-mono); font-size:10px; letter-spacing:.02em; color:#89A69B; text-align:center; }
+.dicon:hover{ background:rgba(93,139,128,.08); }
+.dicon.sel{ background:rgba(93,139,128,.14); border-color:rgba(93,139,128,.5);
+  box-shadow:0 0 12px rgba(93,139,128,.35); }
+.dicon.sel .glyph{ color:#7FBBAD; }
+.dicon.sel .lbl{ color:var(--paper); }
+
+/* ---------- TASKBAR ---------- */
+#taskbar{
+  flex:0 0 auto; height:30px; z-index:60;
+  display:flex; align-items:center; gap:16px;
+  padding:0 12px;
+  background:linear-gradient(#0A120E,#0C1511);
+  border-top:1px solid rgba(93,139,128,.35);
+  font-family:var(--f-mono); font-size:11.5px; letter-spacing:.02em; color:#7E9A8F;
+  white-space:nowrap; overflow:hidden;
+}
+#taskbar .seg b{color:var(--teal); font-weight:500;}
+#taskbar .seg{flex:0 0 auto;}
+#taskbar .feed.live{color:var(--teal);}
+#taskbar .feed.offline{color:var(--orange); font-weight:600;}
+#taskbar .mkt.open{color:var(--teal);}
+#taskbar .mkt.closed{color:#9a8a5a;}
+#taskbar .disc{color:var(--teal); letter-spacing:.06em; font-weight:500;}
+#taskbar .spacer{flex:1 1 auto;}
+#taskbar .clock{color:var(--paper);}
+
+/* ---------- SHARED PAPER COMPONENTS ---------- */
+.card{
+  position:relative; background:var(--paper); border:2px solid var(--ink);
+  box-shadow:var(--card-shadow), var(--paper-grain);
+  color:var(--ink);
+}
+.card::after{ /* inner 1px rule inset 4px */
+  content:''; position:absolute; inset:4px; border:1px solid rgba(35,32,26,.28); pointer-events:none;
+}
+.card > *{ position:relative; z-index:1; }
+/* panel label tag overlapping top border */
+.plabel{
+  position:absolute; top:-11px; left:12px; z-index:3;
+  background:var(--ink); color:var(--paper);
+  font-family:var(--f-mono); font-size:10px; font-weight:500; letter-spacing:.14em;
+  padding:2px 8px; text-transform:uppercase;
+}
+/* header chip: ink-on-orange (or paper-on-teal), clipped corner */
+.chip{
+  display:inline-flex; align-items:center; gap:5px;
+  font-family:var(--f-cond); font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  font-size:12px; padding:3px 12px 3px 9px; color:var(--ink); background:var(--orange);
+  clip-path:polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+.chip.teal{ background:var(--teal); color:var(--paper); }
+.chip.ink{ background:var(--ink); color:var(--paper); }
+/* tag chips (sector/style) */
+.tag{
+  display:inline-block; font-family:var(--f-cond); font-weight:700; font-size:11px;
+  letter-spacing:.1em; text-transform:uppercase; padding:2px 8px;
+  border:1.5px solid var(--ink); color:var(--ink); background:transparent;
+}
+.tag.on{ background:var(--teal); color:var(--paper); border-color:var(--teal); }
+
+/* keycap chips */
+kbd{
+  display:inline-flex; align-items:center; justify-content:center;
+  font-family:var(--f-mono); font-weight:600; font-size:11px; letter-spacing:.02em;
+  min-width:18px; height:20px; padding:0 6px;
+  background:var(--orange); color:var(--ink); border:1.5px solid var(--ink);
+  box-shadow:0 2px 0 var(--ink); border-radius:2px; text-transform:uppercase;
+}
+kbd.dim{ background:var(--paper-dark); color:var(--ink-soft); box-shadow:0 2px 0 var(--ink-soft); }
+.hintbar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; font-family:var(--f-mono);
+  font-size:11px; color:#9CB4A9; }
+.hintbar .h{ display:inline-flex; align-items:center; gap:5px; }
+.hintbar .h .t{ color:#9CB4A9; letter-spacing:.04em; }
+
+/* ESC BACK affordance, bottom-center of each screen */
+.escback{
+  position:absolute; bottom:8px; left:50%; transform:translateX(-50%); z-index:40;
+  display:inline-flex; align-items:center; gap:7px;
+  font-family:var(--f-mono); font-size:11px; color:#9CB4A9; letter-spacing:.06em;
+  cursor:pointer; user-select:none;
+}
+.escback:hover{ color:var(--paper); }
+/* diegetic "you are home" marker on the dashboard — a status, not an action */
+.escback.root{ cursor:default; }
+.escback.root:hover{ color:#9CB4A9; }
+/* per-screen keycap hint bar, bottom-left so it clears the centered esc marker */
+.screen-hints{ position:absolute; bottom:8px; left:20px; z-index:40; }
+
+/* numbers */
+.mono{ font-family:var(--f-mono); font-variant-numeric:tabular-nums; }
+.gain{ color:var(--gain); } .loss{ color:var(--loss); }
+
+/* ---------- SCREEN SCAFFOLD ---------- */
+.appscreen{ position:absolute; inset:0; display:none; flex-direction:column; min-height:0; }
+.appscreen.active{ display:flex; }
+.screenbody{ flex:1 1 auto; min-height:0; overflow:hidden; padding:26px 20px 40px; }
+
+/* ============================ DASHBOARD ============================= */
+#dash .screenbody{
+  display:grid; gap:20px;
+  grid-template-columns:minmax(340px,1.15fr) minmax(0,2fr) minmax(240px,.9fr);
+  grid-template-rows:auto 1fr auto;
+  grid-template-areas:
+    "acct   chart  movers"
+    "idx    chart  movers"
+    "roster roster roster";
+}
+#dashAcct{ grid-area:acct; padding:16px 16px 14px; }
+#dashIdx{ grid-area:idx; align-self:start; }
+#dashChart{ grid-area:chart; display:flex; flex-direction:column; padding:14px; min-height:0; }
+#dashMovers{ grid-area:movers; display:flex; flex-direction:column; padding:14px 14px 12px; min-height:0; align-self:start; } /* content-height card — no 60%-empty paper (squint test) */
+/* TAB panel focus — teal ring, the info-layer colour (orange stays a verb) */
+.panel-focus{ outline:2px solid var(--teal); outline-offset:3px; }
+#dashRoster{ grid-area:roster; }
+
+/* account masthead */
+.acct-val{ font-family:var(--f-cond); font-weight:800; font-size:clamp(38px,4.4vw,58px);
+  line-height:.9; letter-spacing:.01em; color:var(--ink);
+  text-shadow:1px 0 rgba(255,0,60,.35), -1px 0 rgba(0,255,220,.35); } /* [S5] static fringe */
+.acct-row{ display:flex; align-items:baseline; gap:14px; margin-top:8px; }
+.acct-day{ font-family:var(--f-mono); font-weight:600; font-size:18px; }
+.acct-sub{ display:flex; gap:22px; margin-top:12px; }
+.acct-sub .lab{ font-family:var(--f-cond); font-weight:700; font-size:11px; letter-spacing:.1em;
+  color:var(--ink-soft); text-transform:uppercase; }
+.acct-sub .num{ font-family:var(--f-mono); font-size:15px; color:var(--ink); margin-top:1px; }
+.margin-wrap{ margin-top:12px; }
+.margin-bar{ height:10px; background:var(--paper-dark); border:1.5px solid var(--ink); position:relative; overflow:hidden; }
+.margin-bar>i{ position:absolute; left:0; top:0; bottom:0; background:var(--ink); }
+.margin-cap{ display:flex; justify-content:space-between; font-family:var(--f-mono); font-size:10px;
+  color:var(--ink-soft); margin-top:3px; letter-spacing:.02em; }
+
+/* indices strip */
+#dashIdx{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.idxchip{ position:relative; background:var(--paper); border:2px solid var(--ink); padding:8px 9px 7px;
+  box-shadow:4px 4px 0 rgba(0,0,0,.45); }
+.idxchip .nm{ font-family:var(--f-cond); font-weight:800; font-size:15px; letter-spacing:.06em; color:var(--ink); }
+.idxchip .pr{ font-family:var(--f-mono); font-size:13px; color:var(--ink); margin-top:1px; }
+.idxchip .pc{ font-family:var(--f-mono); font-size:11px; font-weight:600; }
+.idxchip .spk{ position:absolute; right:7px; top:8px; width:56px; height:22px; }
+
+/* main chart */
+.chart-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.chart-head .who{ display:flex; align-items:baseline; gap:10px; }
+.chart-head .sym{ font-family:var(--f-cond); font-weight:800; font-size:26px; letter-spacing:.04em; color:var(--ink); }
+.chart-head .nm{ font-family:var(--f-prose); font-size:12px; color:var(--ink-soft); }
+.chart-head .last{ font-family:var(--f-mono); font-weight:600; font-size:20px; color:var(--ink); }
+.rangetog{ display:flex; gap:6px; }
+.rangetog button{ font-family:var(--f-mono); font-weight:600; font-size:11px; letter-spacing:.04em;
+  padding:3px 9px; border:1.5px solid var(--ink); background:var(--paper-dark); color:var(--ink-soft);
+  cursor:pointer; box-shadow:0 2px 0 var(--ink-soft); text-transform:uppercase; }
+.rangetog button.on{ background:var(--orange); color:var(--ink); box-shadow:0 2px 0 var(--ink); }
+.chartwell{ flex:1 1 auto; position:relative; background:var(--crt-desktop); border:2px solid var(--ink);
+  min-height:0; overflow:hidden; }
+.chartwell canvas{ position:absolute; inset:0; width:100%; height:100%; }
+.chart-alerts{ margin-top:12px; }
+
+/* alerts marquee */
+.marquee{ background:var(--ink); color:var(--paper); overflow:hidden; height:24px;
+  display:flex; align-items:center; border:2px solid var(--ink); }
+.marquee .track{ display:inline-flex; white-space:nowrap; font-family:var(--f-mono); font-size:12px;
+  letter-spacing:.03em; will-change:transform; animation:marq 38s linear infinite; }
+.marquee .track span{ padding:0 6px; }
+.marquee .track .fl{ color:var(--orange); }
+@keyframes marq{ from{transform:translateX(0);} to{transform:translateX(-50%);} }
+@media (prefers-reduced-motion:reduce){ .marquee .track{ animation-duration:120s; } }
+
+/* movers */
+.movers-col{ margin-bottom:12px; }
+.movers-col h4{ font-family:var(--f-cond); font-weight:800; font-size:13px; letter-spacing:.1em;
+  color:var(--ink); text-transform:uppercase; margin-bottom:6px; padding-bottom:3px;
+  border-bottom:1.5px solid var(--ink); }
+.mover{ display:flex; justify-content:space-between; align-items:center; font-family:var(--f-mono);
+  font-size:13px; padding:3px 2px; }
+.mover .t{ font-family:var(--f-cond); font-weight:700; font-size:14px; letter-spacing:.05em; color:var(--ink); }
+
+/* ---------- ROSTER STRIP (signature; appears on every screen) ---------- */
+.roster{ display:flex; gap:12px; padding:14px 4px 4px; align-items:stretch; }
+.roster.dim .rcard{ opacity:.62; }   /* watchlist civilian variant (opacity + darker paper carry the desaturated look) */
+.roster.dim .rcard.sel{ opacity:1; }
+.rcard{
+  position:relative; flex:1 1 0; min-width:0; background:var(--paper); border:2px solid var(--ink);
+  box-shadow:4px 4px 0 rgba(0,0,0,.5); padding:7px 8px 8px; cursor:pointer;
+  display:flex; flex-direction:column; gap:3px; transition:transform .08s;
+}
+.roster.dim .rcard{ background:#DCD3BC; }
+.roster.dim .rcard.sel{ background:var(--paper); }
+.rcard:hover{ transform:translateY(-2px); }
+.rcard.sel{ box-shadow:0 0 0 2px var(--teal), 4px 4px 0 rgba(0,0,0,.5), 0 0 14px rgba(93,139,128,.55); }
+.roster.dim .rcard.sel{ box-shadow:0 0 0 2px var(--orange), 4px 4px 0 rgba(0,0,0,.5), 0 0 14px rgba(217,148,43,.5); }
+.rcard.pulse{ animation:rpulse .5s ease-out; }
+@keyframes rpulse{ 0%{box-shadow:0 0 0 2px var(--teal),4px 4px 0 rgba(0,0,0,.5),0 0 4px rgba(93,139,128,.3);}
+  50%{box-shadow:0 0 0 3px var(--teal),4px 4px 0 rgba(0,0,0,.5),0 0 22px rgba(93,139,128,.85);}
+  100%{box-shadow:0 0 0 2px var(--teal),4px 4px 0 rgba(0,0,0,.5),0 0 14px rgba(93,139,128,.55);} }
+.rcard .rtop{ display:flex; align-items:baseline; justify-content:space-between; }
+.rcard .rsym{ font-family:var(--f-cond); font-weight:800; font-size:17px; letter-spacing:.03em; color:var(--ink); }
+.rcard .rpc{ font-family:var(--f-mono); font-weight:600; font-size:12px; }
+.rcard .rport{ height:30px; margin:2px 0; }
+.rcard .rlast{ font-family:var(--f-mono); font-size:11px; color:var(--ink-soft); }
+.rcard .star{ position:absolute; top:-8px; right:-8px; width:20px; height:20px;
+  background:var(--orange); border:1.5px solid var(--ink); color:var(--ink);
+  display:none; align-items:center; justify-content:center; font-size:12px; z-index:3;
+  clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%); }
+.rcard.flag .star{ display:flex; }
+
+/* ============================ POSITIONS ============================= */
+#pos .screenbody{ display:flex; flex-direction:column; min-height:0; }
+.pos-dossier{ flex:1 1 auto; position:relative; display:grid; gap:22px;
+  grid-template-columns:1.15fr .85fr; min-height:0; }
+/* screened-back duotone portrait behind the card */
+#posSilhouette{ position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.5; }
+.pos-col{ position:relative; z-index:1; min-height:0; overflow:auto; }
+.pos-left .phead{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+.pos-left .psym{ font-family:var(--f-cond); font-weight:800; font-size:clamp(40px,4.6vw,60px); line-height:.85;
+  color:var(--ink); text-shadow:1px 0 rgba(255,0,60,.35), -1px 0 rgba(0,255,220,.35); } /* [S5] */
+.pos-left .pnm{ font-family:var(--f-prose); font-size:14px; color:var(--ink-soft); }
+.pos-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:2px; }
+.budget-chip{ display:inline-flex; align-items:center; gap:8px; margin:6px 0 14px;
+  background:var(--crt-desktop); color:var(--paper); font-family:var(--f-mono); font-weight:600;
+  font-size:14px; padding:6px 12px; border:2px solid var(--ink); }
+.budget-chip .lab{ font-family:var(--f-cond); font-weight:700; letter-spacing:.1em; font-size:12px; color:#9CB4A9; }
+.budget-chip .num.staged{ color:var(--orange); }
+.statrow{ display:flex; align-items:center; gap:10px; padding:7px 4px; border-bottom:1px solid rgba(35,32,26,.16); }
+.statrow .ic{ width:18px; height:18px; color:var(--ink-soft); flex:0 0 auto; }
+.statrow .lab{ font-family:var(--f-cond); font-weight:700; letter-spacing:.08em; font-size:13px;
+  color:var(--ink-soft); text-transform:uppercase; flex:1 1 auto; }
+.statrow .val{ font-family:var(--f-mono); font-weight:500; font-size:15px; color:var(--ink); text-align:right; }
+.statrow .val .delta{ color:var(--orange); }
+.statrow .val .arrow{ color:var(--orange); padding:0 4px; }
+
+/* stepper */
+.stepper-wrap{ margin-top:14px; border-top:2px solid var(--ink); padding-top:12px; }
+.stepper-wrap h4{ font-family:var(--f-cond); font-weight:800; font-size:14px; letter-spacing:.09em;
+  color:var(--ink); text-transform:uppercase; margin-bottom:8px; }
+.stepper{ display:flex; align-items:center; gap:10px; }
+.stepper button{ width:34px; height:34px; font-family:var(--f-cond); font-weight:800; font-size:22px;
+  line-height:1; border:2px solid var(--ink); background:var(--paper-dark); color:var(--ink);
+  cursor:pointer; box-shadow:0 3px 0 var(--ink); }
+.stepper button:active{ transform:translateY(2px); box-shadow:0 1px 0 var(--ink); }
+.stepper input{ width:90px; height:34px; text-align:center; font-family:var(--f-mono); font-weight:600;
+  font-size:17px; border:2px solid var(--ink); background:var(--paper); color:var(--ink); }
+.stepper .qlab{ font-family:var(--f-cond); font-weight:700; font-size:12px; letter-spacing:.1em;
+  color:var(--ink-soft); }
+.est-line{ margin-top:10px; font-family:var(--f-mono); font-size:13px; color:var(--ink); min-height:18px; }
+.est-line b{ color:var(--orange); }
+.order-btns{ display:flex; gap:10px; margin-top:12px; }
+.obtn{ font-family:var(--f-cond); font-weight:800; letter-spacing:.09em; font-size:14px; text-transform:uppercase;
+  padding:8px 16px; border:2px solid var(--ink); cursor:pointer; box-shadow:0 3px 0 var(--ink);
+  display:inline-flex; align-items:center; gap:8px; }
+.obtn[disabled]{ opacity:.4; cursor:default; box-shadow:0 3px 0 rgba(35,32,26,.4); }
+.obtn.reset{ background:var(--paper-dark); color:var(--ink-soft); }
+.obtn.confirm{ background:var(--orange); color:var(--ink); }
+.obtn:not([disabled]):active{ transform:translateY(2px); box-shadow:0 1px 0 var(--ink); }
+
+/* radar */
+/* padding-top clears the FINGERPRINT .plabel (top:-11px above the first child);
+   without it .pos-col's overflow:auto clips the tag ~9px — negative overflow
+   can't scroll into view. Every .plabel must overlap its border whole. */
+.pos-right{ display:flex; flex-direction:column; padding-top:13px; }
+.radar-card{ padding:12px; }
+.radar-wrap{ position:relative; }
+.radar-wrap svg{ width:100%; height:auto; display:block; }
+.strategy{ margin-top:12px; display:flex; align-items:center; gap:16px; }
+.strat-opt{ display:inline-flex; align-items:center; gap:6px; font-family:var(--f-cond); font-weight:700;
+  font-size:14px; letter-spacing:.08em; color:var(--ink-soft); text-transform:uppercase; cursor:pointer; }
+.strat-opt.on{ color:var(--ink); }
+.strat-opt .box{ width:16px; height:16px; border:2px solid var(--ink); display:inline-flex;
+  align-items:center; justify-content:center; font-size:11px; }
+.strat-opt.on .box{ background:var(--orange); color:var(--ink); }
+
+/* first-run tutorial */
+#tutorial{ position:absolute; inset:0; z-index:200; display:none; align-items:center; justify-content:center;
+  background:rgba(8,14,11,.7); }
+#tutorial.show{ display:flex; }
+.tut-card{ width:min(420px,84%); background:var(--paper); border:2px solid var(--ink);
+  box-shadow:8px 8px 0 rgba(0,0,0,.6), var(--paper-grain); padding:18px; position:relative; color:var(--ink); }
+  /* §1 surface language: interactive content panels stay straight (only decorative
+     panels may rotate). The tutorial card is an interactive dismiss target, so no tilt. */
+.tut-card .tut-top{ display:flex; gap:12px; align-items:center; margin-bottom:10px; }
+.tut-portrait{ width:46px; height:46px; flex:0 0 auto; border:2px solid var(--ink); background:var(--crt-desktop-2); }
+.tut-card h3{ font-family:var(--f-cond); font-weight:800; font-size:18px; letter-spacing:.06em; color:var(--ink); }
+.tut-card p{ font-family:var(--f-prose); font-size:14px; line-height:1.5; color:var(--ink-soft); font-style:italic; }
+.tut-card .tut-cta{ margin-top:14px; text-align:right; font-family:var(--f-mono); font-size:12px; color:var(--ink-soft); }
+
+/* ============================ WATCHLIST ============================= */
+#watch .screenbody{ display:grid; gap:22px; grid-template-columns:1.1fr .9fr; min-height:0; }
+.watch-portrait-card{ display:flex; flex-direction:column; padding:14px; min-height:0; }
+.watch-well{ flex:1 1 auto; position:relative; background:var(--crt-desktop); border:2px solid var(--ink);
+  min-height:0; overflow:hidden; }
+.watch-well canvas{ position:absolute; inset:0; width:100%; height:100%; }
+.watch-right{ display:flex; flex-direction:column; min-height:0; }
+.watch-name-row{ display:flex; align-items:baseline; gap:12px; margin-bottom:4px; }
+.watch-sym{ font-family:var(--f-cond); font-weight:800; font-size:clamp(34px,4vw,48px); line-height:.85;
+  color:var(--ink); text-shadow:1px 0 rgba(255,0,60,.35), -1px 0 rgba(0,255,220,.35); } /* [S5] */
+.watch-nm{ font-family:var(--f-prose); font-size:13px; color:var(--ink-soft); }
+.watch-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+
+/* stat sheet w/ visible scrollbar */
+.statsheet{ flex:1 1 auto; min-height:150px; overflow-y:auto; padding-right:10px; } /* bios must survive 720p — the radar shrinks instead */
+.statsheet::-webkit-scrollbar{ width:12px; }
+.statsheet::-webkit-scrollbar-track{ background:var(--paper-dark); border:1.5px solid var(--ink); }
+.statsheet::-webkit-scrollbar-thumb{ background:var(--ink); border:2px solid var(--paper-dark); }
+.ssrow{ position:relative; display:flex; justify-content:space-between; align-items:center;
+  padding:6px 2px; border-bottom:1px solid rgba(35,32,26,.15); }
+.ssrow .k{ font-family:var(--f-cond); font-weight:700; letter-spacing:.07em; font-size:13px;
+  color:var(--ink-soft); text-transform:uppercase; }
+.ssrow .v{ font-family:var(--f-mono); font-size:14px; color:var(--ink); text-align:right; }
+.ss-tip{ display:none; position:absolute; right:0; top:50%; transform:translateY(-50%); z-index:5;
+  background:var(--teal); color:var(--paper); font-family:var(--f-prose); font-size:11px; line-height:1.35;
+  padding:4px 8px; max-width:220px; box-shadow:3px 3px 0 rgba(0,0,0,.4); }
+body.tips .ss-tip{ display:block; }
+body.tips .ssrow .v{ padding-right:230px; }
+.bio-block{ margin-top:14px; }
+.bio-block h4{ font-family:var(--f-cond); font-weight:800; font-size:14px; letter-spacing:.1em; color:var(--ink);
+  text-transform:uppercase; margin:12px 0 4px; padding-bottom:3px; border-bottom:1.5px solid var(--ink); }
+.bio-block p{ font-family:var(--f-prose); font-size:14px; line-height:1.55; color:var(--ink-soft); }
+.watch-radar{ margin-top:8px; }
+.watch-radar svg{ width:100%; max-width:340px; max-height:34vh; height:auto; display:block; margin:0 auto; }
+
+/* ============================ BOOT SPLASH ============================= */
+#boot{ position:fixed; inset:0; z-index:8500; background:#05090A; display:flex; flex-direction:column;
+  justify-content:center; padding:0 8vw; font-family:var(--f-mono); }
+#boot .bl{ font-size:15px; line-height:1.9; color:var(--phosphor); letter-spacing:.03em; text-shadow:0 0 6px rgba(76,175,110,.4); }
+#boot .cur{ display:inline-block; width:9px; height:16px; background:var(--phosphor); vertical-align:-2px;
+  animation:curblink .7s steps(1) infinite; }
+@keyframes curblink{ 50%{opacity:0;} }
+#boot .skip{ position:absolute; bottom:6vh; left:0; right:0; text-align:center; color:#3c5a4e; font-size:12px; }
+#boot.gone{ display:none; }
+
+/* ============================ CRT POWER-OFF FX ============================= */
+/* [S3] White overlay carries the brightness ramp; #screen carries transform only. */
+#crtFx{ position:absolute; inset:0; z-index:400; pointer-events:none; display:none; }
+#crtFxWhite{ position:absolute; inset:0; background:#fff; opacity:0; }
+#crtFxDot{ position:absolute; left:50%; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px;
+  background:#fff; border-radius:50%; opacity:0;
+  /* phosphor halo (--phosphor #4CAF6E) — CRT chrome, not a market colour; kept as
+     rgba literals because box-shadow needs the alpha ramp a hex var can't carry. */
+  box-shadow:0 0 10px 4px rgba(76,175,110,.9), 0 0 22px 8px rgba(76,175,110,.5); }
+
+/* generic scrollbars inside dark areas */
+.pos-col::-webkit-scrollbar{ width:10px; }
+.pos-col::-webkit-scrollbar-track{ background:transparent; }
+.pos-col::-webkit-scrollbar-thumb{ background:rgba(35,32,26,.4); border-radius:4px; }
+
+/* responsive guard: keep body from scrolling horizontally */
+@media (max-width:1100px){
+  #dash .screenbody{ grid-template-columns:1fr 1fr; grid-template-areas:"acct chart""idx movers""roster roster"; }
+}
+</style>
+</head>
+<body>
+<!-- CRT overlays (above everything, pointer-events none) -->
+<div id="crtScan"></div>
+<div id="crtVig"></div>
+
+<!-- BOOT SPLASH -->
+<div id="boot"><div class="bl" id="bootText"></div><div class="skip">[ PRESS ANY KEY TO SKIP ]</div></div>
+
+<!-- DESKTOP -->
+<div id="desk">
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div class="tb-logo">&#9670; <b>MDN</b> // MARKET DISPATCH NETWORK</div>
+    <div class="tb-ctrl"><span>&#94;</span><span>&#8964;</span><span>&#215;</span></div>
+    <div class="tb-sess">OPERATOR: <b id="opName">R. VANCE</b> &middot; DESK 07</div>
+  </div>
+
+  <!-- WORKSPACE -->
+  <div id="work">
+    <!-- WINDOW -->
+    <div id="window">
+      <div id="winTitle"><span id="winName">DASHBOARD</span><span class="wid" id="winId">WND-0x2F</span></div>
+      <div id="screenWrap">
+        <div id="screen">
+          <!-- ===== DASHBOARD ===== -->
+          <section id="dash" class="appscreen active">
+            <div class="screenbody">
+              <div class="card" id="dashAcct">
+                <span class="plabel">ACCOUNT // MAIN</span>
+                <div class="acct-val mono" id="acctVal">$0.00</div>
+                <div class="acct-row">
+                  <span class="acct-day mono" id="acctDay">&#9650; $0.00 (0.00%)</span>
+                </div>
+                <div class="acct-sub">
+                  <div><div class="lab">Buying Power</div><div class="num mono" id="acctBP">$0.00</div></div>
+                  <div><div class="lab">Positions</div><div class="num mono" id="acctPos">0</div></div>
+                </div>
+                <div class="margin-wrap">
+                  <div class="acct-sub" style="margin:0 0 4px;"><div><div class="lab">Margin Used</div></div></div>
+                  <div class="margin-bar"><i id="marginFill" style="width:34%"></i></div>
+                  <div class="margin-cap"><span id="marginUsed">$0</span><span id="marginMax">/ $0</span></div>
+                </div>
+              </div>
+
+              <div id="dashIdx"><!-- indices injected --></div>
+
+              <div class="card" id="dashChart">
+                <span class="plabel">CHART // INTRADAY</span>
+                <div class="chart-head">
+                  <div class="who">
+                    <span class="sym" id="chSym">NVDA</span>
+                    <span class="nm" id="chNm">&mdash;</span>
+                    <span class="last mono" id="chLast">$0.00</span>
+                  </div>
+                  <div class="rangetog" id="rangeTog">
+                    <button data-r="1D" class="on">1D</button>
+                    <button data-r="1W">1W</button>
+                    <button data-r="1M">1M</button>
+                    <button data-r="1Y">1Y</button>
+                  </div>
+                </div>
+                <div class="chartwell"><canvas id="mainChart"></canvas></div>
+                <div class="chart-alerts">
+                  <div class="marquee"><div class="track" id="alertTrack"></div></div>
+                </div>
+              </div>
+
+              <div class="card" id="dashMovers">
+                <span class="plabel">MOVERS // SESSION</span>
+                <div class="movers-col"><span class="chip teal" style="margin-bottom:6px;">TOP GAINERS</span><div id="gainList"></div></div>
+                <div class="movers-col"><span class="chip teal" style="margin-bottom:6px;">TOP LOSERS</span><div id="loseList"></div></div>
+              </div>
+
+              <div id="dashRoster"><div class="roster" data-roster></div></div>
+            </div>
+            <div class="hintbar screen-hints">
+              <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
+              <span class="h"><kbd>TAB</kbd><span class="t">PANELS</span></span>
+              <span class="h"><kbd>&#9664;</kbd><kbd>&#9654;</kbd><span class="t">ROSTER</span></span>
+            </div>
+            <div class="escback root" data-home><kbd class="dim">ESC</kbd><span>ROOT</span></div>
+          </section>
+
+          <!-- ===== POSITIONS ===== -->
+          <section id="pos" class="appscreen">
+            <div class="screenbody">
+              <div class="pos-dossier">
+                <svg id="posSilhouette" preserveAspectRatio="none" viewBox="0 0 100 100"></svg>
+                <!-- LEFT: numbers -->
+                <div class="pos-col pos-left card" style="padding:18px 18px 22px;">
+                  <div class="phead">
+                    <div style="display:flex;align-items:baseline;gap:12px;">
+                      <span class="psym" id="posSym">NVDA</span>
+                    </div>
+                    <span class="pnm" id="posNm">&mdash;</span>
+                    <div class="pos-tags" id="posTags"></div>
+                  </div>
+                  <div class="budget-chip">
+                    <span class="lab">BUYING POWER UNSPENT</span>
+                    <span class="num mono" id="posBP">$0.00</span>
+                  </div>
+                  <div id="posStats"></div>
+                  <div class="stepper-wrap">
+                    <span class="chip" style="margin-bottom:8px;">STAGE ORDER</span>
+                    <div class="stepper">
+                      <button id="stepMinus">&minus;</button>
+                      <input id="stepQty" class="mono" value="0" inputmode="numeric">
+                      <button id="stepPlus">+</button>
+                      <span class="qlab">SHARES &Delta;</span>
+                    </div>
+                    <div class="est-line" id="estLine"></div>
+                    <div class="order-btns">
+                      <button class="obtn reset" id="btnReset" disabled><kbd class="dim">X</kbd> RESET</button>
+                      <button class="obtn confirm" id="btnConfirm" disabled><kbd>&crarr;</kbd> CONFIRM</button>
+                    </div>
+                  </div>
+                </div>
+                <!-- RIGHT: shape -->
+                <div class="pos-col pos-right">
+                  <div class="card radar-card">
+                    <span class="plabel">FINGERPRINT</span>
+                    <div class="radar-wrap" id="posRadarWrap"></div>
+                    <div class="strategy">
+                      <span class="strat-opt" id="stratHedged"><span class="box"></span>HEDGED</span>
+                      <span class="strat-opt on" id="stratDir"><span class="box">&check;</span>DIRECTIONAL</span>
+                      <kbd style="margin-left:auto;">F</kbd>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style="margin-top:14px;"><div class="roster" data-roster></div></div>
+            </div>
+            <div id="tutorial">
+              <div class="tut-card">
+                <div class="tut-top">
+                  <div class="tut-portrait" id="tutPortrait"></div>
+                  <h3>DESK 07 // BRIEFING</h3>
+                </div>
+                <p>"Every dollar of buying power is a choice, operator. Stage it, check the shape, then commit."</p>
+                <div class="tut-cta"><kbd>&crarr;</kbd> ENTER CONTINUE</div>
+              </div>
+            </div>
+            <div class="hintbar screen-hints">
+              <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
+              <span class="h"><kbd>TAB</kbd><span class="t">PANELS</span></span>
+              <span class="h"><kbd>&#9664;</kbd><kbd>&#9654;</kbd><span class="t">ROSTER</span></span>
+            </div>
+            <div class="escback" data-esc><kbd>ESC</kbd><span>BACK</span></div>
+          </section>
+
+          <!-- ===== WATCHLIST ===== -->
+          <section id="watch" class="appscreen">
+            <div class="screenbody">
+              <div class="card watch-portrait-card">
+                <span class="plabel">PORTRAIT // FULL HISTORY</span>
+                <div class="watch-name-row">
+                  <span class="watch-sym" id="wSym">NVDA</span>
+                  <span class="watch-nm" id="wNm">&mdash;</span>
+                </div>
+                <div class="watch-tags" id="wTags"></div>
+                <div class="watch-well"><canvas id="watchChart"></canvas></div>
+              </div>
+              <div class="card watch-right" style="padding:16px;">
+                <span class="plabel">CASE FILE</span>
+                <div class="hintbar" style="margin-bottom:8px;">
+                  <span class="h"><kbd class="dim">LSHIFT</kbd><span class="t">HOLD &middot; SHOW TOOLTIPS</span></span>
+                </div>
+                <div class="statsheet" id="wStats"></div>
+                <div class="watch-radar" id="wRadarWrap"></div>
+              </div>
+              <div style="grid-column:1/-1;"><div class="roster dim" data-roster></div></div>
+            </div>
+            <div class="hintbar screen-hints">
+              <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
+              <span class="h"><kbd>TAB</kbd><span class="t">PANELS</span></span>
+              <span class="h"><kbd>&#9664;</kbd><kbd>&#9654;</kbd><span class="t">ROSTER</span></span>
+            </div>
+            <div class="escback" data-esc><kbd>ESC</kbd><span>BACK</span></div>
+          </section>
+
+          <!-- CRT power-off fx layer (inside screenWrap so it covers the picture only) -->
+        </div><!-- /#screen -->
+        <div id="crtFx"><div id="crtFxWhite"></div><div id="crtFxDot"></div></div>
+      </div><!-- /#screenWrap -->
+    </div><!-- /#window -->
+
+    <!-- DESKTOP ICONS -->
+    <div id="icons"></div>
+  </div><!-- /#work -->
+
+  <!-- TASKBAR -->
+  <div id="taskbar">
+    <span class="seg feed live" id="tbFeed">feed: <b>LIVE 12ms</b></span>
+    <span class="seg" id="tbInput">input detected: <b>keyboard</b></span>
+    <span class="seg mkt" id="tbMkt">mkt: <b>&mdash;</b></span>
+    <span class="seg" id="tbBatt">battery: <b>100% [plugged in]</b></span>
+    <span class="seg" id="tbVol">vol: <b>30%</b></span>
+    <span class="disc">SIMULATED &middot; NOT INVESTMENT ADVICE</span>
+    <span class="spacer"></span>
+    <span class="seg clock mono" id="tbClock">--:--:--</span>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   TERMINAL 77 — application logic
+   Sections:
+   1. Utilities (PRNG, format, DOM helpers)
+   2. Instrument universe + personalities + bios
+   3. DataEngine (MockProvider GBM + LiveProvider crypto REST, diegetic failover)
+   4. Radar formulas (documented)
+   5. Rendering: roster, dashboard, positions, watchlist
+   6. Charts (in-canvas glow — [S2])
+   7. CRT power-off transition ([S3]) + screen routing
+   8. Keyboard, taskbar clock/market state, boot splash, live ticks
+   ========================================================================= */
+
+/* ---------------- 1. UTILITIES ---------------- */
+const $  = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const prefersReduced = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+// mulberry32 seeded PRNG — fixed default seed => reproducible screenshots
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function seedFromString(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; }
+
+const fmtUSD = (n,dp=2)=> (n<0?'-':'')+'$'+Math.abs(Number(n)).toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp}); // sign OUTSIDE the $ (never "$-1,234")
+const fmtNum = (n,dp=2)=> Number(n).toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const fmtPct = (n)=> (n>=0?'+':'')+n.toFixed(2)+'%';
+const fmtCompact = (n)=>{ const a=Math.abs(n); if(a>=1e12)return (n/1e12).toFixed(2)+'T'; if(a>=1e9)return (n/1e9).toFixed(2)+'B'; if(a>=1e6)return (n/1e6).toFixed(1)+'M'; if(a>=1e3)return (n/1e3).toFixed(1)+'K'; return n.toFixed(0); };
+const arrow = (n)=> n>=0 ? '▲' : '▼';
+const glClass = (n)=> n>=0 ? 'gain' : 'loss';
+
+/* ---------------- 2. INSTRUMENT UNIVERSE ----------------
+   Each instrument has a personality (base price, drift, vol) that shapes its GBM
+   history, plus static "case file" fields and a tired-desk-analyst bio. */
+const UNIVERSE = {
+  'NVDA': { name:'NVIDIA Corp', base:126.4, drift:0.00040, vol:0.030, sector:'SEMICONDUCTOR', exch:'NASDAQ',
+    style:'MOMENTUM', tags:['MEGA CAP','AI','CROWDED TRADE'], mcap:3.11e12, pe:64.2, div:0.02, beta:1.68, avgvol:2.9e8, live:false,
+    bio:"Sells shovels in a gold rush it also started. Priced for perfection since 2023, and perfection keeps showing up to work anyway. Has never heard of gravity.",
+    priors:"Every dip is a 'buying opportunity' until the one that isn't. Owns the whole datacenter — chips, network, the coffee machine, probably." },
+  'AAPL': { name:'Apple Inc', base:214.3, drift:0.00012, vol:0.014, sector:'CONSUMER TECH', exch:'NASDAQ',
+    style:'QUALITY', tags:['MEGA CAP','DIVIDEND','SAFE HAVEN'], mcap:3.28e12, pe:33.7, div:0.44, beta:1.21, avgvol:5.4e7, live:false,
+    bio:"The stock your uncle owns and won't shut up about. Grows revenue by charging existing customers more for a slightly better rectangle. Boring is a feature here.",
+    priors:"Buybacks doing the heavy lifting. Services margin is the real story nobody puts on a T-shirt." },
+  'TSLA': { name:'Tesla Inc', base:248.9, drift:0.00020, vol:0.041, sector:'AUTO / ENERGY', exch:'NASDAQ',
+    style:'NARRATIVE', tags:['HIGH BETA','MEME-ADJACENT','CULT'], mcap:7.9e11, pe:71.4, div:0, beta:2.05, avgvol:9.8e7, live:false,
+    bio:"A car company valued as a religion, a robotaxi company with no robotaxis, and an energy company nobody bought it for. Trades on tweets, not earnings.",
+    priors:"3 SEC inquiries. 1 settled. Do not read the CEO's feed before market open. Do not read it after, either." },
+  'SPY':  { name:'S&P 500 ETF', base:558.2, drift:0.00015, vol:0.009, sector:'BROAD INDEX', exch:'NYSE ARCA',
+    style:'CORE', tags:['INDEX','LOW BETA','THE MARKET'], mcap:5.4e11, pe:26.1, div:1.29, beta:1.00, avgvol:6.1e7, live:false,
+    bio:"America, in a wrapper. The default answer to every 'what should I buy' that ends the conversation before it gets interesting. It only goes up, until the decade it doesn't.",
+    priors:"If you can't beat this, and you can't, just buy this. The most honest ticker on the desk." },
+  'BTC-USD': { name:'Bitcoin', base:97250, drift:0.00060, vol:0.038, sector:'DIGITAL ASSET', exch:'COINBASE',
+    style:'MACRO HEDGE', tags:['CRYPTO','24/7','VOLATILE'], mcap:1.92e12, pe:NaN, div:0, beta:2.4, avgvol:2.4e10, live:true,
+    bio:"Digital gold for people who find gold too tactile. Down 60% and up 300% are both Tuesdays. Doesn't sleep, doesn't close, doesn't care about your stop-loss.",
+    priors:"'Have fun staying poor' — a technical indicator. Halving cycle theology optional but widely practiced." },
+  'ETH-USD': { name:'Ethereum', base:3420, drift:0.00050, vol:0.043, sector:'DIGITAL ASSET', exch:'COINBASE',
+    style:'MACRO HEDGE', tags:['CRYPTO','SMART CONTRACT','GAS FEES'], mcap:4.1e11, pe:NaN, div:0, beta:2.6, avgvol:1.3e10, live:true,
+    bio:"Bitcoin's ambitious younger sibling that actually does things — mostly hosting jpegs of monkeys and losing your money in novel, gas-fee-optimized ways.",
+    priors:"'Ultrasound money' if the memes are right. Every upgrade is 'the one' until the next one." },
+  'AMD':  { name:'Adv. Micro Devices', base:162.7, drift:0.00028, vol:0.033, sector:'SEMICONDUCTOR', exch:'NASDAQ',
+    style:'MOMENTUM', tags:['LARGE CAP','AI','#2 BY CHOICE'], mcap:2.6e11, pe:47.8, div:0, beta:1.74, avgvol:5.2e7, live:false,
+    bio:"Perpetually 18 months from taking NVIDIA's lunch, a position it has held with great conviction for eight years. Lisa Su could sell you a fridge and you'd thank her.",
+    priors:"The value semiconductor, if 'value' means 47x earnings. Datacenter numbers are the whole thesis." },
+  'GME':  { name:'GameStop Corp', base:24.8, drift:-0.00010, vol:0.055, sector:'SPECIALTY RETAIL', exch:'NYSE',
+    style:'CHAOS', tags:['MEME STOCK','SHORT SQUEEZE','APES'], mcap:1.1e10, pe:NaN, div:0, beta:1.9, avgvol:4.1e7, live:false,
+    bio:"A mall video-game store worth eleven billion dollars because the internet decided so in 2021 and never fully changed its mind. Fundamentals are a suggestion here.",
+    priors:"DD, diamond hands, and a cat emoji move this more than any earnings call. Cash pile is real; the store is a rounding error." }
+};
+const DEFAULT_ROSTER = ['NVDA','AAPL','TSLA','SPY','BTC-USD','ETH-USD','AMD','GME'];
+
+/* ---------------- 3. DATA ENGINE ---------------- */
+const HIST_POINTS = { '1D':78, '1W':120, '1M':160, '1Y':240 }; // bars per range
+const DEFAULT_SEED = 77;
+// p.vol is a nominal DAILY move. Each range covers a different span, so per-BAR
+// volatility must be scaled: intraday bars are tiny fractions of a day; a 1Y bar
+// spans ~1.5 trading days. This keeps day-% plausible and the 1Y line readable
+// (not the vertical-band chaos of applying full daily vol to every bar).
+const RANGE_VOLSCALE = { '1D':0.16, '1W':0.42, '1M':0.62, '1Y':1.0 };
+const RANGE_DRIFTSCALE = { '1D':0.16, '1W':0.9, '1M':2.2, '1Y':7.0 };
+
+// GBM history generator with per-ticker personality, range-aware volatility
+function genHistory(sym, points, seed, range){
+  const p = UNIVERSE[sym];
+  const rng = mulberry32(seed);
+  const vs = RANGE_VOLSCALE[range] || 1;
+  const ds = RANGE_DRIFTSCALE[range] || 1;
+  const vol = p.vol * vs;
+  const drift = p.drift * ds * 0.5;
+  const arr = new Array(points);
+  // start below "now" for the longer ranges so it drifts up; near "now" intraday
+  const startFactor = range==='1Y'?0.62 : range==='1M'?0.86 : range==='1W'?0.965 : 0.992;
+  let price = p.base * startFactor * (0.99 + rng()*0.02);
+  for(let i=0;i<points;i++){
+    const u1 = rng()||1e-9, u2 = rng();
+    const z = Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
+    const ret = drift + vol*z;
+    price = Math.max(price*(1+ret), p.base*0.12);
+    arr[i]=price;
+  }
+  // normalise the LAST point toward personality base so "last" is realistic
+  const scale = p.base / arr[points-1];
+  // blend the scale in gently so the tail lands on base without flattening the path
+  for(let i=0;i<points;i++){ arr[i]*= lerp(1,scale, Math.pow(i/(points-1),0.7)); }
+  return arr;
+}
+
+const DataEngine = {
+  seed: DEFAULT_SEED,
+  provider: 'MOCK',           // 'LIVE' segments may coexist; taskbar shows LIVE until a failure
+  live: true,                 // overall feed banner state
+  quotes: {},                 // sym -> {last, prevClose, dayPct, hist:{range:[...]}, day:[...]}
+  latencyMs: 12,
+
+  init(){
+    // seed each instrument deterministically off the base seed + symbol
+    DEFAULT_ROSTER.forEach(sym=>{
+      const s = this.seed ^ seedFromString(sym);
+      const day = genHistory(sym, HIST_POINTS['1D'], s, '1D');
+      const q = { sym, hist:{}, day };
+      ['1D','1W','1M','1Y'].forEach(r=>{ q.hist[r] = genHistory(sym, HIST_POINTS[r], s ^ (r.charCodeAt(0)*131), r); });
+      // make 1D the live day series so chart + roster agree
+      q.hist['1D'] = day;
+      q.last = day[day.length-1];
+      // prevClose = yesterday's close ≈ the day series' opening print (small span now)
+      q.prevClose = day[0];
+      q.dayPct = (q.last/q.prevClose - 1)*100;
+      this.quotes[sym]=q;
+    });
+  },
+
+  get(sym){ return this.quotes[sym]; },
+
+  // one live-ish tick: random-walk last prices (mock). Small, calm steps.
+  tick(){
+    const rng = Math.random;
+    DEFAULT_ROSTER.forEach(sym=>{
+      const q = this.quotes[sym]; const p = UNIVERSE[sym];
+      if(p._liveHeld) return; // live provider owns this symbol's last; skip mock walk
+      // per-tick step ~ a fraction of daily vol so day-% wanders gently
+      const step = (rng()-0.5) * p.vol * 0.10;
+      q.last = Math.max(q.last*(1+step), p.base*0.2);
+      // keep the intraday drift bounded so day-% stays realistic
+      q.dayPct = clamp((q.last/q.prevClose - 1)*100, -9, 9);
+      q.last = q.prevClose*(1+q.dayPct/100);
+      // extend day series (rolling)
+      q.day.push(q.last); if(q.day.length>HIST_POINTS['1D']) q.day.shift();
+      q.hist['1D']=q.day;
+    });
+  },
+
+  // LiveProvider: try public crypto REST for the crypto slots. 3s timeout, diegetic failover.
+  async tryLive(){
+    const liveSyms = DEFAULT_ROSTER.filter(s=>UNIVERSE[s].live);
+    if(!liveSyms.length){ return; }
+    const ctrl = new AbortController();
+    const to = setTimeout(()=>ctrl.abort(), 3000);
+    try{
+      // Coinbase public spot endpoints (no key, permissive CORS). One request per pair.
+      const results = await Promise.all(liveSyms.map(async sym=>{
+        const p = UNIVERSE[sym];
+        const pair = sym; // already the Coinbase pair form, e.g. BTC-USD
+        const r = await fetch(`https://api.coinbase.com/v2/prices/${pair}/spot`, {signal:ctrl.signal});
+        if(!r.ok) throw new Error('bad status');
+        const j = await r.json();
+        const price = parseFloat(j.data.amount);
+        if(!isFinite(price)) throw new Error('bad price');
+        return {sym, price};
+      }));
+      clearTimeout(to);
+      // success: fold live prices in, keep mock personality shape (day-% preserved).
+      // UNIFORMLY scale the whole series + prevClose so only the price LEVEL moves
+      // to the live value — the intraday day-% keeps its plausible mock shape.
+      results.forEach(({sym,price})=>{
+        const q = this.quotes[sym]; const p = UNIVERSE[sym];
+        const scale = price / q.last;
+        q.day = q.day.map(v=> v*scale);
+        q.hist['1D']=q.day;
+        q.prevClose *= scale;
+        q.last = price;
+        ['1W','1M','1Y'].forEach(r=>{ q.hist[r]=q.hist[r].map(v=>v*scale); });
+        q.dayPct = clamp((q.last/q.prevClose-1)*100, -9, 9);
+        p._liveHeld = true;
+      });
+      this.live = true; this.provider='LIVE';
+      this.latencyMs = 10 + Math.floor(Math.random()*30);
+      return true;
+    }catch(e){
+      clearTimeout(to);
+      // DIEGETIC failover — no toast, no console cascade. Taskbar flips to OFFLINE // CACHED.
+      // release held flags so the mock walk resumes from the last live level (no freeze).
+      liveSyms.forEach(s=>{ UNIVERSE[s]._liveHeld=false; });
+      this.live = false; this.provider='MOCK';
+      return false;
+    }
+  }
+};
+
+/* ---------------- 4. RADAR FORMULAS (documented) ----------------
+   Pentagon axes each scored 1..10 from the instrument's data. Formulas are
+   deliberately simple and legible so the shape is honest, not decorative.
+
+   MOMENTUM   = map dayPct from [-6%,+6%] -> [1,10], nudged by drift personality.
+   VALUE      = inverse of P/E: cheaper earnings => higher value. map P/E [10,80]->[10,1].
+                (crypto has no P/E -> fixed low-mid 3.)
+   VOLATILITY = per-ticker vol mapped [0.008,0.055] -> [1,10], plus staged-size bump.
+   LIQUIDITY  = log10(avgVol*price notional) mapped into [1,10].
+   SENTIMENT  = blend of beta-scaled momentum + tag heuristics (AI/meme skew hot).
+   When an order is staged, VOLATILITY and (exposure->)SENTIMENT shift with size. */
+function radarScores(sym, stagedQty=0){
+  const p = UNIVERSE[sym]; const q = DataEngine.get(sym);
+  const m = clamp( ((q.dayPct+6)/12)*9+1 + p.drift*2000, 1, 10 );
+  let val;
+  if(!isFinite(p.pe)) val = 3;
+  else val = clamp( 10 - ((p.pe-10)/(80-10))*9, 1, 10 );
+  const notional = Math.abs(stagedQty)*q.last;
+  const sizeBump = clamp(notional/25000, 0, 2.2); // bigger stage => more vol/exposure
+  const vol = clamp( ((p.vol-0.008)/(0.055-0.008))*9+1 + sizeBump, 1, 10 );
+  const liq = clamp( (Math.log10(p.avgvol*q.last) - 8)/(12-8)*9+1, 1, 10 );
+  const hot = (p.tags.some(t=>/AI|MEME|CULT|CRYPTO/.test(t))?1.4:0);
+  const sen = clamp( (q.dayPct/6)*4 + 5 + hot + sizeBump*0.6, 1, 10 );
+  return { MOMENTUM:m, VALUE:val, VOLATILITY:vol, LIQUIDITY:liq, SENTIMENT:sen };
+}
+const RADAR_AXES = ['MOMENTUM','VALUE','VOLATILITY','LIQUIDITY','SENTIMENT'];
+
+/* ---------------- APP STATE ---------------- */
+const State = {
+  screen:'dash',                 // dash | pos | watch
+  selected:'NVDA',               // selected instrument (roster)
+  range:'1D',
+  cash: 24500.00,                // buying power
+  equity: 0,                     // computed
+  positions: {                   // sym -> {qty, avgCost}
+    'NVDA':{qty:120, avgCost:98.20},
+    'AAPL':{qty:60, avgCost:189.40},
+    'SPY':{qty:40, avgCost:512.10},
+    'TSLA':{qty:0, avgCost:0}
+  },
+  staged: 0,                     // pending qty delta on positions screen
+  strategy:'DIRECTIONAL',
+  ordersLog: [],
+  alerts: {},                    // sym -> true if flagged
+  tutorialShown:false,
+  vol:30, muted:false
+};
+const SCREENS = [
+  {id:'dash', name:'DASHBOARD', wid:'WND-0x2F', icon:'dash', file:'DASHBOARD.exe'},
+  {id:'pos',  name:'POSITIONS', wid:'WND-0x3A', icon:'pos',  file:'POSITIONS.dat'},
+  {id:'watch',name:'WATCHLIST', wid:'WND-0x4C', icon:'watch',file:'WATCHLIST.idx'}
+];
+
+/* ---------------- ICON GLYPHS ---------------- */
+const GLYPHS = {
+  dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="5"/><rect x="13" y="10" width="8" height="11"/><rect x="3" y="13" width="8" height="8"/></svg>',
+  pos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 20h18"/><rect x="4" y="12" width="4" height="7"/><rect x="10" y="7" width="4" height="12"/><rect x="16" y="10" width="4" height="9"/></svg>',
+  watch:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M8 4v16"/></svg>',
+  orders:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="3" width="14" height="18"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6h16M9 6V4h6v2M6 6l1 14h10l1-14"/></svg>'
+};
+// stat-row icons (positions)
+const STAT_IC = {
+  QTY:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14"/><path d="M7 7h6M7 10h6M7 13h4"/></svg>',
+  'AVG COST':'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M10 6v8M8 8h3a1.5 1.5 0 010 3H8"/></svg>',
+  LAST:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 14l4-5 3 3 6-7"/></svg>',
+  'MARKET VALUE':'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="6" width="14" height="9"/><circle cx="10" cy="10.5" r="2"/></svg>',
+  'UNREALIZED P&L':'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12l3-3 3 2 5-6"/><path d="M14 5h2v2"/></svg>',
+  'DAY P&L':'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/></svg>'
+};
+
+/* ================= 5. RENDER: DESKTOP CHROME ================= */
+function buildIcons(){
+  const wrap = $('#icons'); wrap.innerHTML='';
+  SCREENS.forEach(s=>{
+    const d=document.createElement('div'); d.className='dicon'+(s.id===State.screen?' sel':'');
+    d.dataset.screen=s.id;
+    d.innerHTML=`<div class="glyph">${GLYPHS[s.icon]}</div><div class="lbl">${s.file}</div>`;
+    d.addEventListener('click',()=>gotoScreen(s.id));
+    wrap.appendChild(d);
+  });
+  // decorative non-app icons (orders + trash) — cosmetic, but ORDERS shows log count
+  const ord=document.createElement('div'); ord.className='dicon'; ord.dataset.deco='orders';
+  ord.innerHTML=`<div class="glyph">${GLYPHS.orders}</div><div class="lbl">ORDERS.log</div>`;
+  ord.title='Order history';
+  ord.addEventListener('click',()=>flashOrdersLog(ord));
+  wrap.appendChild(ord);
+  const tr=document.createElement('div'); tr.className='dicon';
+  tr.innerHTML=`<div class="glyph">${GLYPHS.trash}</div><div class="lbl">trash</div>`;
+  tr.title='Trash';
+  tr.addEventListener('click',()=>{ pushAlert('▸ TRASH :: EMPTY. KEEP IT THAT WAY, OPERATOR.', true); tr.classList.add('sel'); setTimeout(()=>tr.classList.remove('sel'),400); });
+  wrap.appendChild(tr);
+}
+function flashOrdersLog(el){
+  const n=State.ordersLog.length;
+  const msg = n? `${n} ORDER(S) LOGGED` : 'NO ORDERS THIS SESSION';
+  const last = n? State.ordersLog[n-1] : null;
+  pushAlert('▸ ORDERS.log :: '+msg+(last?` :: LAST ${last}`:''), true);
+  el.classList.add('sel'); setTimeout(()=>el.classList.remove('sel'),400);
+}
+
+function refreshIconsSel(){ $$('.dicon').forEach(d=>d.classList.toggle('sel', d.dataset.screen===State.screen)); }
+
+/* ================= ROSTER STRIP ================= */
+function sparkPath(series, w, h, pad=2){
+  const n=series.length; const min=Math.min(...series), max=Math.max(...series);
+  const rng=(max-min)||1;
+  return series.map((v,i)=>{
+    const x = pad + (i/(n-1))*(w-2*pad);
+    const y = pad + (1-(v-min)/rng)*(h-2*pad);
+    return (i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1);
+  }).join(' ');
+}
+function renderRoster(){
+  $$('[data-roster]').forEach(strip=>{
+    strip.innerHTML='';
+    DEFAULT_ROSTER.forEach(sym=>{
+      const q=DataEngine.get(sym); const up=q.dayPct>=0;
+      const col = up?'var(--gain)':'var(--loss)';
+      const card=document.createElement('div');
+      card.className='rcard'+(sym===State.selected?' sel':'')+(State.alerts[sym]?' flag':'');
+      card.dataset.sym=sym;
+      const series = q.hist['1D'].slice(-40);
+      card.innerHTML=`
+        <div class="star">★</div>
+        <div class="rtop"><span class="rsym">${sym.replace('-USD','')}</span>
+          <span class="rpc ${glClass(q.dayPct)}">${arrow(q.dayPct)}${Math.abs(q.dayPct).toFixed(2)}%</span></div>
+        <svg class="rport" viewBox="0 0 100 30" preserveAspectRatio="none">
+          <path d="${sparkPath(series,100,30)}" fill="none" stroke="${col}" stroke-width="1.6"/></svg>
+        <div class="rlast" data-last>${fmtUSD(q.last, q.last<10?4:2)}</div>`;
+      card.addEventListener('click',()=>selectInstrument(sym));
+      strip.appendChild(card);
+    });
+  });
+}
+function pulseSelectedCard(){
+  $$('[data-roster] .rcard.sel').forEach(c=>{ c.classList.remove('pulse'); void c.offsetWidth; if(!prefersReduced)c.classList.add('pulse'); });
+}
+
+/* ================= DASHBOARD ================= */
+function computeEquity(){
+  let mv=0;
+  for(const sym in State.positions){ const pos=State.positions[sym]; if(pos.qty>0){ mv += pos.qty*DataEngine.get(sym).last; } }
+  State.equity = State.cash + mv;
+  return {mv, total:State.equity};
+}
+function dayPnl(){
+  let pnl=0;
+  for(const sym in State.positions){ const pos=State.positions[sym]; if(pos.qty>0){ const q=DataEngine.get(sym); pnl += pos.qty*(q.last-q.prevClose); } }
+  return pnl;
+}
+function renderDashAccount(){
+  const {mv,total}=computeEquity();
+  const dp=dayPnl(); const dpPct = mv? (dp/(mv-dp))*100 : 0;
+  setTickText($('#acctVal'), fmtUSD(total));
+  const dEl=$('#acctDay'); dEl.className='acct-day mono '+glClass(dp);
+  dEl.textContent=`${arrow(dp)} ${fmtUSD(Math.abs(dp))} (${fmtPct(dpPct)})`;
+  $('#acctBP').textContent=fmtUSD(State.cash);
+  let posCount=0; for(const s in State.positions) if(State.positions[s].qty>0) posCount++;
+  $('#acctPos').textContent=posCount+' OPEN';
+  const marginUsed = mv*0.35, marginMax = total*0.5;
+  $('#marginFill').style.width = clamp((marginUsed/marginMax)*100,2,100).toFixed(0)+'%';
+  $('#marginUsed').textContent=fmtUSD(marginUsed,0);
+  $('#marginMax').textContent='/ '+fmtUSD(marginMax,0);
+}
+const IDX_DEFS=[
+  {nm:'SPX', sym:'SPY', mult:8.02},
+  {nm:'NDX', sym:'NVDA', mult:157.5},
+  {nm:'DJI', sym:'AAPL', mult:197.3},
+  {nm:'VIX', sym:'GME', mult:0.62, invert:true}
+];
+function renderIndices(){
+  // synthetic indices derived deterministically so they feel like a market, not roster dupes.
+  // Build the chip skeleton ONCE (keyed by index name); on every subsequent tick route
+  // the price/pct through setTickText for digit-level flash instead of rebuilding innerHTML.
+  const wrap=$('#dashIdx');
+  const build = wrap.childElementCount!==IDX_DEFS.length;
+  if(build) wrap.innerHTML='';
+  IDX_DEFS.forEach((o,i)=>{
+    const q=DataEngine.get(o.sym);
+    let pct = o.invert? -q.dayPct*1.4 : q.dayPct;
+    const val = o.nm==='VIX' ? (14 + Math.abs(q.dayPct)*1.6) : q.last*o.mult;
+    const up = pct>=0; const col=up?'var(--gain)':'var(--loss)';
+    const series=q.hist['1D'].slice(-30).map(v=> o.invert? -v : v);
+    const valTxt = o.nm==='VIX'?val.toFixed(2):fmtNum(val);
+    const pctTxt = `${arrow(pct)}${Math.abs(pct).toFixed(2)}%`;
+    let el;
+    if(build){
+      el=document.createElement('div'); el.className='idxchip';
+      el.innerHTML=`
+        <svg class="spk" viewBox="0 0 56 22" preserveAspectRatio="none"><path fill="none" stroke-width="1.5"/></svg>
+        <div class="nm">${o.nm}</div>
+        <div class="pr mono" data-pr></div>
+        <div class="pc mono" data-pc></div>`;
+      wrap.appendChild(el);
+    }else{ el=wrap.children[i]; }
+    el.querySelector('.spk path').setAttribute('d', sparkPath(series,56,22));
+    el.querySelector('.spk path').setAttribute('stroke', col);
+    setTickText(el.querySelector('[data-pr]'), valTxt);
+    const pcEl=el.querySelector('[data-pc]'); pcEl.className='pc mono '+glClass(pct);
+    setTickText(pcEl, pctTxt);
+  });
+}
+// reconcile one movers list into stable rows keyed by ticker: reuse a row's existing
+// pct span (so setTickText can flash the changed digits) when the same ticker holds a
+// slot across ticks; only rebuild the skeleton when a slot's ticker actually changes.
+function renderMoverList(listEl, items){
+  if(!items.length){
+    if(listEl.dataset.key!=='—'){
+      listEl.innerHTML=`<div class="mover"><span class="t" style="color:var(--ink-soft);font-weight:700;">—</span><span class="mono" style="color:var(--ink-soft);">—</span></div>`;
+      listEl.dataset.key='—';
+    }
+    return;
+  }
+  const key=items.map(o=>o.s).join(',');
+  if(listEl.dataset.key!==key){
+    // membership/order changed — rebuild skeleton, keyed rows, empty pct spans to fill below
+    listEl.innerHTML=items.map(o=>`<div class="mover" data-sym="${o.s}"><span class="t">${o.s.replace('-USD','')}</span><span class="mono" data-pc></span></div>`).join('');
+    listEl.dataset.key=key;
+  }
+  items.forEach((o,i)=>{
+    const pcEl=listEl.children[i].querySelector('[data-pc]');
+    pcEl.className='mono '+glClass(o.pct);
+    setTickText(pcEl, `${arrow(o.pct)}${Math.abs(o.pct).toFixed(2)}%`);
+  });
+}
+function renderMovers(){
+  const rows = DEFAULT_ROSTER.map(s=>({s, pct:DataEngine.get(s).dayPct})).sort((a,b)=>b.pct-a.pct);
+  // filter by sign so a green session can't parade gainers under TOP LOSERS (and
+  // vice-versa). A side with <3 qualifiers renders an ink-soft placeholder row.
+  const gain=rows.filter(r=>r.pct>0).slice(0,3);
+  const lose=rows.filter(r=>r.pct<0).slice(-3).reverse();
+  renderMoverList($('#gainList'), gain);
+  renderMoverList($('#loseList'), lose);
+}
+function renderDashChart(){
+  const q=DataEngine.get(State.selected); const p=UNIVERSE[State.selected];
+  $('#chSym').textContent=State.selected.replace('-USD','');
+  $('#chNm').textContent=p.name;
+  setTickText($('#chLast'), fmtUSD(q.last, q.last<10?4:2));
+  drawMainChart();
+  $$('#rangeTog button').forEach(b=>b.classList.toggle('on', b.dataset.r===State.range));
+}
+function renderDashboard(){
+  renderDashAccount(); renderIndices(); renderMovers(); renderDashChart();
+}
+
+/* ================= POSITIONS ================= */
+function positionFor(sym){ return State.positions[sym] || (State.positions[sym]={qty:0,avgCost:0}); }
+function renderPositions(){
+  const sym=State.selected; const q=DataEngine.get(sym); const p=UNIVERSE[sym];
+  const pos=positionFor(sym);
+  $('#posSym').textContent=sym.replace('-USD','');
+  $('#posNm').textContent=p.name;
+  $('#posBP').textContent=fmtUSD(State.cash);
+  const tags=$('#posTags'); tags.innerHTML='';
+  [p.sector,p.style, pos.qty>0?'LONG':'FLAT'].forEach(t=>{ const s=document.createElement('span'); s.className='tag'; s.textContent=t; tags.appendChild(s); });
+
+  const staged=State.staged;
+  const newQty=pos.qty+staged;
+  const last=q.last;
+  const mv=pos.qty*last, mvNew=newQty*last;
+  const unrl = pos.qty>0 ? (last-pos.avgCost)*pos.qty : 0;
+  const dpnl = pos.qty>0 ? (last-q.prevClose)*pos.qty : 0;
+  // new avg cost if adding
+  let newAvg=pos.avgCost;
+  if(staged>0){ newAvg = pos.qty>0? ((pos.avgCost*pos.qty)+(last*staged))/(pos.qty+staged) : last; }
+  const rows=[
+    ['QTY', String(pos.qty), staged!==0? String(newQty):null],
+    ['AVG COST', fmtUSD(pos.avgCost), (staged>0 && newAvg!==pos.avgCost)? fmtUSD(newAvg):null],
+    ['LAST', fmtUSD(last, last<10?4:2), null],
+    ['MARKET VALUE', fmtUSD(mv), staged!==0? fmtUSD(mvNew):null],
+    ['UNREALIZED P&L', fmtUSD(unrl), null, glClass(unrl)],
+    ['DAY P&L', fmtUSD(dpnl), null, glClass(dpnl)]
+  ];
+  // Build stat-row skeletons ONCE per (symbol + which-rows-are-staged) signature, then
+  // route the CURRENT value of tick-driven rows (LAST/MARKET VALUE/P&L) through
+  // setTickText for digit-level flash. Staged "→ delta" spans are user-driven, so plain
+  // textContent — they only appear/change on an explicit stage, never on a passive tick.
+  const posStats=$('#posStats');
+  const sig = sym+'|'+rows.map(r=>r[2]!=null?1:0).join('');
+  if(posStats.dataset.sig!==sig){
+    posStats.innerHTML = rows.map(r=>{
+      const [lab,,stg]=r;
+      const valHtml = stg!=null
+        ? `<span data-cur></span><span class="arrow">→</span><span class="delta" data-delta></span>`
+        : `<span data-cur></span>`;
+      return `<div class="statrow"><span class="ic">${STAT_IC[lab]||''}</span><span class="lab">${lab}</span><span class="val mono">${valHtml}</span></div>`;
+    }).join('');
+    posStats.dataset.sig=sig;
+  }
+  rows.forEach((r,i)=>{
+    const [,cur,stg,cls]=r;
+    const rowEl=posStats.children[i];
+    const curEl=rowEl.querySelector('[data-cur]');
+    curEl.className = stg!=null ? '' : (cls||'');
+    setTickText(curEl, cur);
+    if(stg!=null){ const dEl=rowEl.querySelector('[data-delta]'); if(dEl) dEl.textContent=stg; }
+  });
+
+  // stepper + est line + buttons
+  // don't clobber a quantity the user is mid-typing (change event only fires on blur/Enter)
+  if(document.activeElement!==$('#stepQty')) $('#stepQty').value=String(staged);
+  const estEl=$('#estLine'); const btnR=$('#btnReset'), btnC=$('#btnConfirm');
+  $('#posBP').classList.toggle('staged', staged!==0);
+  if(staged!==0){
+    const cost = staged*last;
+    if(staged>0) estEl.innerHTML=`EST. COST: <b>${fmtUSD(cost)}</b>`;
+    else estEl.innerHTML=`EST. PROCEEDS: <b>${fmtUSD(Math.abs(cost))}</b>`;
+    btnR.disabled=false; btnC.disabled=false;
+    // reflect staged BP
+    $('#posBP').textContent=fmtUSD(State.cash - Math.max(0,cost));
+  }else{
+    estEl.innerHTML=''; btnR.disabled=true; btnC.disabled=true;
+    $('#posBP').textContent=fmtUSD(State.cash);
+  }
+  // strategy
+  $('#stratHedged').classList.toggle('on', State.strategy==='HEDGED');
+  $('#stratDir').classList.toggle('on', State.strategy==='DIRECTIONAL');
+  $('#stratHedged').querySelector('.box').innerHTML = State.strategy==='HEDGED'?'✓':'';
+  $('#stratDir').querySelector('.box').innerHTML = State.strategy==='DIRECTIONAL'?'✓':'';
+
+  drawRadar($('#posRadarWrap'), sym, staged, true);
+  drawSilhouette(sym);
+}
+function clampStaged(){
+  const sym=State.selected; const pos=positionFor(sym); const q=DataEngine.get(sym);
+  // can't sell more than held; can't buy more than affordable
+  const maxBuy = Math.floor(State.cash / q.last);
+  State.staged = clamp(State.staged, -pos.qty, maxBuy);
+}
+function stageDelta(d){
+  State.staged += d; clampStaged(); renderPositions();
+}
+function resetStage(){ State.staged=0; renderPositions(); }
+function confirmStage(){
+  if(State.staged===0) return;
+  const sym=State.selected; const pos=positionFor(sym); const q=DataEngine.get(sym);
+  // re-validate against CURRENT cash/price: the staged size was clamped when it was
+  // set, but the price ticks every 1–2s, so a max-size buy confirmed after an upward
+  // tick would overspend and land buying power negative (dishonest in a house-rule
+  // terminal). Reclamp, and if a buy still exceeds cash, shrink it to what's affordable.
+  clampStaged();
+  if(State.staged>0 && State.staged*q.last > State.cash){
+    State.staged = Math.floor(State.cash / q.last);
+    renderPositions();
+    if(State.staged===0){ return; } // nothing affordable at the new price — abort
+  }
+  const qty=State.staged; const last=q.last; const cost=qty*last;
+  if(qty>0){
+    const newQ=pos.qty+qty;
+    pos.avgCost = pos.qty>0 ? ((pos.avgCost*pos.qty)+(last*qty))/newQ : last;
+    pos.qty=newQ; State.cash-=cost;
+  }else{
+    pos.qty+=qty; State.cash += Math.abs(cost); if(pos.qty===0) pos.avgCost=0;
+  }
+  const stamp=new Date().toTimeString().slice(0,8);
+  const line=`${stamp} ${qty>0?'BUY':'SELL'} ${Math.abs(qty)} ${sym.replace('-USD','')} @ ${fmtUSD(last,last<10?4:2)}`;
+  State.ordersLog.push(line);
+  State.alerts[sym]=true; // open order needing attention -> orange star on the card
+  pushAlert('▸ ORDER FILLED :: '+line, true);
+  State.staged=0;
+  renderPositions(); renderRoster(); renderDashAccount();
+}
+function toggleStrategy(){ State.strategy = State.strategy==='DIRECTIONAL'?'HEDGED':'DIRECTIONAL'; renderPositions(); }
+
+/* ================= WATCHLIST ================= */
+function renderWatchlist(){
+  const sym=State.selected; const q=DataEngine.get(sym); const p=UNIVERSE[sym];
+  $('#wSym').textContent=sym.replace('-USD','');
+  $('#wNm').textContent=p.name;
+  const tags=$('#wTags'); tags.innerHTML='';
+  p.tags.forEach(t=>{ const s=document.createElement('span'); s.className='tag'; s.textContent=t; tags.appendChild(s); });
+
+  const lo=Math.min(...q.hist['1Y']), hi=Math.max(...q.hist['1Y']);
+  const stats=[
+    ['SECTOR', p.sector, 'What corner of the market this lives in.'],
+    ['EXCHANGE', p.exch, 'Where it actually trades.'],
+    ['MARKET CAP', '$'+fmtCompact(p.mcap), 'Price times shares — the whole company\'s tag.'],
+    ['P/E', isFinite(p.pe)?p.pe.toFixed(1):'N/A', 'Dollars paid per dollar earned. Lower is cheaper.'],
+    ['DIV YIELD', p.div?p.div.toFixed(2)+'%':'—', 'Annual cash it pays you just to hold it.'],
+    ['52W RANGE', fmtUSD(lo,lo<10?2:0)+' – '+fmtUSD(hi,hi<10?2:0), 'Cheapest and dearest it got this year.'],
+    ['AVG VOLUME', fmtCompact(p.avgvol), 'Shares traded on a normal day — liquidity.'],
+    ['BETA', p.beta.toFixed(2), 'How hard it swings vs the market. >1 = wilder.']
+  ];
+  $('#wStats').innerHTML = stats.map(([k,v,tip])=>
+    `<div class="ssrow"><span class="k">${k}</span><span class="v mono">${v}</span><span class="ss-tip">${tip}</span></div>`
+  ).join('') + bioBlock(p);
+  drawWatchChart();
+  drawRadar($('#wRadarWrap'), sym, 0, false); // reference mode: numeric vertices
+}
+function bioBlock(p){
+  let h=`<div class="bio-block"><h4>BIO</h4><p>${p.bio}</p>`;
+  if(p.priors) h+=`<h4>PRIORS</h4><p>${p.priors}</p>`;
+  h+='</div>';
+  return h;
+}
+
+/* ================= SHARED SELECT ================= */
+function selectInstrument(sym){
+  if(sym===State.selected){ renderRoster(); pulseSelectedCard(); return; }
+  State.alerts[sym]=false; // acknowledging the card clears its orange star
+  State.selected=sym; State.staged=0;
+  renderRoster(); pulseSelectedCard();
+  if(State.screen==='dash') renderDashChart();
+  else if(State.screen==='pos') renderPositions();
+  else if(State.screen==='watch') renderWatchlist();
+}
+function moveRoster(dir){
+  const i=DEFAULT_ROSTER.indexOf(State.selected);
+  const ni=(i+dir+DEFAULT_ROSTER.length)%DEFAULT_ROSTER.length;
+  selectInstrument(DEFAULT_ROSTER[ni]);
+}
+
+/* ================= 6. CHARTS (in-canvas glow — [S2]) ================= */
+function fitCanvas(cv){
+  const dpr=Math.min(window.devicePixelRatio||1, 2);
+  const r=cv.getBoundingClientRect();
+  // Guard against degenerate sizes: during the CRT power-off the #screen is
+  // scaleY(0.006), so getBoundingClientRect() collapses. Sizing the backing
+  // store to that squashes the chart into horizontal bands. Fall back to the
+  // element's offset box (unaffected by the transform) when the rect is tiny.
+  let w=Math.floor(r.width), h=Math.floor(r.height);
+  if(h<20 || w<20){ w=cv.offsetWidth||w; h=cv.offsetHeight||h; }
+  w=Math.max(2,w); h=Math.max(2,h);
+  if(cv.width!==w*dpr||cv.height!==h*dpr){ cv.width=w*dpr; cv.height=h*dpr; }
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx,w,h,degenerate:(r.height<20||r.width<20)};
+}
+// Redraw whichever screen's charts are live (call after a transition settles)
+function redrawActiveCharts(){
+  if(State.screen==='dash'){ drawMainChart(); }
+  else if(State.screen==='pos'){ drawRadar($('#posRadarWrap'),State.selected,State.staged,true); drawSilhouette(State.selected); }
+  else if(State.screen==='watch'){ drawWatchChart(); drawRadar($('#wRadarWrap'),State.selected,0,false); }
+}
+// [S2] phosphor glow drawn IN CANVAS: multi-pass strokes at decreasing alpha /
+// increasing width — no CSS filter:drop-shadow (WKWebView-safe).
+function drawGlowLine(ctx, pts, color, opts={}){
+  const passes = opts.passes || [
+    {w:(opts.core||1.6)+7, a:0.06},
+    {w:(opts.core||1.6)+4, a:0.10},
+    {w:(opts.core||1.6)+2, a:0.18},
+    {w:(opts.core||1.6),   a:1.0}
+  ];
+  passes.forEach(pass=>{
+    ctx.beginPath();
+    pts.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+    ctx.strokeStyle=color; ctx.globalAlpha=pass.a; ctx.lineWidth=pass.w;
+    ctx.lineJoin='round'; ctx.lineCap='round'; ctx.stroke();
+  });
+  ctx.globalAlpha=1;
+}
+function seriesToPts(series, w, h, padX, padTop, padBot){
+  const min=Math.min(...series), max=Math.max(...series); const rng=(max-min)||1;
+  return series.map((v,i)=>[
+    padX + (i/(series.length-1))*(w-2*padX),
+    padTop + (1-(v-min)/rng)*(h-padTop-padBot)
+  ]);
+}
+let crossX=null; // hover crosshair state for main chart
+function drawMainChart(){
+  const cv=$('#mainChart'); if(!cv) return;
+  const {ctx,w,h}=fitCanvas(cv);
+  ctx.clearRect(0,0,w,h);
+  const q=DataEngine.get(State.selected);
+  const series=q.hist[State.range];
+  const up = series[series.length-1]>=series[0];
+  const col = up? '#4CAF6E' : '#B23A2F';
+  const padX=10, padTop=12, padBot=22;
+  // dotted teal gridlines
+  ctx.strokeStyle='rgba(93,139,128,.28)'; ctx.lineWidth=1; ctx.setLineDash([2,4]);
+  const min=Math.min(...series), max=Math.max(...series);
+  ctx.font='10px "IBM Plex Mono", monospace'; ctx.fillStyle='rgba(93,139,128,.75)';
+  for(let g=0; g<=4; g++){
+    const y=padTop + (g/4)*(h-padTop-padBot);
+    ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke();
+    const val=max-(g/4)*(max-min);
+    // span-aware decimals: a tight intraday range must never print duplicate
+    // axis labels (128/127/127/126/126 = a dishonest axis).
+    const spanDp=(max-min)<1?3:(max-min)<8?2:(val<10?3:0);
+    ctx.fillText(fmtNum(val, spanDp), padX+2, y-2);
+  }
+  ctx.setLineDash([]);
+  const pts=seriesToPts(series,w,h,padX,padTop,padBot);
+  // area fill under line (subtle)
+  ctx.beginPath(); pts.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+  ctx.lineTo(pts[pts.length-1][0], h-padBot); ctx.lineTo(pts[0][0], h-padBot); ctx.closePath();
+  ctx.fillStyle = up? 'rgba(76,175,110,.10)':'rgba(178,58,47,.10)'; ctx.fill();
+  drawGlowLine(ctx, pts, col, {core:1.8});
+  // time axis labels
+  ctx.fillStyle='rgba(93,139,128,.75)'; ctx.font='10px "IBM Plex Mono", monospace';
+  const labs = State.range==='1D'?['09:30','11:00','12:30','14:00','16:00']:
+               State.range==='1W'?['MON','TUE','WED','THU','FRI']:
+               State.range==='1M'?['W1','W2','W3','W4']:['Q1','Q2','Q3','Q4'];
+  labs.forEach((lb,i)=>{ const x=padX+(i/(labs.length-1))*(w-2*padX); ctx.textAlign=i===0?'left':i===labs.length-1?'right':'center'; ctx.fillText(lb,x,h-6); });
+  ctx.textAlign='left';
+  // orange crosshair + readout
+  if(crossX!=null){
+    const idx=clamp(Math.round((crossX-padX)/(w-2*padX)*(series.length-1)),0,series.length-1);
+    const px=pts[idx][0], py=pts[idx][1];
+    ctx.strokeStyle='#D9942B'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(px,padTop); ctx.lineTo(px,h-padBot); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#D9942B'; ctx.beginPath(); ctx.arc(px,py,3,0,7); ctx.fill();
+    const val=series[idx];
+    const txt=fmtUSD(val,val<10?4:2);
+    ctx.font='600 11px "IBM Plex Mono", monospace';
+    const tw=ctx.measureText(txt).width+8;
+    let bx=px+6; if(bx+tw>w-2) bx=px-6-tw;
+    ctx.fillStyle='#D9942B'; ctx.fillRect(bx,py-16,tw,15);
+    ctx.fillStyle='#23201A'; ctx.fillText(txt,bx+4,py-5);
+  }
+}
+function drawWatchChart(){
+  const cv=$('#watchChart'); if(!cv) return;
+  const {ctx,w,h}=fitCanvas(cv);
+  ctx.clearRect(0,0,w,h);
+  const q=DataEngine.get(State.selected);
+  const series=q.hist['1Y'];
+  const up=series[series.length-1]>=series[0];
+  const col=up?'#4CAF6E':'#B23A2F';
+  const padX=12,padTop=16,padBot=16;
+  // faint grid
+  ctx.strokeStyle='rgba(93,139,128,.18)'; ctx.setLineDash([2,5]); ctx.lineWidth=1;
+  for(let g=1;g<4;g++){ const y=padTop+(g/4)*(h-padTop-padBot); ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke(); }
+  ctx.setLineDash([]);
+  const pts=seriesToPts(series,w,h,padX,padTop,padBot);
+  // dramatic motion-trail: 3 echo strokes at decreasing opacity, offset slightly
+  const echoes=[{dx:-4,dy:2,a:.12},{dx:-2,dy:1,a:.22}];
+  echoes.forEach(e=>{
+    const ep=pts.map(p=>[p[0]+e.dx,p[1]+e.dy]);
+    ctx.globalAlpha=e.a; drawGlowLine(ctx, ep, col, {core:2.0, passes:[{w:3,a:1}]});
+  });
+  ctx.globalAlpha=1;
+  drawGlowLine(ctx, pts, col, {core:2.2});
+  // endpoint marker
+  const last=pts[pts.length-1];
+  ctx.fillStyle=col; ctx.beginPath(); ctx.arc(last[0],last[1],3.5,0,7); ctx.fill();
+  ctx.globalAlpha=.35; ctx.beginPath(); ctx.arc(last[0],last[1],7,0,7); ctx.fill(); ctx.globalAlpha=1;
+}
+
+/* ================= RADAR (SVG pentagon) ================= */
+let radarAnim = {}; // wrapEl.id -> current displayed scores for tween
+function pentaPoint(cx,cy,r,i,val){ // i:0..4 axis, val:1..10 fraction
+  const ang = -Math.PI/2 + i*(2*Math.PI/5);
+  const rr = r*(val/10);
+  return [cx+Math.cos(ang)*rr, cy+Math.sin(ang)*rr];
+}
+function drawRadar(wrap, sym, stagedQty, staged){
+  if(!wrap) return;
+  const target = radarScores(sym, stagedQty);
+  const key = wrap.id;
+  const cur = radarAnim[key] || Object.assign({}, target);
+  radarAnim[key]=cur;
+  // wide viewBox with generous margins so outboard label chips never clip
+  const W=360, H=320, cx=180, cy=158, R=92;
+  // per-axis label placement: text-anchor + dy tuned per vertex so chips sit clear
+  const LABELPOS=[
+    {ta:'middle', dx:0,   dy:-8},   // 0 top     MOMENTUM
+    {ta:'start',  dx:6,   dy:4},    // 1 upper-r  VALUE
+    {ta:'start',  dx:4,   dy:14},   // 2 lower-r  VOLATILITY
+    {ta:'end',    dx:-4,  dy:14},   // 3 lower-l  LIQUIDITY
+    {ta:'end',    dx:-6,  dy:4}     // 4 upper-l  SENTIMENT
+  ];
+  function frame(){
+    const web=[];
+    for(let ring=1;ring<=5;ring++){
+      const pts=[]; for(let i=0;i<5;i++){ const [x,y]=pentaPoint(cx,cy,R,i,ring*2); pts.push(x.toFixed(1)+','+y.toFixed(1)); }
+      web.push(`<polygon points="${pts.join(' ')}" fill="none" stroke="rgba(35,32,26,.20)" stroke-width="1"/>`);
+    }
+    let axes='', labels='';
+    for(let i=0;i<5;i++){
+      const [ax,ay]=pentaPoint(cx,cy,R,i,10);
+      axes+=`<line x1="${cx}" y1="${cy}" x2="${ax.toFixed(1)}" y2="${ay.toFixed(1)}" stroke="rgba(35,32,26,.26)" stroke-width="1"/>`;
+      const [lx,ly]=pentaPoint(cx,cy,R+14,i,10);
+      const lp=LABELPOS[i]; const lab=RADAR_AXES[i];
+      // reference mode (watchlist): show numeric value at vertex; staged mode (positions): label only
+      const num = staged ? '' : target[lab].toFixed(0);
+      // widths: condensed label ~5.6px/char, mono numeral ~6.4px/char (kept as its own run)
+      const labW = lab.length*5.6, numW = num ? num.length*6.4+5 : 0;
+      const cw = labW + numW + 10, ch=15;
+      const tx = lx+lp.dx, ty=ly+lp.dy;
+      let rectX = lp.ta==='middle'? tx-cw/2 : lp.ta==='end'? tx-cw : tx;
+      // label in condensed; numeral in IBM Plex Mono ('all numerals in the app are mono')
+      const labX = rectX + 5 + labW/2;
+      const numText = num
+        ? `<text x="${(rectX+cw-5-numW/2+2.5).toFixed(1)}" y="${(ty).toFixed(1)}" text-anchor="middle" fill="#EDE4CE" font-family="'IBM Plex Mono',monospace" font-weight="600" font-size="9.5" letter-spacing="0">${num}</text>`
+        : '';
+      labels+=`<g font-weight="700" font-size="10.5" letter-spacing="0.4">
+        <rect x="${rectX.toFixed(1)}" y="${(ty-11).toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" fill="#5D8B80"/>
+        <text x="${labX.toFixed(1)}" y="${(ty).toFixed(1)}" text-anchor="middle" fill="#EDE4CE" font-family="'Barlow Condensed',sans-serif">${lab}</text>${numText}</g>`;
+    }
+    return web.join('')+axes+labels;
+  }
+  const staticFrame = frame();
+  function polyStr(scores){
+    const pts=[]; for(let i=0;i<5;i++){ const [x,y]=pentaPoint(cx,cy,R,i,scores[RADAR_AXES[i]]); pts.push(x.toFixed(1)+','+y.toFixed(1)); }
+    return pts.join(' ');
+  }
+  function vertsStr(scores){
+    let s=''; for(let i=0;i<5;i++){ const [x,y]=pentaPoint(cx,cy,R,i,scores[RADAR_AXES[i]]); s+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#D9942B" stroke="#23201A" stroke-width="1"/>`; }
+    return s;
+  }
+  wrap.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Instrument fingerprint radar. Axes: momentum, value, volatility, liquidity, sentiment.">
+    ${staticFrame}
+    <polygon id="${key}-poly" points="${polyStr(cur)}" fill="rgba(217,148,43,.35)" stroke="#D9942B" stroke-width="2"/>
+    <g id="${key}-verts">${vertsStr(cur)}</g>
+  </svg>`;
+  // animate 200ms toward target (staged preview / data change)
+  const poly=$('#'+key+'-poly'), vg=$('#'+key+'-verts');
+  const start=Object.assign({},cur); const t0=performance.now(); const dur=prefersReduced?0:200;
+  function step(now){
+    const t=dur? clamp((now-t0)/dur,0,1):1;
+    RADAR_AXES.forEach(a=> cur[a]=lerp(start[a],target[a],t));
+    if(poly) poly.setAttribute('points', polyStr(cur));
+    if(vg) vg.innerHTML=vertsStr(cur);
+    if(t<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ================= SILHOUETTE (screened-back duotone portrait) ================= */
+function drawSilhouette(sym){
+  const svg=$('#posSilhouette'); if(!svg) return;
+  const q=DataEngine.get(sym); const series=q.hist['1Y'];
+  const min=Math.min(...series), max=Math.max(...series), rng=(max-min)||1;
+  const N=series.length;
+  let d='M0 100';
+  series.forEach((v,i)=>{ const x=(i/(N-1))*100; const y=100-((v-min)/rng)*78-4; d+=` L${x.toFixed(2)} ${y.toFixed(2)}`; });
+  d+=' L100 100 Z';
+  svg.innerHTML=`<path d="${d}" fill="rgba(93,139,128,.18)" stroke="rgba(93,139,128,.30)" stroke-width="0.4" vector-effect="non-scaling-stroke"/>`;
+}
+
+/* ================= TICK FLASH (digit-level) ================= */
+function setTickText(el, text){
+  if(!el){ return; }
+  const old=el.dataset.val||'';
+  if(old===text || !old){ el.textContent=text; el.dataset.val=text; return; }
+  // determine direction from numeric parse
+  const nOld=parseFloat(old.replace(/[^0-9.\-]/g,''))||0;
+  const nNew=parseFloat(text.replace(/[^0-9.\-]/g,''))||0;
+  const col = nNew>=nOld ? '#4CAF6E' : '#B23A2F';
+  // build digit spans, flash the ones that changed
+  const frag=document.createDocumentFragment();
+  for(let i=0;i<text.length;i++){
+    const ch=text[i]; const changed = old[i]!==ch;
+    if(changed && /[0-9]/.test(ch)){
+      const s=document.createElement('span'); s.textContent=ch; s.style.color=col; s.style.transition='color .3s';
+      frag.appendChild(s); setTimeout(()=>{ s.style.color=''; }, 300);
+    }else{ frag.appendChild(document.createTextNode(ch)); }
+  }
+  el.textContent=''; el.appendChild(frag); el.dataset.val=text;
+}
+
+/* ================= ALERTS MARQUEE ================= */
+const ALERT_SEED=[
+  '▸ 09:31 VOLUME SPIKE: NVDA +3.2%',
+  '▸ FED MINUTES 14:00 EST',
+  '▸ 09:44 UNUSUAL OPTIONS FLOW: TSLA',
+  '▸ CRYPTO: BTC RECLAIMS 97K',
+  '▸ 10:02 AMD ANALYST UPGRADE — OUTPERFORM',
+  '▸ GME SHORT INTEREST 21.4%',
+  '▸ SPY VWAP HOLDING · BREADTH POSITIVE'
+];
+let alertMsgs = ALERT_SEED.slice();
+let flashingAlert=null; // the one freshly-triggered message currently flashing orange
+function renderAlerts(){
+  const track=$('#alertTrack'); if(!track) return;
+  // brief §3.4: a triggered alert flashes orange ONCE, then settles to paper-on-ink.
+  // Only the freshly-pushed message carries .fl; everything else stays calm.
+  const html = alertMsgs.map(m=>`<span class="${m===flashingAlert?'fl':''}">${m}</span>`).join('');
+  track.innerHTML = html + html; // duplicate for seamless loop
+}
+function pushAlert(msg, flash){
+  alertMsgs.unshift(msg); if(alertMsgs.length>10) alertMsgs.pop();
+  if(flash){ flashingAlert=msg; setTimeout(()=>{ if(flashingAlert===msg){ flashingAlert=null; renderAlerts(); } }, 1500); }
+  renderAlerts();
+  if(flash){ // triggered alert raises the orange star on the affected roster card
+    const m=msg.match(/\b(NVDA|AAPL|TSLA|SPY|BTC|ETH|AMD|GME)[\w-]*\b/);
+    if(m){ const sym=DEFAULT_ROSTER.find(s=>s.startsWith(m[1])); if(sym){ State.alerts[sym]=true; renderRoster(); } }
+  }
+}
+
+/* ================= 7. CRT POWER-OFF ([S3]) + ROUTING ================= */
+let switching=false;
+let powerOffTimers=[]; // pending settle/cleanup timer ids so a fast re-switch can cancel them
+// TAB cycles a teal focus outline through the active screen's top-level paper
+// cards (brief §2 lists TAB among the keycaps to "wire for real").
+let panelIdx=-1;
+function clearPanelFocus(){ $$('.panel-focus').forEach(el=>el.classList.remove('panel-focus')); panelIdx=-1; }
+function cyclePanel(){
+  const cards=$$('.appscreen.active .card');
+  if(!cards.length) return;
+  $$('.panel-focus').forEach(el=>el.classList.remove('panel-focus'));
+  panelIdx=(panelIdx+1)%cards.length;
+  cards[panelIdx].classList.add('panel-focus');
+}
+function showScreen(id){
+  clearPanelFocus();
+  $$('.appscreen').forEach(s=>s.classList.toggle('active', s.id===id));
+  const sc=SCREENS.find(s=>s.id===id);
+  $('#winName').textContent=sc.name; $('#winId').textContent=sc.wid;
+  State.screen=id; refreshIconsSel();
+  // Leaving Positions must never strand the (now-invisible) first-run tutorial
+  // open — its keydown gate would swallow Q/E/arrows/ESC on every other screen.
+  if(id!=='pos') dismissTutorial();
+  if(id==='dash') renderDashboard();
+  else if(id==='pos'){ renderPositions(); maybeTutorial(); }
+  else if(id==='watch') renderWatchlist();
+  renderRoster();
+}
+function gotoScreen(id){
+  if(id===State.screen || switching) return;
+  if(prefersReduced){
+    // reduced motion: simple 100ms fade
+    const scr=$('#screen'); scr.style.transition='opacity .1s'; scr.style.opacity='0';
+    setTimeout(()=>{ showScreen(id); redrawActiveCharts(); scr.style.opacity='1'; setTimeout(()=>scr.style.transition='',120); },100);
+    return;
+  }
+  runPowerOff(()=>showScreen(id));
+}
+// [S3] brightness via WHITE overlay opacity; screen uses transform+opacity only.
+function runPowerOff(swapFn){
+  switching=true;
+  const scr=$('#screen'), fx=$('#crtFx'), white=$('#crtFxWhite'), dot=$('#crtFxDot');
+  // A back-to-back Q/E can land during the previous transition's ~200ms settle tail
+  // (input unlocks early at phase 3). Cancel that tail's still-pending timers and
+  // reset every surface it was mid-animating, so this transition starts from a
+  // clean, full-size, fx-visible state instead of a half-collapsed one.
+  powerOffTimers.forEach(clearTimeout); powerOffTimers=[];
+  scr.style.transition=''; scr.style.transform='';
+  white.style.transition=''; white.style.opacity='0';
+  dot.style.transition=''; dot.style.opacity='0';
+  fx.style.display='block';
+  // PHASE 1 — collapse (~150ms): scaleY -> line, white overlay ramps up (brightness)
+  scr.style.transition='transform .15s ease-in, opacity .15s ease-in';
+  white.style.transition='opacity .15s ease-in';
+  scr.style.transformOrigin='center center';
+  requestAnimationFrame(()=>{
+    scr.style.transform='scaleY(0.006)';
+    white.style.opacity='0.55';
+  });
+  powerOffTimers.push(setTimeout(()=>{
+    // PHASE 2 — dot (~120ms): scaleX -> dot; white fades; phosphor dot with green halo
+    scr.style.transition='transform .12s ease-in, opacity .12s';
+    white.style.transition='opacity .12s';
+    scr.style.transform='scaleY(0.006) scaleX(0.001)';
+    white.style.opacity='0';
+    dot.style.transition='opacity .08s'; dot.style.opacity='1';
+    powerOffTimers.push(setTimeout(()=>{
+      // swap content while black. Charts drawn here use the offsetWidth fallback
+      // in fitCanvas (transform-immune), so they size correctly despite the collapse.
+      swapFn();
+      redrawActiveCharts();
+      scr.style.transform='scaleY(0.006) scaleX(0.001)';
+      // lingering dot then fade
+      powerOffTimers.push(setTimeout(()=>{
+        dot.style.transition='opacity .1s'; dot.style.opacity='0';
+        // PHASE 3 — power-on: line -> full, overshoot + one-frame jitter.
+        // release the input lock now — the screen is already usable through the settle.
+        switching=false;
+        scr.style.transition='transform 0s';
+        scr.style.transform='scaleY(0.006) scaleX(1)'; // snap to full-width line
+        white.style.transition='opacity .06s'; white.style.opacity='0.35'; // brief spike
+        requestAnimationFrame(()=>{
+          scr.style.transition='transform .13s cubic-bezier(.2,1.4,.4,1)';
+          scr.style.transform='scaleY(1.02) scaleX(1)';
+          white.style.transition='opacity .13s'; white.style.opacity='0';
+          powerOffTimers.push(setTimeout(()=>{
+            // settle + one frame of horizontal jitter as "signal locks" — a true
+            // two-frame snap, not an eased wobble, so kill the transition first.
+            scr.style.transition='transform 0s';
+            scr.style.transform='translateX(2px) scaleY(1) scaleX(1)';
+            requestAnimationFrame(()=>{ requestAnimationFrame(()=>{
+              scr.style.transform='translateX(0) scale(1)';
+            }); });
+            powerOffTimers.push(setTimeout(()=>{
+              scr.style.transition=''; scr.style.transform=''; fx.style.display='none';
+              redrawActiveCharts(); // final re-fit now the box is at true size
+              beep('on');
+            },40));
+          },130));
+        });
+      },15));
+    },120));
+  },150));
+  beep('off');
+}
+
+/* ================= FIRST-RUN TUTORIAL ================= */
+function maybeTutorial(){
+  if(State.tutorialShown) return;
+  State.tutorialShown=true;
+  // pixel-art dispatcher portrait (tiny canvas)
+  const c=document.createElement('canvas'); c.width=46; c.height=46;
+  const x=c.getContext('2d'); const P=(px,py,col,s=6)=>{ x.fillStyle=col; x.fillRect(px*s,py*s,s,s); };
+  x.fillStyle='#16241F'; x.fillRect(0,0,46,46);
+  // face
+  for(let i=2;i<=5;i++)for(let j=1;j<=5;j++)P(i,j,'#C9A27A');
+  P(2,2,'#8A6B45');P(5,2,'#8A6B45'); // hair edges
+  for(let i=2;i<=5;i++)P(i,0,'#3A2E20'); P(2,1,'#3A2E20');P(5,1,'#3A2E20');
+  P(3,3,'#23201A');P(4,3,'#23201A'); // eyes
+  P(3,4,'#8A6B45'); // nose/mouth hint
+  // headset
+  P(1,2,'#D9942B');P(1,3,'#D9942B');P(6,2,'#D9942B'); P(1,4,'#D9942B');
+  // collar
+  for(let i=1;i<=6;i++)P(i,6,'#5D8B80');
+  $('#tutPortrait').innerHTML=''; $('#tutPortrait').appendChild(c);
+  c.style.width='100%'; c.style.height='100%'; c.style.imageRendering='pixelated';
+  $('#tutorial').classList.add('show');
+}
+function dismissTutorial(){ $('#tutorial').classList.remove('show'); }
+function tutorialOpen(){ return $('#tutorial').classList.contains('show'); }
+
+/* ================= 8. KEYBOARD ================= */
+function cycleApp(dir){
+  const i=SCREENS.findIndex(s=>s.id===State.screen);
+  const ni=(i+dir+SCREENS.length)%SCREENS.length;
+  gotoScreen(SCREENS[ni].id);
+}
+document.addEventListener('keydown', e=>{
+  // boot skip
+  if(!$('#boot').classList.contains('gone')){ skipBoot(); return; }
+  if(tutorialOpen()){
+    if(e.key==='Enter'){ dismissTutorial(); e.preventDefault(); }
+    return;
+  }
+  const k=e.key;
+  if(k==='Shift' && e.location===1){ document.body.classList.add('tips'); return; } // LSHIFT tooltips
+  const editing = document.activeElement && document.activeElement.tagName==='INPUT';
+  switch(k.toLowerCase()){
+    case 'q': if(editing) break; cycleApp(-1); e.preventDefault(); break;
+    case 'e': if(editing) break; cycleApp(1); e.preventDefault(); break;
+    case 'arrowleft': if(!editing){ moveRoster(-1); e.preventDefault(); } break;
+    case 'arrowright': if(!editing){ moveRoster(1); e.preventDefault(); } break;
+    case 'arrowup': if(State.screen==='pos'&&!editing){ stageDelta(+1); e.preventDefault(); } break;
+    case 'arrowdown': if(State.screen==='pos'&&!editing){ stageDelta(-1); e.preventDefault(); } break;
+    case '+': case '=': if(State.screen==='pos'&&!editing){ stageDelta(+1); e.preventDefault(); } break;
+    case '-': case '_': if(State.screen==='pos'&&!editing){ stageDelta(-1); e.preventDefault(); } break;
+    case 'enter': if(State.screen==='pos'){
+        if(editing){ const v=parseInt($('#stepQty').value,10); State.staged=isNaN(v)?0:v; clampStaged(); document.activeElement.blur(); renderPositions(); }
+        else confirmStage();
+        e.preventDefault();
+      } break;
+    case 'tab': if(!editing){ cyclePanel(); e.preventDefault(); } break;
+    case 'x': if(editing) break; if(State.screen==='pos'){ resetStage(); e.preventDefault(); } break;
+    case 'f': if(editing) break; if(State.screen==='pos'){ toggleStrategy(); e.preventDefault(); } break;
+    case 'escape':
+      if(State.screen!=='dash'){ gotoScreen('dash'); }
+      e.preventDefault(); break;
+  }
+});
+document.addEventListener('keyup', e=>{
+  if(e.key==='Shift'){ document.body.classList.remove('tips'); }
+});
+
+/* ================= TASKBAR: clock + market state + feed ================= */
+function isMarketOpen(now){
+  // NYSE hours 09:30–16:00 America/New_York, Mon–Fri. Compute from local via ET offset.
+  const et = new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'}));
+  const day=et.getDay(); if(day===0||day===6) return {open:false, et};
+  const mins=et.getHours()*60+et.getMinutes();
+  return {open: mins>=570 && mins<960, et};
+}
+function updateTaskbar(){
+  const now=new Date();
+  $('#tbClock').textContent = now.toTimeString().slice(0,8);
+  const {open,et}=isMarketOpen(now);
+  const mkt=$('#tbMkt');
+  mkt.className='seg mkt '+(open?'open':'closed');
+  mkt.innerHTML=`mkt: <b>${open?'OPEN':'CLOSED'} ${et.toTimeString().slice(0,8)} EST</b>`;
+  // feed banner
+  const feed=$('#tbFeed');
+  if(DataEngine.live){ feed.className='seg feed live'; feed.innerHTML=`feed: <b>LIVE ${DataEngine.latencyMs}ms</b>`; }
+  else { feed.className='seg feed offline'; feed.innerHTML=`feed: <b>OFFLINE // CACHED</b>`; }
+  $('#tbVol').innerHTML=`vol: <b>${State.muted?'MUTED':State.vol+'%'}</b>`;
+}
+
+/* ================= AUDIO (optional, gated by vol toggle) ================= */
+let audioCtx=null;
+function beep(kind){
+  if(State.muted) return;
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type='square';
+    const t=audioCtx.currentTime; const v=(State.vol/100)*0.05;
+    if(kind==='off'){ o.frequency.setValueAtTime(320,t); o.frequency.exponentialRampToValueAtTime(80,t+0.12); g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.13); o.start(t); o.stop(t+0.14); }
+    else if(kind==='on'){ o.frequency.setValueAtTime(900,t); o.frequency.exponentialRampToValueAtTime(1500,t+0.06); g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.09); o.start(t); o.stop(t+0.1); }
+    else { o.frequency.setValueAtTime(1200,t); g.gain.setValueAtTime(v*0.6,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.03); o.start(t); o.stop(t+0.04); }
+  }catch(_){}
+}
+
+/* ================= BOOT SPLASH ================= */
+const BOOT_LINES=[
+  'MDN BIOS v4.27',
+  'memory check ......... OK',
+  '640K conventional + 64512K extended',
+  'phosphor tube warmup .. OK',
+  'feed handshake ........ negotiating',
+  'roster load: NVDA AAPL TSLA SPY BTC ETH AMD GME',
+  'DESK 07 online. operator: R. VANCE',
+  'booting MARKET DISPATCH NETWORK ...'
+];
+let bootDone=false;
+function runBoot(){
+  const el=$('#bootText'); let li=0, ci=0, out='';
+  function tick(){
+    if(bootDone) return;
+    if(li>=BOOT_LINES.length){ setTimeout(skipBoot, 220); return; }
+    const line=BOOT_LINES[li];
+    if(ci<line.length){ out+=line[ci++]; el.innerHTML=out+'<span class="cur"></span>'; setTimeout(tick, 5+Math.random()*8); }
+    else { out+='\n'; el.innerHTML=out+'<span class="cur"></span>'; li++; ci=0; setTimeout(tick, 40); }
+  }
+  el.style.whiteSpace='pre'; tick();
+  setTimeout(()=>{ if(!bootDone) skipBoot(); }, 1600); // hard cap ~1.6s (brief: keep it fast)
+}
+function skipBoot(){
+  if(bootDone) return; bootDone=true;
+  $('#boot').classList.add('gone');
+}
+
+/* ================= LIVE-ISH TICKS ================= */
+function tickLoop(){
+  DataEngine.tick();
+  // update visible surfaces cheaply
+  updateRosterPrices();
+  if(State.screen==='dash'){ renderDashAccount(); renderIndices(); renderMovers(); setTickText($('#chLast'), fmtUSD(DataEngine.get(State.selected).last, DataEngine.get(State.selected).last<10?4:2)); if(State.range==='1D') drawMainChart(); }
+  else if(State.screen==='pos'){ renderPositions(); }
+  updateTaskbar();
+  setTimeout(tickLoop, 1000+Math.random()*1000); // 1–2s
+}
+function updateRosterPrices(){
+  $$('[data-roster] .rcard').forEach(card=>{
+    const sym=card.dataset.sym; const q=DataEngine.get(sym);
+    const lastEl=card.querySelector('[data-last]'); if(lastEl) setTickText(lastEl, fmtUSD(q.last,q.last<10?4:2));
+    const pc=card.querySelector('.rpc'); if(pc){ pc.className='rpc mono '+glClass(q.dayPct); pc.textContent=`${arrow(q.dayPct)}${Math.abs(q.dayPct).toFixed(2)}%`; }
+    // keep the sparkline "portrait" stroke in sync when dayPct flips sign
+    // between full roster re-renders (colour must track the number).
+    const path=card.querySelector('.rport path'); if(path) path.setAttribute('stroke', q.dayPct>=0?'var(--gain)':'var(--loss)');
+  });
+}
+
+/* ================= WIRE-UP + INIT ================= */
+function wireEvents(){
+  // range toggles
+  $('#rangeTog').addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    State.range=b.dataset.r; renderDashChart();
+  });
+  // stepper buttons
+  $('#stepMinus').addEventListener('click',()=>stageDelta(-1));
+  $('#stepPlus').addEventListener('click',()=>stageDelta(+1));
+  $('#stepQty').addEventListener('change', e=>{
+    const v=parseInt(e.target.value,10); State.staged=isNaN(v)?0:v; clampStaged(); renderPositions();
+  });
+  $('#btnReset').addEventListener('click', resetStage);
+  $('#btnConfirm').addEventListener('click', confirmStage);
+  $('#stratHedged').addEventListener('click', toggleStrategy);
+  $('#stratDir').addEventListener('click', toggleStrategy);
+  $('#tutorial').addEventListener('click', e=>{ if(e.target.id==='tutorial'||e.target.closest('.tut-cta')) dismissTutorial(); });
+  // esc-back affordances
+  $$('[data-esc]').forEach(el=>el.addEventListener('click',()=>{ if(State.screen!=='dash') gotoScreen('dash'); }));
+  // volume toggle in taskbar
+  $('#tbVol').style.cursor='pointer';
+  $('#tbVol').addEventListener('click',()=>{ State.muted=!State.muted; updateTaskbar(); });
+  // main chart crosshair
+  const cw=$('#mainChart');
+  cw.addEventListener('mousemove', e=>{ const r=cw.getBoundingClientRect(); crossX=e.clientX-r.left; drawMainChart(); });
+  cw.addEventListener('mouseleave', ()=>{ crossX=null; drawMainChart(); });
+  // redraw on resize
+  let rz; window.addEventListener('resize', ()=>{ clearTimeout(rz); rz=setTimeout(()=>{
+    if(State.screen==='dash') drawMainChart();
+    else if(State.screen==='pos'){ drawRadar($('#posRadarWrap'),State.selected,State.staged,true); }
+    else if(State.screen==='watch'){ drawWatchChart(); drawRadar($('#wRadarWrap'),State.selected,0,false); }
+  },120); });
+}
+
+// Belt-and-suspenders: on file:// a blocked cross-origin fetch can (rarely) surface
+// as an unhandled rejection depending on the browser. Swallow it and ensure the
+// diegetic offline state — never a console-error cascade, never a broken UI.
+window.addEventListener('unhandledrejection', (e)=>{
+  e.preventDefault();
+  DataEngine.live=false;
+  try{ updateTaskbar(); }catch(_){}
+});
+
+function boot(){
+  DataEngine.init();
+  buildIcons();
+  renderAlerts();
+  renderRoster();
+  showScreen('dash');
+  wireEvents();
+  updateTaskbar();
+  runBoot();
+  setInterval(updateTaskbar, 1000);
+  setTimeout(tickLoop, 1600);
+  // attempt live feed (crypto). Diegetic failover on any failure/timeout.
+  DataEngine.tryLive().then(ok=>{
+    if(ok){ if(State.screen==='dash') renderDashboard(); renderRoster(); }
+    updateTaskbar();
+    // keep the live slots honest: re-poll so BTC/ETH don't freeze at their first price
+    if(ok) setInterval(()=>DataEngine.tryLive(), 15000);
+  }).catch(()=>{ DataEngine.live=false; updateTaskbar(); });
+}
+window.addEventListener('DOMContentLoaded', boot);
+</script>
+</body>
+</html>
