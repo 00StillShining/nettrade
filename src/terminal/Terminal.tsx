@@ -427,7 +427,14 @@ export default function Terminal() {
       <div id="desk">
         {/* TOP BAR */}
         <div id="topbar">
-          <div className="tb-logo">◆ <b>MDN</b> // MARKET DISPATCH NETWORK</div>
+          <div
+            className="tb-logo"
+            role="button"
+            tabIndex={0}
+            title="Return to Animus menu"
+            onClick={() => navigate("/")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate("/"); } }}
+          >◆ <b>MDN</b> // MARKET DISPATCH NETWORK</div>
           <div className="tb-ctrl"><span>^</span><span>⌄</span><span>×</span></div>
           <div className="tb-sess">OPERATOR: <b id="opName">STILLSHINING</b> · DESK 07</div>
         </div>

@@ -91,13 +91,15 @@ body{
    The flat-glass giveaway (repeating-linear) is gone; this is the技 BakedCrt uses. */
 #crtScan{
   position:fixed; inset:0; z-index:9000; pointer-events:none;
-  /* SEAMLESS BOW: the ring apex used to sit at x=50%, so the arc pattern MIRRORED
-     around the centre column — that phase-flip read as a vertical gap/seam down the
-     middle (user-reported). Pushing the centre off-glass (118% right, far below)
-     keeps every line gently bowed but leaves NO mirror column anywhere on screen. */
-  background:repeating-radial-gradient(circle at 118% 640%,
-    rgba(0,0,0,.20) 0 1.15px, rgba(0,0,0,0) 1.15px 3px);
-  opacity:.9;
+  /* FLAT horizontal scanlines — a radial "bow" rasterises as thick DIAGONAL bands in the
+     real WKWebView (off-centre arc tangent) and a centred radial reintroduces the mirror
+     SEAM. Dead-straight lines have neither problem and render identically in every engine;
+     the TUBE CURVATURE is carried by the vignette + edge compression + bezel. Kept in sync
+     with the app port's terminal.css. */
+  background:repeating-linear-gradient(to bottom,
+    rgba(0,0,0,.20) 0px, rgba(0,0,0,.20) 1px,
+    rgba(0,0,0,0) 1px, rgba(0,0,0,0) 3px);
+  opacity:.85;
 }
 /* [S6+] BARREL VIGNETTE — stronger corners + a tighter falloff so the picture reads
    as bulging toward the viewer. Radial-gradient is WKWebView-safe. */
