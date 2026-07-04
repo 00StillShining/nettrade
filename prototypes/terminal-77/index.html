@@ -622,6 +622,203 @@ table.ledger .side.gain{ color:var(--gain); } table.ledger .side.loss{ color:var
 .perf-tag.live{ background:var(--teal); color:var(--paper); border-color:var(--teal); }
 .perf-tag:empty{ display:none; }
 
+/* ===================== WAVE-2 SHARED HELPERS (Scanner/Alerts/News/Compare) =====================
+   Landed FIRST so all five wave-2 screens consume ONE palette-safe surface each.
+   §1 PALETTE LAW enforced structurally here:
+     - .segrow/.segbtn  → segmented toggle; EXACTLY one .on carries --orange (the active VERB).
+     - .statuschip      → ink/teal WORD + SHAPE severity; NEVER green/red/orange. Severity by
+                          filled-vs-hollow PIPS + weight + border, not by hue.  */
+
+/* 1) segToggle — orange-active-only segmented control (reuses the .perf-srcbtn look) */
+.segrow{ display:inline-flex; align-items:stretch; gap:0; }
+.segbtn{ font-family:var(--f-mono); font-weight:600; font-size:11px; letter-spacing:.03em;
+  padding:3px 10px; border:1.5px solid var(--ink); border-left-width:0.75px; border-right-width:0.75px;
+  background:var(--paper-dark); color:var(--ink-soft); cursor:pointer; text-transform:uppercase;
+  box-shadow:0 2px 0 var(--ink-soft); position:relative; }
+.segrow .segbtn:first-child{ border-left-width:1.5px; }
+.segrow .segbtn:last-child{ border-right-width:1.5px; }
+.segbtn .segcount{ font-size:9px; vertical-align:super; margin-left:3px; opacity:.75; letter-spacing:0; }
+.segbtn.on{ background:var(--orange); color:var(--ink); box-shadow:0 2px 0 var(--ink); font-weight:700; z-index:1; }
+
+/* 2) statusChip — ink/teal WORD + SHAPE classification (severity by PIPS, never colour) */
+.statuschip{ display:inline-flex; align-items:center; gap:5px; font-family:var(--f-cond);
+  font-weight:700; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  padding:2px 7px 2px 6px; border:1.5px solid var(--ink); color:var(--ink); background:transparent; white-space:nowrap; }
+.statuschip.na{ color:var(--ink-soft); border-color:var(--ink-soft); border-style:dashed; }
+.statuschip .pips{ display:inline-flex; gap:2px; }
+.statuschip .pip{ width:6px; height:6px; border:1px solid var(--ink); box-sizing:border-box; }
+.statuschip .pip.f{ background:var(--ink); }               /* filled = met/severe */
+.statuschip.na .pip{ border-color:var(--ink-soft); }
+/* severity by WEIGHT/BORDER, not hue: higher severity → heavier frame (still ink/teal only) */
+.statuschip.sev-ok{ }
+.statuschip.sev-warn{ }
+.statuschip.sev-high{ border-width:2px; }
+.statuschip.sev-severe{ border-width:2px; background:var(--ink); color:var(--paper); }
+.statuschip.sev-severe .pip{ border-color:var(--paper); }
+.statuschip.sev-severe .pip.f{ background:var(--paper); }
+
+/* ============================== SCANNER (wave-2, id=scan) ============================== */
+#scan .screenbody{ display:flex; flex-direction:column; min-height:0; gap:8px; }
+.scan-card{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:14px 14px 12px; }
+.scan-presetbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+.scan-presets{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.scan-badge{ margin-left:auto; font-family:var(--f-mono); font-size:10px; letter-spacing:.1em;
+  color:var(--teal); border:1.5px solid var(--teal); padding:2px 7px; text-transform:uppercase; }
+.scan-badge.cached{ color:var(--orange); border-color:var(--orange); }
+.scan-method{ font-family:var(--f-mono); font-size:10px; line-height:1.5; color:var(--teal);
+  letter-spacing:.02em; border-left:2px solid var(--teal); padding:3px 0 3px 8px; margin-bottom:8px; }
+.scan-method b{ color:#8FB8AD; font-weight:600; }
+.scan-sortbar{ display:flex; align-items:center; gap:8px; margin-bottom:6px; font-family:var(--f-mono);
+  font-size:10px; letter-spacing:.08em; color:var(--ink-soft); }
+.scan-sortbar .lbl{ color:var(--teal); }
+.scan-ledwrap{ flex:1 1 auto; min-height:0; overflow-y:auto; border:1px solid rgba(35,32,26,.28); }
+.scan-ledwrap::-webkit-scrollbar{ width:10px; }
+.scan-ledwrap::-webkit-scrollbar-thumb{ background:var(--ink-soft); }
+/* the LOOK-HERE marker: a 3px orange LEFT-BORDER + ▲ glyph on the top-ranked matched row.
+   Orange is a POSITION cue here, never a fill on a value cell (§1). */
+table.ledger tr.scan-top td:first-child{ border-left:3px solid var(--orange); }
+table.ledger tr.scan-dim td{ opacity:.46; }
+table.ledger td.scan-score{ font-weight:700; }
+table.ledger .rsi-rail{ display:inline-flex; align-items:center; gap:5px; }
+table.ledger .rsi-rail .rr-track{ position:relative; width:34px; height:3px; background:rgba(35,32,26,.22); }
+table.ledger .rsi-rail .rr-dot{ position:absolute; top:-2px; width:3px; height:7px; background:var(--ink); }
+table.ledger .rsi-rail .rr-os,table.ledger .rsi-rail .rr-ob{ position:absolute; top:-1px; width:1px; height:5px; background:var(--ink-soft); }
+table.ledger .scan-spark{ display:block; }
+.scan-empty{ padding:26px 16px; text-align:center; font-family:var(--f-mono); font-size:11px;
+  color:var(--ink-soft); line-height:1.6; letter-spacing:.04em; }
+.scan-roster-wrap{ margin-top:14px; }
+
+/* ============================== NEWS (wave-2, id=news) ============================== */
+/* Two-col grid mirroring #watch (line 535): the WIRE FEED hero wins ~62%, dossier ~38%.
+   Both cards run the full-height flex chain so the wire LIST is the single internal-scroll
+   region (SCREEN_PATTERNS internal-scroll + viewport-lock law) — the card never spills. */
+#news .screenbody{ display:grid; gap:22px; grid-template-columns:minmax(0,1.62fr) minmax(0,1fr); min-height:0; }
+.news-feed-card{ min-width:0; flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:16px 14px 12px; }
+.news-feedhead{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.news-lanes{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.news-badge{ margin-left:auto; font-family:var(--f-mono); font-size:10px; letter-spacing:.1em;
+  color:var(--teal); border:1.5px solid var(--teal); padding:2px 7px; text-transform:uppercase; }
+.news-badge.cached{ color:var(--orange); border-color:var(--orange); }  /* OFFLINE // CACHED reads orange (already the taskbar convention) */
+.news-tape{ margin-bottom:8px; flex:0 0 auto; }
+.news-feedscroll{ flex:1 1 auto; min-height:0; overflow-y:auto; border:1px solid rgba(35,32,26,.28); }
+.news-feedscroll::-webkit-scrollbar{ width:10px; }
+.news-feedscroll::-webkit-scrollbar-thumb{ background:var(--ink-soft); }
+/* one wire row = timing/impact chip + ticker/event + when + one-line consequence */
+.news-wire{ display:grid; grid-template-columns:auto 1fr auto; gap:4px 12px; align-items:baseline;
+  padding:10px 12px; border-bottom:1px solid rgba(35,32,26,.16); cursor:pointer; }
+.news-wire:nth-child(even){ background:var(--paper-dark); }
+.news-wire.sel{ outline:1.5px solid var(--teal); outline-offset:-1.5px; }
+/* the LOOK-HERE marker: 3px orange LEFT-BORDER on a genuinely imminent catalyst (§1 — position cue, never a fill) */
+.news-wire.imminent{ border-left:3px solid var(--orange); padding-left:9px; }
+.news-wire .w-badges{ grid-row:1 / span 2; display:flex; flex-direction:column; gap:5px; align-items:flex-start; }
+.news-wire .w-head{ font-family:var(--f-cond); font-weight:800; letter-spacing:.03em; font-size:15px; color:var(--ink); }
+.news-wire .w-head .w-sym{ color:var(--ink); }
+.news-wire .w-when{ font-family:var(--f-mono); font-size:10px; letter-spacing:.06em; color:var(--ink-soft);
+  text-align:right; white-space:nowrap; }
+.news-wire .w-when.now{ color:var(--orange); }  /* ink-on-orange 'imminent' word only — never red (§1) */
+.news-wire .w-line{ grid-column:2 / span 2; font-family:var(--f-mono); font-size:11px; line-height:1.5;
+  color:var(--ink-soft); letter-spacing:.01em; }
+.news-wire .w-line b{ color:var(--ink); font-weight:600; }
+.news-wire .w-num{ font-family:var(--f-mono); font-weight:600; }
+.news-wire .w-num.gain{ color:var(--gain); } .news-wire .w-num.loss{ color:var(--loss); }  /* market NUMBERS only */
+.news-empty{ padding:26px 16px; text-align:center; font-family:var(--f-mono); font-size:11px;
+  color:var(--ink-soft); line-height:1.7; letter-spacing:.04em; }
+/* imminent chip: ink-on-orange VERB — the one place orange marks a row in the feed (§1) */
+.news-immchip{ display:inline-block; font-family:var(--f-cond); font-weight:700; font-size:10px;
+  letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; background:var(--orange); color:var(--ink); }
+
+/* right column: dossier + this-week strip, stacked, each flex so nothing overflows */
+.news-side{ min-width:0; display:flex; flex-direction:column; gap:22px; min-height:0; }
+.news-dossier{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:16px 16px 14px; overflow:hidden; }
+.news-dosbody{ flex:1 1 auto; min-height:0; overflow-y:auto; }
+.news-doshero{ display:flex; align-items:flex-end; gap:12px; margin-bottom:6px; }
+.news-dossym{ font-family:var(--f-cond); font-weight:800; letter-spacing:.02em; font-size:42px; line-height:.92; color:var(--ink); }
+.news-dosbig{ font-family:var(--f-mono); font-weight:700; font-size:34px; line-height:.95; color:var(--ink); }
+.news-dosco{ font-family:var(--f-cond); font-weight:700; letter-spacing:.04em; font-size:15px; color:var(--ink-soft); text-transform:uppercase; margin-bottom:10px; }
+.news-dostags{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.news-doschips{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+.news-blurb{ font-family:var(--f-mono); font-size:11.5px; line-height:1.6; color:var(--ink);
+  border-left:2px solid var(--teal); padding:2px 0 2px 10px; }
+.news-week{ flex:0 0 auto; padding:16px 14px 12px; }
+.news-weekstrip{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-top:2px; }
+.news-daycol{ display:flex; flex-direction:column; align-items:center; gap:5px; padding:6px 2px 5px;
+  border:1px solid rgba(35,32,26,.22); background:transparent; }
+.news-daycol.wknd{ opacity:.42; }             /* Sat/Sun de-emphasised (Mon–Fri emphasised) */
+.news-daycol.peak{ border-left-color:var(--orange); border-left-width:3px; }  /* heavy day: orange 3px LEFT tick only (the "look here" verb) — not the full 1px frame, not a fill (§1) */
+.news-daycol .d-lbl{ font-family:var(--f-mono); font-size:9px; letter-spacing:.08em; color:var(--ink-soft); }
+.news-daycol .d-cnt{ font-family:var(--f-cond); font-weight:800; font-size:20px; line-height:1; color:var(--ink); }
+.news-daycol .d-cnt.zero{ color:var(--ink-soft); font-weight:600; }
+.news-weekfoot{ margin-top:9px; font-size:10px; letter-spacing:.04em; color:var(--ink-soft); }
+.news-roster-wrap{ margin-top:14px; grid-column:1 / -1; }
+/* Under ~1100px collapse to single column: hero WIRE FEED first + full-width, dossier below
+   (mirrors #dash's collapse; hero keeps winning). */
+@media (max-width:1100px){
+  #news .screenbody{ grid-template-columns:1fr; }
+  .news-feed-card{ min-height:280px; }
+  .news-side{ flex-direction:row; flex-wrap:wrap; }
+  .news-dossier,.news-week{ flex:1 1 300px; }
+}
+@media (max-height:760px){ .news-dossym{ font-size:34px; } .news-dosbig{ font-size:28px; } }
+/* narrow viewport: ledger already single-column, nothing to drop — keep it dominating */
+
+/* ============================== ALERTS (wave-2, id=alerts) ==============================
+   Board is the hero (armed-watch ledger). Regime strip + ticket are a fixed-height row.
+   PALETTE LAW: TRIGGERED reads via orange LEFT-BAR + word + ▲/▼ shape — NEVER colour-alone.
+   Regime classification (NORMAL/CAUTION/HIGH/SEVERE, FTD state) is ink/teal WORD+SHAPE
+   via statusChip — NEVER green/red/orange. Market NUMBERS keep gain/loss only. */
+#alerts .screenbody{ display:flex; flex-direction:column; min-height:0; gap:8px; }
+.al-board-card{ flex:1 1 auto; display:flex; flex-direction:column; min-height:200px; padding:14px 14px 12px; } /* hero must not collapse to 0 on a short viewport (Performance/Compare lesson); .al-watch-scroll handles overflow */
+.al-boardhead{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.al-note{ margin-left:auto; font-size:9.5px; letter-spacing:.09em; color:var(--ink-soft);
+  border:1px solid var(--ink-soft); padding:2px 7px; }
+.al-watch-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; border:1px solid rgba(35,32,26,.28); }
+.al-watch-scroll::-webkit-scrollbar{ width:10px; }
+.al-watch-scroll::-webkit-scrollbar-track{ background:var(--paper-dark); border-left:1px solid var(--ink); }
+.al-watch-scroll::-webkit-scrollbar-thumb{ background:var(--ink-soft); }
+/* TRIGGERED row: orange 3px LEFT-BAR (the "look here" verb) — colour carries attention,
+   never classification. The STATE word + ▲/▼ shape carry the meaning independently. */
+table.ledger tr.al-fire td:first-child{ border-left:3px solid var(--orange); }
+/* NO orange fill on the row's cells — the 3px left-bar + TRIGGERED chip + ▲/▼ shape carry
+   attention (palette law: orange = "look here" verb via border/glyph, never a status/value fill). */
+.al-cond{ font-family:var(--f-mono); font-size:11px; letter-spacing:.02em; }
+.al-statechip{ display:inline-flex; align-items:center; font-family:var(--f-cond); font-weight:800;
+  font-size:11px; letter-spacing:.09em; padding:2px 8px; border:1.5px solid var(--ink); text-transform:uppercase; }
+.al-statechip.armed{ color:var(--ink-soft); border-color:var(--ink-soft); }
+.al-statechip.fire{ color:var(--ink); border-color:var(--orange); border-width:2px; }
+.al-nowfire{ font-weight:700; }
+/* REGIME STRIP + TICKET — fixed-height grid row on the 8px rhythm */
+.al-strip{ flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr 0.9fr; gap:12px; }
+.al-reg,.al-ticket{ padding:12px 14px 12px; display:flex; flex-direction:column; }
+.al-regtop{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-top:2px; }
+.al-regbig{ font-family:var(--f-mono); font-weight:600; font-size:22px; color:var(--ink); letter-spacing:.01em; }
+.al-ftdstate{ font-family:var(--f-cond); font-weight:800; font-size:16px; letter-spacing:.05em; text-transform:uppercase; }
+.al-reglbl{ font-family:var(--f-cond); font-weight:700; font-size:10px; letter-spacing:.1em;
+  color:var(--ink-soft); text-transform:uppercase; }
+.al-regchip{ margin-left:auto; }
+.al-regsub{ font-size:10px; letter-spacing:.06em; color:var(--ink-soft); margin-top:6px; }
+.al-ftdlvls{ display:flex; gap:16px; font-size:10px; letter-spacing:.04em; color:var(--ink-soft); margin-top:8px; }
+.al-ftdlvls b{ color:var(--ink); font-weight:600; }
+.al-reghint{ font-family:var(--f-cond); font-weight:700; font-size:12px; letter-spacing:.06em;
+  color:var(--teal); text-transform:uppercase; margin-top:8px; }
+.al-regfoot{ font-size:9px; letter-spacing:.07em; color:var(--ink-soft); margin-top:auto; padding-top:8px; opacity:.85; }
+/* NEW WATCH TICKET — quiet until focused; reuses the Positions .stepper verbatim */
+.al-tickrow{ display:flex; align-items:center; gap:10px; margin-top:8px; }
+.al-tickrow:first-of-type{ margin-top:6px; }
+.al-ticklbl{ font-family:var(--f-cond); font-weight:700; font-size:11px; letter-spacing:.1em;
+  color:var(--ink-soft); text-transform:uppercase; width:52px; flex:0 0 auto; }
+.al-ticket .stepper{ margin-top:0; }
+.al-ticket .stepper input{ width:96px; }
+.al-arm{ margin-top:12px; width:100%; }
+.al-tickfoot{ font-size:9px; line-height:1.5; letter-spacing:.03em; color:var(--ink-soft); margin-top:auto; padding-top:10px; }
+.al-empty{ padding:30px 18px; text-align:center; font-family:var(--f-cond); font-weight:800;
+  font-size:15px; letter-spacing:.08em; color:var(--ink-soft); text-transform:uppercase; }
+.al-empty-sub{ display:block; margin-top:10px; font-family:var(--f-prose); font-weight:400; font-size:12px;
+  letter-spacing:.01em; text-transform:none; font-style:italic; line-height:1.55; color:var(--ink-soft); }
+.al-roster-wrap{ margin-top:14px; }
+/* narrow viewport: board wins — regime strip collapses to one row, ticket tucks under */
+@media (max-height:760px){ .al-regbig{ font-size:18px; } .al-board-card{ padding-top:12px; } }
+@media (max-width:900px){ .al-strip{ grid-template-columns:1fr 1fr; } .al-ticket{ grid-column:1 / -1; } }
+
 .perf-stage{ flex:1 1 auto; display:flex; gap:14px; min-height:0; }
 .perf-canvaswrap{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; min-width:0; overflow:hidden; }
 .perf-chartcol{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; gap:6px; }
@@ -675,6 +872,97 @@ table.ledger .side.gain{ color:var(--gain); } table.ledger .side.loss{ color:var
   .perf-rail{ flex-basis:170px; }
 }
 
+/* ============================== COMPARE (wave-2, id=compare) ==============================
+   Side-by-side value fingerprint. Layout is Performance's exact vertical-budget lesson:
+   the hero (price well + radar band) wins vertical space; the delta table internal-scrolls
+   and never pushes the roster off. Line identity uses PAPER/BROWN/GREY neutrals only —
+   teal is info, orange is verb, gain/loss stay market-numbers-only. BEST cell = 3px orange
+   LEFT-BORDER + ▲ marker (a "look-here" flag), never an orange fill. */
+#compare .screenbody{ display:flex; flex-direction:column; min-height:0; }
+.cmp-main{ flex:2 1 auto; display:flex; flex-direction:column; min-height:300px; padding:14px 14px 12px; } /* hero dominates ~62% — the well+radars keep vertical priority (Performance's lesson) */
+.cmp-head{ display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+.cmp-slots{ display:flex; align-items:stretch; gap:8px; flex:1 1 auto; min-width:0; flex-wrap:wrap; }
+/* a slot = the Performance SYM⌐ input pattern + a colour key + an assign affordance */
+.cmp-slot{ display:flex; align-items:center; gap:7px; border:1.5px solid var(--ink);
+  background:var(--paper); padding:3px 8px; box-shadow:0 2px 0 var(--ink-soft); cursor:pointer;
+  min-width:0; }
+.cmp-slot.empty{ background:var(--paper-dark); border-style:dashed; }
+.cmp-slot.active{ box-shadow:0 0 0 2px var(--orange), 0 2px 0 var(--ink); } /* orange focus ring = active VERB (legal) */
+.cmp-slot .swatch{ width:12px; height:12px; border:1.5px solid var(--ink); flex:0 0 auto; }
+.cmp-slot .slotno{ font-family:var(--f-mono); font-size:9px; font-weight:600; color:var(--ink-soft);
+  letter-spacing:.06em; flex:0 0 auto; }
+.cmp-slot .sym{ font-family:var(--f-cond); font-weight:800; font-size:15px; letter-spacing:.04em;
+  color:var(--ink); white-space:nowrap; }
+.cmp-slot .nm{ font-family:var(--f-prose); font-size:11px; color:var(--ink-soft);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px; }
+.cmp-slot .empt{ font-family:var(--f-mono); font-size:10px; letter-spacing:.03em; color:var(--ink-soft);
+  text-transform:uppercase; }
+.cmp-slot .pct{ font-family:var(--f-mono); font-weight:600; font-size:12px; margin-left:auto; }
+.cmp-slot input{ width:64px; border:none; background:transparent; color:var(--ink);
+  font-family:var(--f-mono); font-weight:600; font-size:12px; letter-spacing:.05em;
+  text-transform:uppercase; outline:none; }
+.cmp-slot input::placeholder{ color:var(--ink-soft); opacity:.6; }
+.cmp-slot .pfx{ font-family:var(--f-mono); font-size:10px; color:var(--teal); font-weight:600; flex:0 0 auto; }
+
+.cmp-stage{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; gap:8px; overflow:hidden; } /* clip — never let the well/radars bleed onto the delta card below */
+/* TOP: shared normalized price well — flex 1 1 60%, min-height keeps it alive at 720p */
+.cmp-wellhead{ flex:0 0 auto; display:flex; align-items:center; gap:10px; }
+.cmp-welltag{ font-family:var(--f-cond); font-weight:700; font-size:10px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-soft); }
+.cmp-welllegend{ display:flex; align-items:center; gap:12px; margin-left:auto; flex-wrap:wrap; }
+.cmp-lg{ display:inline-flex; align-items:center; gap:5px; font-family:var(--f-mono); font-size:11px;
+  letter-spacing:.02em; color:var(--ink-soft); }
+.cmp-lg .sw{ width:14px; height:3px; flex:0 0 auto; }
+.cmp-lg .lgsym{ color:var(--ink); font-weight:600; }
+.cmp-lg .lgend{ font-variant-numeric:tabular-nums; }
+.cmp-well{ position:relative; background:var(--crt-desktop); border:2px solid var(--ink);
+  flex:1 1 52%; min-height:110px; overflow:hidden; }
+.cmp-well canvas{ position:absolute; inset:0; width:100%; height:100%; }
+/* BOTTOM: horizontal radar band, one pentagon per slot — needs real height so the pentagon reads */
+.cmp-radarband{ flex:1 1 48%; display:flex; gap:12px; min-height:130px; }
+.cmp-radarcell{ flex:1 1 0; display:flex; flex-direction:column; min-width:0; min-height:0;
+  background:var(--paper-dark); border:1.5px solid var(--ink); overflow:hidden; }
+.cmp-radarcell.empty{ border-style:dashed; align-items:center; justify-content:center; }
+.cmp-radartop{ flex:0 0 auto; display:flex; align-items:center; gap:6px; padding:5px 8px;
+  border-bottom:1.5px solid var(--ink); }
+.cmp-radartop .swatch{ width:11px; height:11px; border:1.5px solid var(--ink); flex:0 0 auto; }
+.cmp-radartop .sym{ font-family:var(--f-cond); font-weight:800; font-size:14px; color:var(--ink); }
+.cmp-radartop .verdict{ margin-left:auto; }
+.cmp-radarsvg{ flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; }
+.cmp-radarsvg svg{ width:100%; height:100%; }
+.cmp-radarcap{ flex:0 0 auto; text-align:center; font-family:var(--f-mono); font-size:10px;
+  letter-spacing:.03em; color:var(--ink-soft); padding:3px 4px 5px; }
+.cmp-radarcap b{ color:var(--ink); }
+.cmp-radar-empt{ font-family:var(--f-mono); font-size:11px; letter-spacing:.03em; color:var(--ink-soft);
+  text-transform:uppercase; text-align:center; padding:14px; line-height:1.5; }
+.cmp-radar-empt b{ color:var(--ink); }
+
+/* SUPPORTING: delta table, capped ~34vh, internal scroll (Actuality internal-scroll law) */
+.cmp-deltacard{ flex:0 1 auto; max-height:30vh; display:flex; flex-direction:column; min-height:96px;
+  margin-top:14px; padding:0; } /* internal-scroll (Actuality law) — yields to the hero, never pushes the roster off */
+.cmp-deltahead{ flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:10px 14px 8px; }
+.cmp-deltascroll{ flex:1 1 auto; min-height:0; overflow-y:auto; padding:0 14px 12px; }
+.cmp-deltascroll::-webkit-scrollbar{ width:10px; }
+.cmp-deltascroll::-webkit-scrollbar-track{ background:var(--paper-dark); border:1px solid var(--ink); }
+.cmp-deltascroll::-webkit-scrollbar-thumb{ background:var(--ink); border:2px solid var(--paper-dark); }
+table.ledger td.cmp-metric{ font-family:var(--f-cond); font-weight:700; letter-spacing:.05em;
+  color:var(--ink); }
+table.ledger td.cmp-sub{ font-family:var(--f-mono); font-size:10px; color:var(--ink-soft); }
+/* BEST cell: a 3px orange LEFT-border + ▲ glyph flags the winning cell — NEVER an orange fill */
+table.ledger td.cmp-best{ border-left:3px solid var(--orange); font-weight:700; }
+table.ledger td.cmp-best .bmark{ color:var(--orange); font-weight:700; margin-right:3px; }
+.cmp-empty{ font-family:var(--f-mono); font-size:13px; color:var(--ink-soft); letter-spacing:.03em;
+  padding:22px 8px; border:1.5px dashed rgba(35,32,26,.4); background:var(--paper-dark); text-align:center; line-height:1.5; }
+.cmp-empty b{ color:var(--ink); font-weight:600; }
+.cmp-roster-wrap{ margin-top:14px; }
+@media (max-width:1100px){
+  /* Narrow: radars stay ONE row but shrink + the band scrolls horizontally rather than wrapping
+     to a 2nd row — wrapping would blow past the hero's height and overlap the delta table.
+     The price well always keeps its full vertical share (Performance's lesson: the chart wins). */
+  .cmp-radarband{ overflow-x:auto; overflow-y:hidden; }
+  .cmp-radarcell{ flex:1 0 240px; }
+}
+
 /* ============================ BOOT SPLASH ============================= */
 #boot{ position:fixed; inset:0; z-index:8500; background:#05090A; display:flex; flex-direction:column;
   justify-content:center; padding:0 8vw; font-family:var(--f-mono); }
@@ -699,6 +987,101 @@ table.ledger .side.gain{ color:var(--gain); } table.ledger .side.loss{ color:var
 .pos-col::-webkit-scrollbar{ width:10px; }
 .pos-col::-webkit-scrollbar-track{ background:transparent; }
 .pos-col::-webkit-scrollbar-thumb{ background:rgba(35,32,26,.4); border-radius:4px; }
+
+/* ============================== JOURNAL (wave-2, id=journal, WND-0x9C) ==============================
+   Calm paper diary is the HERO. Two-col grid: the FEED (grid-col 1) owns the ONLY scroll
+   (overflow-y:auto; min-height:0 — same viewport-lock law as .statsheet/.orders-scroll);
+   the SESSION LEDGER sidebar (grid-col 2) is content-sized and never scrolls. Each fill is a
+   dated paper card carrying a humanist-body <textarea> note + four TEAL tag chips + optional
+   forward-only lifecycle pill. §1 palette: tags/pills stay ink/teal; green/red touch ONLY the
+   @price and NET BP DELTA numerals. Bottom .roster strip is reused verbatim. */
+#journal .screenbody{ display:grid; gap:16px; grid-template-columns:minmax(0,1fr) 320px;
+  grid-template-areas:"feed side""roster roster"; align-items:start; min-height:0; }
+.jn-feedcard{ grid-area:feed; min-width:0; display:flex; flex-direction:column; min-height:0;
+  align-self:stretch; padding:16px 14px 12px; }
+.jn-feedhead{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+.jn-feednote{ margin-left:auto; font-family:var(--f-mono); font-size:10px; letter-spacing:.06em;
+  color:var(--ink-soft); text-transform:uppercase; }
+.jn-feedscroll{ flex:1 1 auto; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px;
+  padding-right:4px; }
+.jn-feedscroll::-webkit-scrollbar{ width:10px; }
+.jn-feedscroll::-webkit-scrollbar-track{ background:var(--paper-dark); border:1.5px solid var(--ink); }
+.jn-feedscroll::-webkit-scrollbar-thumb{ background:var(--ink); border:2px solid var(--paper-dark); }
+/* one journal card = a warm-paper page */
+.jn-card{ position:relative; background:var(--paper); border:1.5px solid var(--ink);
+  box-shadow:3px 3px 0 rgba(35,32,26,.16); padding:11px 12px 12px; }
+.jn-card.sample{ border-style:dashed; opacity:.92; }
+.jn-cardhead{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.03em; color:var(--ink-soft); }
+.jn-cardhead .jn-time{ color:var(--ink); font-weight:600; }
+.jn-cardhead .jn-side{ display:inline-flex; align-items:center; gap:3px; font-weight:700; }
+.jn-cardhead .jn-qty{ color:var(--ink); font-weight:600; }
+.jn-cardhead .jn-sym{ font-family:var(--f-cond); font-weight:800; font-size:14px; letter-spacing:.04em;
+  color:var(--ink); }
+.jn-cardhead .jn-at{ color:var(--ink-soft); }
+.jn-cardhead .jn-price{ font-weight:600; }             /* market numeral — gain/loss class applied */
+.jn-sampletag{ margin-left:auto; font-family:var(--f-cond); font-weight:700; font-size:10px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft);
+  border:1.5px dashed var(--ink-soft); padding:1px 7px; }
+.jn-note{ display:block; width:100%; box-sizing:border-box; margin:9px 0 9px; resize:vertical; min-height:52px;
+  font-family:var(--f-prose); font-size:14px; line-height:1.55; color:var(--ink);
+  background:var(--paper-dark); border:1.5px solid rgba(35,32,26,.35); padding:8px 9px; }
+.jn-note::placeholder{ color:var(--ink-soft); font-style:italic; }
+.jn-note:focus{ outline:none; border-color:var(--teal); background:var(--paper); }
+.jn-cardfoot{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.jn-tags{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+/* tag chips reuse the global .tag/.tag.on look (ink outline -> TEAL fill when on); clickable */
+.jn-tags .tag{ cursor:pointer; user-select:none; }
+/* forward-only lifecycle pill — ink/teal WORD + SHAPE, never a market colour */
+.jn-pill{ display:inline-flex; align-items:center; gap:5px; cursor:pointer; user-select:none;
+  font-family:var(--f-cond); font-weight:700; font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+  border:1.5px solid var(--teal); color:var(--teal); background:transparent; padding:1px 8px; }
+.jn-pill .jn-pillarrow{ font-size:9px; opacity:.7; }
+.jn-pill.closed{ background:var(--teal); color:var(--paper); }
+.jn-review{ margin-left:auto; font-family:var(--f-mono); font-size:10px; letter-spacing:.04em;
+  color:var(--ink-soft); }
+.jn-review b{ color:var(--ink); font-weight:600; }
+/* SESSION LEDGER sidebar (non-scroll, content-sized) */
+.jn-sidecard{ grid-area:side; align-self:start; padding:16px 14px 14px; }
+.jn-sampletag{ color:var(--ink-soft); font-weight:600; letter-spacing:.08em; } /* "· SAMPLE" until first real fill (honest sidebar) */
+.jn-statrow{ display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+  padding:6px 0; border-bottom:1px solid rgba(35,32,26,.16); }
+.jn-statrow:last-of-type{ border-bottom:none; }
+.jn-statrow .k{ font-family:var(--f-mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ink-soft); }
+.jn-statrow .v{ font-family:var(--f-mono); font-weight:600; font-size:13px; color:var(--ink); }
+.jn-statrow .v.split{ font-size:12px; }
+/* NET BP DELTA is a market numeral (signed capital moved) — legit gain/loss colour on the
+   numeral, atop the honest sign+▲/▼. Raised specificity so it beats the base .v ink rule. */
+.jn-statrow .v.gain{ color:var(--gain); }
+.jn-statrow .v.loss{ color:var(--loss); }
+.jn-siderule{ border:none; border-top:1.5px solid var(--ink); margin:12px 0 8px; }
+.jn-closedhead{ font-family:var(--f-cond); font-weight:800; font-size:12px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink); margin-bottom:2px; }
+.jn-closedrow{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:4px 0; }
+.jn-closedrow .k{ font-family:var(--f-mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--ink-soft); }
+.jn-closedrow .v{ font-family:var(--f-mono); font-size:14px; color:var(--ink-soft); }  /* em-dash placeholders */
+.jn-closedcap{ margin-top:8px; font-family:var(--f-prose); font-size:11px; line-height:1.5; font-style:italic;
+  color:var(--teal); border-left:2px solid var(--teal); padding:2px 0 2px 8px; }
+.jn-roster-wrap{ grid-area:roster; margin-top:2px; }
+/* empty state reuses .orders-empty look, fills the feed card */
+#journal .orders-empty{ margin:auto 0; }
+/* 720p / narrow: sidebar collapses to a compact horizontal strip ABOVE the feed so the diary
+   keeps vertical dominance (mirrors Performance letting the chart win on small viewports). */
+@media (max-width:900px){
+  #journal .screenbody{ grid-template-columns:1fr; grid-template-areas:"side""feed""roster";
+    grid-template-rows:auto minmax(0,1fr) auto; }
+  .jn-sidecard{ align-self:stretch; padding:12px 14px 10px; }
+  .jn-statgrid{ display:flex; flex-wrap:wrap; gap:0 22px; }
+  .jn-statgrid .jn-statrow{ border-bottom:none; padding:3px 0; }
+  .jn-siderule{ margin:8px 0 6px; }
+  /* the closed-trade placeholders fold into a compact inline strip so the diary keeps the height */
+  .jn-closedhead{ display:inline; margin-right:12px; }
+  .jn-sidecard .jn-closedrow{ display:inline-flex; gap:5px; padding:3px 10px 3px 0; }
+  .jn-closedcap{ margin-top:4px; }
+  .jn-feedcard{ min-height:180px; }
+}
 
 /* responsive guard: keep body from scrolling horizontally */
 @media (max-width:1100px){
@@ -962,6 +1345,227 @@ table.ledger .side.gain{ color:var(--gain); } table.ledger .side.loss{ color:var
             <div class="hintbar screen-hints">
               <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
               <span class="h"><kbd>TAB</kbd><span class="t">PANELS</span></span>
+              <span class="h"><kbd>&#9664;</kbd><kbd>&#9654;</kbd><span class="t">ROSTER</span></span>
+            </div>
+            <div class="escback" data-esc><kbd>ESC</kbd><span>BACK</span></div>
+          </section>
+
+          <!-- ===== SCANNER (WAVE 2 — roster screener; reference implementation) ===== -->
+          <section id="scan" class="appscreen">
+            <div class="screenbody">
+              <div class="card scan-card">
+                <span class="plabel" id="scanPlabel">SCANNER // MODEL</span>
+                <div class="scan-presetbar">
+                  <span class="chip teal" style="margin-right:2px;">PRESET</span>
+                  <div class="scan-presets segrow" id="scanPresets"><!-- preset seg buttons injected --></div>
+                  <span class="scan-badge" id="scanBadge">SCAN: LIVE</span>
+                </div>
+                <div class="scan-method" id="scanMethod"><!-- ported rule line injected --></div>
+                <div class="scan-sortbar">
+                  <span class="lbl">SORT</span>
+                  <span id="scanSortKey">SCORE</span>
+                  <span style="color:var(--ink-soft)">&#8226; ROSTER SCAN — 8 INSTRUMENTS &#8226; SEED 0x4D</span>
+                </div>
+                <div class="scan-ledwrap" id="scanLedWrap"><!-- results ledger injected --></div>
+              </div>
+              <div class="scan-roster-wrap"><div class="roster" data-roster></div></div>
+            </div>
+            <div class="hintbar screen-hints">
+              <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
+              <span class="h"><kbd>S</kbd><kbd>D</kbd><span class="t">PRESET</span></span>
+              <span class="h"><kbd>R</kbd><span class="t">SORT</span></span>
+              <span class="h"><kbd>&#9664;</kbd><kbd>&#9654;</kbd><span class="t">ROSTER</span></span>
+            </div>
+            <div class="escback" data-esc><kbd>ESC</kbd><span>BACK</span></div>
+          </section>
+
+          <!-- ===== ALERTS (WAVE 2 — armed watches + market regime; WND-0x7B) ===== -->
+          <section id="alerts" class="appscreen">
+            <div class="screenbody alerts-body">
+              <!-- HERO: the armed-watch board — the ONE answer (scan the STATE column) -->
+              <div class="card al-board-card">
+                <span class="plabel">ALERTS // ARMED WATCH</span>
+                <div class="al-boardhead">
+                  <span class="chip teal">WATCH BOARD</span>
+                  <span class="al-note mono">IN-TERMINAL WATCH ONLY · NO OS / PUSH NOTIFICATION</span>
+                </div>
+                <div class="al-watch-scroll" id="alWatchWrap"><!-- watch ledger injected --></div>
+              </div>
+              <!-- SUPPORTING: regime strip (DISTRIBUTION | FOLLOW-THROUGH) + new-watch ticket -->
+              <div class="al-strip">
+                <div class="card al-reg">
+                  <span class="plabel">DISTRIBUTION // IBD · MODEL</span>
+                  <div class="al-regtop">
+                    <span class="al-regbig mono" id="alDDcount">—</span>
+                    <span class="al-reglbl">DIST DAYS (25-SESSION)</span>
+                    <span id="alDDchip" class="al-regchip"></span>
+                  </div>
+                  <div class="al-regsub mono" id="alDDsub">—</div>
+                  <div class="al-reghint" id="alDDhint">—</div>
+                  <div class="al-regfoot mono" id="alDDfoot">—</div>
+                </div>
+                <div class="card al-reg">
+                  <span class="plabel">FOLLOW-THROUGH // FTD · MODEL</span>
+                  <div class="al-regtop">
+                    <span class="al-regbig al-ftdstate" id="alFTDstate">—</span>
+                    <span id="alFTDchip" class="al-regchip"></span>
+                  </div>
+                  <div class="al-ftdlvls mono">
+                    <span>SWING LOW <b id="alFTDlow">—</b></span>
+                    <span>FTD DAY LOW <b id="alFTDwatch">—</b></span>
+                  </div>
+                  <div class="al-reghint" id="alFTDhint">—</div>
+                  <div class="al-regfoot mono" id="alFTDfoot">—</div>
+                </div>
+                <div class="card al-ticket">
+                  <span class="plabel">NEW WATCH // <span id="alTicketSym">—</span></span>
+                  <div class="al-tickrow"><span class="al-ticklbl">METRIC</span><div class="segrow" id="alMetricSeg"></div></div>
+                  <div class="al-tickrow"><span class="al-ticklbl">CROSS</span><div class="segrow" id="alOpSeg"></div></div>
+                  <div class="al-tickrow">
+                    <span class="al-ticklbl">LEVEL</span>
+                    <div class="stepper">
+                      <button type="button" id="alStepDn" aria-label="decrease level">&minus;</button>
+                      <input id="alLevel" type="text" inputmode="decimal" value="0" />
+                      <button type="button" id="alStepUp" aria-label="increase level">+</button>
+                      <span class="qlab" id="alLevelUnit">USD</span>
+                    </div>
+                  </div>
+                  <button type="button" class="obtn confirm al-arm" id="alArmBtn">ARM WATCH</button>
+                  <div class="al-tickfoot mono">Evaluates only while this terminal is open. Informational — never a trade gate.</div>
+                </div>
+              </div>
+              <div class="al-roster-wrap"><div class="roster" data-roster></div></div>
+            </div>
+            <div class="hintbar screen-hints">
+              <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
+              <span class="h"><kbd>A</kbd><span class="t">ARM</span></span>
+              <span class="h"><kbd>R</kbd><span class="t">RESET</span></span>
+              <span class="h"><kbd>N</kbd><span class="t">METRIC</span></span>
+              <span class="h"><kbd>G</kbd><span class="t">OP</span></span>
+              <span class="h"><kbd>&#9664;</kbd><kbd>&#9654;</kbd><span class="t">ROSTER</span></span>
+            </div>
+            <div class="escback" data-esc><kbd>ESC</kbd><span>BACK</span></div>
+          </section>
+
+          <!-- ===== NEWS (WAVE 2 — holdings wire: earnings / macro / headlines; WND-0x7C) ===== -->
+          <section id="news" class="appscreen">
+            <div class="screenbody news-body">
+              <!-- HERO: the scannable holdings WIRE FEED — the ONE answer -->
+              <div class="card news-feed-card">
+                <span class="plabel" id="newsPlabel">NEWS // HOLDINGS WIRE · MODEL</span>
+                <div class="news-feedhead">
+                  <span class="chip teal">NEWS // HOLDINGS WIRE</span>
+                  <div class="news-lanes segrow" id="newsLanes"><!-- lane seg buttons injected --></div>
+                  <span class="news-badge" id="newsBadge">FEED: LIVE</span>
+                </div>
+                <div class="marquee news-tape"><div class="track" id="newsTape"></div></div>
+                <div class="news-feedscroll" id="newsFeedWrap"><!-- wire rows injected --></div>
+              </div>
+              <!-- SUPPORTING: catalyst dossier for the focused wire row + THIS-WEEK density strip -->
+              <div class="news-side">
+                <div class="card news-dossier">
+                  <span class="plabel" id="newsDossierLabel">CATALYST DOSSIER</span>
+                  <div id="newsDossierBody"><!-- lane-specific dossier injected --></div>
+                </div>
+                <div class="card news-week">
+                  <span class="plabel">THIS WEEK // ROSTER CATALYSTS</span>
+                  <div class="news-weekstrip" id="newsWeekStrip"><!-- 7 day columns injected --></div>
+                  <div class="news-weekfoot mono" id="newsWeekFoot">&mdash;</div>
+                </div>
+              </div>
+              <div class="news-roster-wrap"><div class="roster" data-roster></div></div>
+            </div>
+            <div class="hintbar screen-hints">
+              <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
+              <span class="h"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><span class="t">LANE</span></span>
+              <span class="h"><kbd>R</kbd><span class="t">REFRESH</span></span>
+              <span class="h"><kbd>&#9664;</kbd><kbd>&#9654;</kbd><span class="t">ROSTER</span></span>
+            </div>
+            <div class="escback" data-esc><kbd>ESC</kbd><span>BACK</span></div>
+          </section>
+
+          <!-- ===== COMPARE (WAVE 2 — side-by-side value fingerprint; WND-0x8B) ===== -->
+          <section id="compare" class="appscreen">
+            <div class="screenbody">
+              <!-- HERO: one visual-comparison card — normalized price overlays + side-by-side radars -->
+              <div class="card cmp-main">
+                <span class="plabel" id="cmpPlabel">COMPARE // SIDE-BY-SIDE &#183; MODEL: BUFFETT&#8211;DUAN 5-DIM</span>
+                <div class="cmp-head">
+                  <span class="chip teal" style="margin-right:2px;">SLOTS</span>
+                  <div class="cmp-slots" id="cmpSlots"><!-- slot chips injected --></div>
+                  <div class="rangetog" id="cmpRangeTog">
+                    <button data-r="1D" class="on">1D</button>
+                    <button data-r="1W">1W</button>
+                    <button data-r="1M">1M</button>
+                    <button data-r="1Y">1Y</button>
+                  </div>
+                </div>
+                <div class="cmp-stage">
+                  <div class="cmp-wellhead">
+                    <span class="cmp-welltag">NORMALIZED &#183; BASE 100</span>
+                    <div class="cmp-welllegend" id="cmpWellLegend"><!-- keyed line legend injected --></div>
+                  </div>
+                  <div class="cmp-well" id="cmpWell">
+                    <canvas id="cmpOverlay"></canvas>
+                  </div>
+                  <div class="cmp-radarband" id="cmpRadarBand"><!-- 2-3 pentagon cells injected --></div>
+                </div>
+              </div>
+              <!-- SUPPORTING: key-stat delta table (internal-scroll; BEST cell = orange left-tick) -->
+              <div class="card cmp-deltacard">
+                <div class="cmp-deltahead">
+                  <span class="plabel" style="position:static">DELTA // KEY STATS &#183; MODEL</span>
+                  <span class="mono" style="font-size:10px;color:var(--ink-soft);margin-left:auto">DERIVED &#8212; NOT AUDITED FINANCIALS</span>
+                </div>
+                <div class="cmp-deltascroll" id="cmpDeltaScroll"><!-- delta ledger injected --></div>
+              </div>
+              <div class="cmp-roster-wrap"><div class="roster" data-roster></div></div>
+            </div>
+            <div class="hintbar screen-hints">
+              <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
+              <span class="h"><kbd>C</kbd><span class="t">SLOT</span></span>
+              <span class="h"><kbd>D</kbd><span class="t">CLEAR</span></span>
+              <span class="h"><kbd>&#9664;</kbd><kbd>&#9654;</kbd><span class="t">FILL SLOT</span></span>
+            </div>
+            <div class="escback" data-esc><kbd>ESC</kbd><span>BACK</span></div>
+          </section>
+
+          <!-- ===== JOURNAL (WAVE 2 — session paper diary; WND-0x9C) ===== -->
+          <section id="journal" class="appscreen">
+            <div class="screenbody">
+              <!-- HERO: the paper feed — every session fill becomes a dated, writable page -->
+              <div class="card jn-feedcard">
+                <span class="plabel">JOURNAL // PAGES &#183; SESSION</span>
+                <div class="jn-feedhead">
+                  <span class="chip teal">DIARY</span>
+                  <span class="jn-feednote" id="jnFeedNote">&mdash;</span>
+                </div>
+                <div class="jn-feedscroll" id="jnFeed"><!-- journal cards injected --></div>
+              </div>
+              <!-- SUPPORTING: SESSION LEDGER — honest descriptive stats + closed-trade placeholders -->
+              <div class="card jn-sidecard">
+                <span class="plabel">JOURNAL // SESSION<span id="jnSampleTag" class="jn-sampletag"> · SAMPLE</span></span>
+                <div class="jn-statgrid">
+                  <div class="jn-statrow"><span class="k">Fills</span><span class="v" id="jnFills">0</span></div>
+                  <div class="jn-statrow"><span class="k">Buys / Sells</span><span class="v split" id="jnSplit">0 / 0</span></div>
+                  <div class="jn-statrow"><span class="k">Net BP Delta</span><span class="v" id="jnBP">&mdash;</span></div>
+                  <div class="jn-statrow"><span class="k">Notes Written</span><span class="v" id="jnNotes">0</span></div>
+                  <div class="jn-statrow"><span class="k">Tagged</span><span class="v" id="jnTagged">0</span></div>
+                </div>
+                <hr class="jn-siderule">
+                <div class="jn-closedhead">Closed-Trade Stats</div>
+                <div class="jn-closedrow"><span class="k">Win Rate</span><span class="v">&mdash;</span></div>
+                <div class="jn-closedrow"><span class="k">Expectancy</span><span class="v">&mdash;</span></div>
+                <div class="jn-closedrow"><span class="k">Profit Factor</span><span class="v">&mdash;</span></div>
+                <div class="jn-closedrow"><span class="k">Avg R</span><span class="v">&mdash;</span></div>
+                <div class="jn-closedcap">Awaiting closed trades &mdash; app port persists round-trips.</div>
+              </div>
+              <div class="jn-roster-wrap"><div class="roster" data-roster></div></div>
+            </div>
+            <div class="hintbar screen-hints">
+              <span class="h"><kbd>Q</kbd><kbd>E</kbd><span class="t">CYCLE APPS</span></span>
+              <span class="h"><kbd>N</kbd><span class="t">WRITE NOTE</span></span>
+              <span class="h"><kbd>W</kbd><span class="t">WATCHING</span></span>
               <span class="h"><kbd>&#9664;</kbd><kbd>&#9654;</kbd><span class="t">ROSTER</span></span>
             </div>
             <div class="escback" data-esc><kbd>ESC</kbd><span>BACK</span></div>
@@ -1239,16 +1843,30 @@ const State = {
   staged: 0,                     // pending qty delta on positions screen
   strategy:'DIRECTIONAL',
   ordersLog: [],
-  alerts: {},                    // sym -> true if flagged
+  alerts: {},                    // sym -> {order:bool, watch:bool} — two independent star sources
+                                 // (wave-1 order-needs-attention + wave-2 triggered watch); renderRoster ORs them,
+                                 // each feature clears only its OWN bit so they never clobber each other
   tutorialShown:false,
   vol:30, muted:false
 };
+// --- roster-star flag bits: two independent sources OR'd for the orange .flag star. Splitting
+// them stops wave-1 (order-needs-attention) and wave-2 (triggered watch) from clobbering each
+// other — pressing R on ALERTS clears only the watch bit; acknowledging an order clears only order.
+function alertBits(sym){ let b=State.alerts[sym]; if(!b || typeof b!=='object'){ b={order:false, watch:false}; State.alerts[sym]=b; } return b; }
+function alertFlagged(sym){ const b=State.alerts[sym]; return !!(b && typeof b==='object' && (b.order||b.watch)); }
+function setAlertOrder(sym, on){ alertBits(sym).order=!!on; }
+function setAlertWatch(sym, on){ alertBits(sym).watch=!!on; }
 const SCREENS = [
   {id:'dash', name:'DASHBOARD', wid:'WND-0x2F', icon:'dash', file:'DASHBOARD.exe'},
   {id:'pos',  name:'POSITIONS', wid:'WND-0x3A', icon:'pos',  file:'POSITIONS.dat'},
   {id:'watch',name:'WATCHLIST', wid:'WND-0x4C', icon:'watch',file:'WATCHLIST.idx'},
   {id:'perf', name:'PERFORMANCE', wid:'WND-0x6E', icon:'perf', file:'PERFORMANCE.chz'}, // UPGRADE 4 — analysis deck
-  {id:'orders',name:'ORDERS', wid:'WND-0x5D', icon:'orders',file:'ORDERS.log'}            // UPGRADE 3 — session fill log
+  {id:'orders',name:'ORDERS', wid:'WND-0x5D', icon:'orders',file:'ORDERS.log'},           // UPGRADE 3 — session fill log
+  {id:'scan', name:'SCANNER', wid:'WND-0x7A', icon:'scan', file:'SCANNER.scr'},            // WAVE 2 — roster screener
+  {id:'alerts',name:'ALERTS', wid:'WND-0x7B', icon:'alerts',file:'ALERTS.wch'},            // WAVE 2 — armed watches + market regime
+  {id:'news', name:'NEWS', wid:'WND-0x7C', icon:'news', file:'NEWS.wire'},                 // WAVE 2 — holdings wire (earnings / macro / headlines)
+  {id:'compare',name:'COMPARE', wid:'WND-0x8B', icon:'compare', file:'COMPARE.cmp'},        // WAVE 2 — side-by-side value fingerprint (Buffett–Duan 5-dim)
+  {id:'journal',name:'JOURNAL', wid:'WND-0x9C', icon:'journal', file:'JOURNAL.pgs'}          // WAVE 2 — session paper diary (fills -> writable dated cards + session ledger)
 ];
 
 /* ---------------- ICON GLYPHS ---------------- */
@@ -1257,7 +1875,12 @@ const GLYPHS = {
   pos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 20h18"/><rect x="4" y="12" width="4" height="7"/><rect x="10" y="7" width="4" height="12"/><rect x="16" y="10" width="4" height="9"/></svg>',
   watch:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M8 4v16"/></svg>',
   orders:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="3" width="14" height="18"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
-  perf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><path d="M6 15l4-5 3 3 5-8"/><rect x="6" y="16" width="2" height="3"/><rect x="11" y="14" width="2" height="5"/><rect x="16" y="11" width="2" height="8"/></svg>'
+  perf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><path d="M6 15l4-5 3 3 5-8"/><rect x="6" y="16" width="2" height="3"/><rect x="11" y="14" width="2" height="5"/><rect x="16" y="11" width="2" height="8"/></svg>',
+  scan:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h18l-7 8v6l-4 2v-8z"/><circle cx="17" cy="17" r="3.2"/><path d="M19.3 19.3L22 22"/></svg>',
+  alerts:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9a6 6 0 0112 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 20a2 2 0 004 0"/></svg>',
+  news:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h13v14H5a2 2 0 01-1-1.7z"/><path d="M17 8h2.2a1.8 1.8 0 011.8 1.8V17a2 2 0 01-2 2"/><path d="M7 8h7M7 11h7M7 14h4"/></svg>',
+  compare:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 3l6 4.4v5.2L9 17V3z"/><path d="M15 7l6 4.4v5.2L15 21v-4.4"/><path d="M4 12h3M4 9l-2 3 2 3"/></svg>',
+  journal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h11a2 2 0 012 2v14a2 2 0 01-2 2H5z"/><path d="M5 3v18"/><path d="M8 7h7M8 11h7"/><path d="M8 15l3 2 5-6"/></svg>'
 };
 // stat-row icons (positions)
 const STAT_IC = {
@@ -1302,7 +1925,7 @@ function renderRoster(){
       const q=DataEngine.get(sym); const up=q.dayPct>=0;
       const col = up?'var(--gain)':'var(--loss)';
       const card=document.createElement('div');
-      card.className='rcard'+(sym===State.selected?' sel':'')+(State.alerts[sym]?' flag':'');
+      card.className='rcard'+(sym===State.selected?' sel':'')+(alertFlagged(sym)?' flag':'');
       card.dataset.sym=sym;
       const series = q.hist['1D'].slice(-40);
       card.innerHTML=`
@@ -1552,11 +2175,12 @@ function confirmStage(){
     bpAfter: State.cash,           // buying power AFTER this fill
     line                           // human string reused by the marquee/flash
   });
-  State.alerts[sym]=true; // open order needing attention -> orange star on the card
+  setAlertOrder(sym, true); // open order needing attention -> orange star on the card (ORDER bit only)
   pushAlert('▸ ORDER FILLED :: '+line, true);
   State.staged=0;
   renderPositions(); renderRoster(); renderDashAccount();
   if(State.screen==='orders') renderOrders();
+  journalOnFill();                                  // first real fill retires the SAMPLE seeds; append a fresh page if on-screen
 }
 function toggleStrategy(){ State.strategy = State.strategy==='DIRECTIONAL'?'HEDGED':'DIRECTIONAL'; renderPositions(); }
 
@@ -1629,7 +2253,7 @@ function renderOrders(){
 /* ================= SHARED SELECT ================= */
 function selectInstrument(sym){
   if(sym===State.selected){ renderRoster(); pulseSelectedCard(); return; }
-  State.alerts[sym]=false; // acknowledging the card clears its orange star
+  setAlertOrder(sym, false); // acknowledging the card clears its ORDER star bit (a triggered-watch bit survives)
   State.selected=sym; State.staged=0;
   renderRoster(); pulseSelectedCard();
   if(State.screen==='dash') renderDashChart();
@@ -1640,6 +2264,10 @@ function selectInstrument(sym){
     // PORTFOLIO / typed-symbol sources are pinned and ignore roster selection.
     if(Perf.source==='ROSTER'){ Perf.symbol=sym; perfLoadSeries(); }
   }
+  else if(State.screen==='scan') renderScanner(); // re-mark the selected row (no recompute; memo holds)
+  else if(State.screen==='alerts'){ Alerts.ticket.sym=State.selected; renderAlertsTicket(); } // prefill the new-watch ticket symbol
+  else if(State.screen==='news'){ News.focusId=null; renderNews(); } // retarget the focused wire row + dossier to the selected symbol
+  else if(State.screen==='compare'){ Compare.picker.fill(State.selected); renderCompare(); } // roster click fills the ACTIVE slot (mirrors Performance ROSTER source)
 }
 function moveRoster(dir){
   const i=DEFAULT_ROSTER.indexOf(State.selected);
@@ -1668,6 +2296,7 @@ function redrawActiveCharts(){
   else if(State.screen==='pos'){ drawRadar($('#posRadarWrap'),State.selected,State.staged,true); drawSilhouette(State.selected); }
   else if(State.screen==='watch'){ drawWatchChart(); drawRadar($('#wRadarWrap'),State.selected,0,false); }
   else if(State.screen==='perf'){ perfResize(); } // re-fit all perf layers to the settled box, then full redraw
+  else if(State.screen==='compare'){ cmpDrawWell(); cmpFilledSlots().forEach(o=>{ const cell=$(`.cmp-radarcell[data-slot="${o.i}"]`); if(cell) cmpDrawRadar(cell,o.i,o.sym); }); }
 }
 // [S2] phosphor glow drawn IN CANVAS: multi-pass strokes at decreasing alpha /
 // increasing width — no CSS filter:drop-shadow (WKWebView-safe).
@@ -1914,7 +2543,7 @@ function pushAlert(msg, flash){
   renderAlerts();
   if(flash){ // triggered alert raises the orange star on the affected roster card
     const m=msg.match(/\b(NVDA|AAPL|TSLA|SPY|BTC|ETH|AMD|GME)[\w-]*\b/);
-    if(m){ const sym=DEFAULT_ROSTER.find(s=>s.startsWith(m[1])); if(sym){ State.alerts[sym]=true; renderRoster(); } }
+    if(m){ const sym=DEFAULT_ROSTER.find(s=>s.startsWith(m[1])); if(sym){ setAlertOrder(sym, true); renderRoster(); } }
   }
 }
 
@@ -1946,6 +2575,11 @@ function showScreen(id){
   else if(id==='watch') renderWatchlist();
   else if(id==='orders') renderOrders();
   else if(id==='perf') renderPerf();
+  else if(id==='scan') renderScanner();
+  else if(id==='alerts') renderAlerts();
+  else if(id==='news') renderNews();
+  else if(id==='compare') renderCompare();
+  else if(id==='journal') renderJournal();
   renderRoster();
 }
 function gotoScreen(id){
@@ -2091,10 +2725,14 @@ document.addEventListener('keydown', e=>{
   }
   const k=e.key;
   if(k==='Shift' && e.location===1){ document.body.classList.add('tips'); return; } // LSHIFT tooltips
-  const editing = document.activeElement && document.activeElement.tagName==='INPUT';
+  const editing = document.activeElement && (document.activeElement.tagName==='INPUT' || document.activeElement.tagName==='TEXTAREA'); // TEXTAREA covers the JOURNAL note field so arrows/Q/E/N/W never swallow typing
   // PERFORMANCE quick-toggles: number keys 1–9 flip the first nine indicators.
   if(State.screen==='perf' && !editing && /^[1-9]$/.test(k)){
     const id=PERF_FLAT[parseInt(k,10)-1]; if(id){ perfToggle(id); } e.preventDefault(); return;
+  }
+  // NEWS lane quick-select 1/2/3 (guarded to news so it never collides with PERF's 1-9)
+  if(State.screen==='news' && !editing && /^[1-3]$/.test(k)){
+    const lane=NEWS_LANES[parseInt(k,10)-1]; if(lane){ News.lane=lane.key; News.focusId=null; renderNews(); } e.preventDefault(); return;
   }
   switch(k.toLowerCase()){
     case 'i': if(editing) break; if(State.screen==='perf'){ Perf.railHidden=!Perf.railHidden; $('#perfRail').classList.toggle('hidden',Perf.railHidden); perfResize(); e.preventDefault(); } break;
@@ -2104,17 +2742,53 @@ document.addEventListener('keydown', e=>{
     case 'arrowright': if(!editing){ moveRoster(1); e.preventDefault(); } break;
     case 'arrowup': if(State.screen==='pos'&&!editing){ stageDelta(+1); e.preventDefault(); } break;
     case 'arrowdown': if(State.screen==='pos'&&!editing){ stageDelta(-1); e.preventDefault(); } break;
-    case '+': case '=': if(State.screen==='pos'&&!editing){ stageDelta(+1); e.preventDefault(); } break;
-    case '-': case '_': if(State.screen==='pos'&&!editing){ stageDelta(-1); e.preventDefault(); } break;
-    case 'enter': if(State.screen==='pos'){
+    case '+': case '=':
+      if(State.screen==='pos'&&!editing){ stageDelta(+1); e.preventDefault(); }
+      else if(State.screen==='alerts'&&editing){ alertTicketStep(+1); e.preventDefault(); }
+      break;
+    case '-': case '_':
+      if(State.screen==='pos'&&!editing){ stageDelta(-1); e.preventDefault(); }
+      else if(State.screen==='alerts'&&editing){ alertTicketStep(-1); e.preventDefault(); }
+      break;
+    case 'enter':
+      if(State.screen==='pos'){
         if(editing){ const v=parseInt($('#stepQty').value,10); State.staged=isNaN(v)?0:v; clampStaged(); document.activeElement.blur(); renderPositions(); }
         else confirmStage();
         e.preventDefault();
-      } break;
+      } else if(State.screen==='alerts' && editing){
+        // ENTER commits the staged LEVEL and arms the ticket (mirrors Positions confirmStage gating on editing)
+        const inp=$('#alLevel'); const raw=parseFloat(inp&&inp.value);
+        if(isFinite(raw)) Alerts.ticket.level = Alerts.ticket.metric==='RSI'?clamp(raw|0,0,100):raw;
+        if(inp) inp.blur();
+        alertArmTicket();
+        e.preventDefault();
+      }
+      break;
+    case 's': if(editing) break; if(State.screen==='scan'){ const ks=SCAN_PRESETS.map(p=>p.key); Scan.preset=ks[(ks.indexOf(Scan.preset)+1)%ks.length]; renderScanner(); e.preventDefault(); } break;
+    case 'c': if(editing) break; if(State.screen==='compare'){ Compare.picker.cycle(); renderCompare(); e.preventDefault(); } break; // cycle the ACTIVE slot (orange focus ring)
+    case 'd':
+      if(editing) break;
+      if(State.screen==='scan'){ const ks=SCAN_PRESETS.map(p=>p.key); Scan.preset=ks[(ks.indexOf(Scan.preset)-1+ks.length)%ks.length]; renderScanner(); e.preventDefault(); }
+      else if(State.screen==='compare'){ Compare.picker.slots[Compare.picker.active]=null; renderCompare(); e.preventDefault(); } // clear active slot -> diegetic empty
+      break;
+    case 'r':
+      if(editing) break;
+      if(State.screen==='scan'){ const so=['SCORE','1D%','RSI']; Scan.sortKey=so[(so.indexOf(Scan.sortKey)+1)%so.length]; renderScanner(); e.preventDefault(); }
+      else if(State.screen==='alerts'){ alertResetWatch(); e.preventDefault(); }
+      else if(State.screen==='news'){ NewsEngine.tryLive().then(()=>renderNews()); e.preventDefault(); } // re-run the wire (static file -> diegetic CACHED)
+      break;
+    case 'a': if(editing) break; if(State.screen==='alerts'){ alertFocusLevel(); e.preventDefault(); } break;
+    case 'n': if(editing) break;
+      if(State.screen==='alerts'){ alertCycleMetric(); e.preventDefault(); }
+      else if(State.screen==='journal'){ journalFocusNewest(); e.preventDefault(); }
+      break;
+    case 'g': if(editing) break; if(State.screen==='alerts'){ alertToggleOp(); e.preventDefault(); } break;
     case 'tab': if(!editing){ cyclePanel(); e.preventDefault(); } break;
     case 'x': if(editing) break; if(State.screen==='pos'){ resetStage(); e.preventDefault(); } break;
     case 'f': if(editing) break; if(State.screen==='pos'){ toggleStrategy(); e.preventDefault(); } break;
+    case 'w': if(editing) break; if(State.screen==='journal'){ journalToggleWatchingNewest(); e.preventDefault(); } break;
     case 'escape':
+      if(editing){ document.activeElement.blur(); e.preventDefault(); break; } // ESC first exits an editing field, not the screen
       if(State.screen!=='dash'){ gotoScreen('dash'); }
       e.preventDefault(); break;
   }
@@ -2195,9 +2869,22 @@ function tickLoop(){
   DataEngine.tick();
   // update visible surfaces cheaply
   updateRosterPrices();
-  if(State.screen==='dash'){ renderDashAccount(); renderIndices(); renderMovers(); setTickText($('#chLast'), fmtUSD(DataEngine.get(State.selected).last, DataEngine.get(State.selected).last<10?4:2)); if(State.range==='1D') drawMainChart(); }
-  else if(State.screen==='pos'){ renderPositions(); }
-  else if(State.screen==='perf'){ perfTick(); }
+  // Watches evaluate UNCONDITIONALLY so a TRIGGERED cross surfaces the orange roster
+  // .flag star even while the user is on another screen (latching; jitter-safe).
+  if(Alerts.watches.length && State.screen!=='alerts'){ if(evaluateWatches()) renderRoster(); }
+  // DEFENSE-IN-DEPTH: one screen's per-tick exception must NEVER stop the clock. Wrap the
+  // per-screen dispatch so a throw is logged and swallowed, and the setTimeout re-arm below
+  // always runs (the loop stays alive even if a screen momentarily hits bad state).
+  try {
+    if(State.screen==='dash'){ renderDashAccount(); renderIndices(); renderMovers(); setTickText($('#chLast'), fmtUSD(DataEngine.get(State.selected).last, DataEngine.get(State.selected).last<10?4:2)); if(State.range==='1D') drawMainChart(); }
+    else if(State.screen==='pos'){ renderPositions(); }
+    else if(State.screen==='perf'){ perfTick(); }
+    else if(State.screen==='scan'){ scanTick(); }
+    else if(State.screen==='alerts'){ alertsTick(); }
+    else if(State.screen==='news'){ newsTick(); }
+    else if(State.screen==='compare'){ cmpTick(); }
+    else if(State.screen==='journal'){ journalTick(); }
+  } catch(err){ console.warn('tickLoop: '+State.screen+'Tick() threw (loop kept alive):', err); }
   updateTaskbar();
   setTimeout(tickLoop, 1000+Math.random()*1000); // 1–2s
 }
@@ -2558,6 +3245,1884 @@ const SIGNAL_CALC = {
     return out;
   }
 };
+
+/* =========================================================================
+   WAVE-2 SHARED HELPERS (landed before any wave-2 screen so Scanner/Alerts/
+   News/Compare all consume ONE palette-safe surface). §1 PALETTE LAW is
+   enforced structurally here, not by per-screen discipline.
+   ========================================================================= */
+
+/* 1) segToggle — orange-active-only segmented control.
+   buildSegToggle(mountEl, options[{key,label,count?}], activeKey, onPick) -> void.
+   Renders .segbtn buttons; EXACTLY ONE gets .on (the --orange active VERB). Optional
+   `count` renders a small superscript match-count. onPick(key) fires on click of an
+   inactive segment. Re-render idempotent (rebuilds mount each call). */
+function buildSegToggle(mountEl, options, activeKey, onPick){
+  if(!mountEl) return;
+  mountEl.classList.add('segrow'); mountEl.innerHTML='';
+  options.forEach(o=>{
+    const b=document.createElement('button');
+    b.className='segbtn'+(o.key===activeKey?' on':'');
+    b.dataset.key=o.key;
+    b.innerHTML = o.label + (o.count!=null?`<span class="segcount">${o.count}</span>`:'');
+    b.addEventListener('click',()=>{ if(o.key!==activeKey && typeof onPick==='function') onPick(o.key); });
+    mountEl.appendChild(b);
+  });
+}
+
+/* 2) statusChip(word, level, opts) -> HTML string.
+   ink/teal WORD + SHAPE classification chip. Severity is expressed by PIPS (filled vs
+   hollow, 1–4) + border weight — NEVER by green/red/orange (those are market-number
+   colours only). `level` is an ordinal: 'ok'|'warn'|'high'|'severe' OR a setup grade.
+   opts.pips (0–4) overrides the auto pip count; opts.na renders a dashed N/A chip
+   (for BTC/ETH on CANSLIM/DIVPULL — not-applicable, never zero-scored). */
+const STATUSCHIP_SEV = { ok:{cls:'sev-ok',pips:1}, warn:{cls:'sev-warn',pips:2}, high:{cls:'sev-high',pips:3}, severe:{cls:'sev-severe',pips:4} };
+function statusChip(word, level, opts={}){
+  if(opts.na){
+    return `<span class="statuschip na" title="not applicable to this instrument">`+
+      `<span class="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></span>`+
+      `${word}</span>`;
+  }
+  const sev = STATUSCHIP_SEV[level] || {cls:'sev-warn', pips:2};
+  const n = opts.pips!=null ? clamp(opts.pips|0,0,4) : sev.pips;
+  let pips=''; for(let i=0;i<4;i++) pips+=`<span class="pip${i<n?' f':''}"></span>`;
+  return `<span class="statuschip ${sev.cls}"><span class="pips">${pips}</span>${word}</span>`;
+}
+
+/* 3) slotPicker — shared "roster click fills the ACTIVE slot" abstraction.
+   makeSlotPicker(nSlots) -> { slots[], active, set(i,sym), fill(sym), cycle(), reset() }.
+   Compare uses 2–3 symbol slots; Alerts uses it as a single-slot ticket prefill. The
+   guarded selectInstrument hook (in selectInstrument) routes a roster click through
+   the ACTIVE screen's picker so the two screens never diverge on routing. */
+function makeSlotPicker(nSlots){
+  return {
+    n:nSlots, slots:new Array(nSlots).fill(null), active:0,
+    set(i,sym){ if(i>=0&&i<this.n){ this.slots[i]=sym; this.active=i; } },
+    fill(sym){ this.slots[this.active]=sym; return this.active; },   // fill ACTIVE slot
+    cycle(){ this.active=(this.active+1)%this.n; return this.active; },
+    reset(){ this.slots=new Array(this.n).fill(null); this.active=0; }
+  };
+}
+
+/* =========================================================================
+   SCAN_CALC — pure derive-block for the SCANNER (no DOM, no canvas).
+   Ports the REAL thresholds from the four screener skills (cited inline from
+   wave2-specs/scanner.json → methodologySource). Every price-derived metric is
+   computed on CLOSED bars only (closedN = bars.length-1) so a rank never repaints
+   mid-candle. Insufficient-data criteria FAIL CONSERVATIVE (score as not-met),
+   never silently pass. BTC/ETH (pe=NaN, div=0) read N/A on CANSLIM/DIVPULL.
+   ========================================================================= */
+const SCAN_PRESETS = [
+  {key:'VCP',     label:'VCP.min',        name:'VCP'},
+  {key:'CANSLIM', label:'CANSLIM.oneil',  name:'CANSLIM'},
+  {key:'BURST',   label:'BURST.stockbee', name:'BURST'},
+  {key:'DIVPULL', label:'DIVPULL.rsi40',  name:'DIVPULL'},
+  {key:'ALL',     label:'ALL.scan',       name:'ALL'}
+];
+const SCAN_METHOD = {
+  // Ported one-liners (teal info strip). Approximation flags are explicit & honest.
+  VCP:'<b>MINERVINI VCP:</b> Trend-Template 7&#215;14.3pt PASS&#8805;85; T1 depth 8&#8211;35%, each contraction &#8804;0.75&#215; prior, &#8805;2 tightening, vol dry-up &#8804;0.85&#215;. Bands 90+ Textbook / 80+ Strong / 70+ Good. <b>SMA150/200 need ~222 bars; hist[1M]=160 &#8594; those criteria FAIL-CONSERVATIVE.</b>',
+  CANSLIM:'<b>O&#8217;NEIL CANSLIM:</b> C15 A20 N15 S15 L20 I10 M5. C: EPS-QoQ &#8805;50=100. N: within 5% of 52w-high=100. S: up/down-vol &#8805;2.0=100. L: weighted RS (52w-position proxy). <b>C/A/L/I approximated from static profile &#8212; LIVE swaps FMP quarterly EPS.</b>',
+  BURST:'<b>STOCKBEE BURST:</b> trigger 4% close/prevClose&#8805;1.04 (+3 if &#8805;7%), vol&gt;prev &amp; &#8805;100k. Maxes trig17/vol20/setup18/close10/risk15 + market5. A&#8805;82 / A-&#8805;72 / B&#8805;62 / Watch&#8805;50.',
+  DIVPULL:'<b>DIV-GROWTH PULLBACK:</b> gates yield&#8805;1.5%, 3y div-CAGR&#8805;12%, RSI(14)&#8804;40. Div40/Quality30/Technical20/Val10. <b>Div-CAGR &amp; quality approximated from static UNIVERSE &#8212; LIVE swaps FMP dividend history.</b>',
+  ALL:'<b>ALL.scan:</b> best-of the four real screeners per instrument &#8212; the max matched score across VCP / CANSLIM / BURST / DIVPULL. Non-matching names shown dimmed (honest: still evaluated, not hidden).'
+};
+
+const SCAN_CALC = {
+  // ---- LIVE SEAM: swap synthetic fundamentals for FMP (Tauri-proxied). -----------
+  // ===== LIVE SEAM: mock returns DataEngine/UNIVERSE-derived approximations. The app
+  // port replaces THIS BODY with the proxied FMP call + daily cache, leaving all four
+  // scorers below untouched. FMP is CORS-blocked + key-leaking in-browser, so it MUST
+  // be Rust-proxied; Coinbase price path stays a legal client fetch. [LIVE SEAM: Tauri-Rust only]
+  scanFundamentals(sym){
+    const u=UNIVERSE[sym];
+    const isCrypto = !isFinite(u.pe) || (u.div===0 && (u.sector==='DIGITAL ASSET'));
+    const tags=(u.tags||[]).join(' ');
+    const growth = /AI|MOMENTUM|GROWTH/i.test(u.style+' '+tags);
+    // approximate quarterly EPS growth & 3y CAGR from valuation/style (NOT real earnings)
+    const epsQoQ  = isCrypto ? NaN : clamp((70 - u.pe) + (growth?35:5), -20, 80);   // proxy %
+    const epsCAGR = isCrypto ? NaN : clamp((growth?38:18) + (u.beta-1)*10, 5, 55);  // proxy %
+    const divCAGR = (u.div>0) ? clamp(6 + u.div*14, 0, 26) : 0;                     // proxy % from yield
+    const instPct = isCrypto ? NaN : clamp(45 + (u.mcap>1e12?25:0) + (growth?12:0), 20, 92);
+    const yieldPct= (u.div>0 && isFinite(u.pe)) ? u.div : (u.div||0);               // UNIVERSE.div is already a yield %
+    const roe     = isCrypto ? NaN : clamp(8 + (growth?14:6) + (u.pe<30?4:0), 5, 30);
+    return {epsQoQ, epsCAGR, divCAGR, instPct, yieldPct, roe, isCrypto};
+  },
+
+  // ---- shared per-symbol closed-bar frame (memo-friendly) ----
+  frame(sym){
+    const q=DataEngine.get(sym);
+    const closes=q.hist['1M'].slice();          // 160 bars per dataEngineHooks spec
+    const n=closes.length;
+    const closedN=Math.max(0, n-1);             // NON-REPAINTING: exclude live-forming last bar
+    const seed=(DataEngine.seed ^ seedFromString(sym)) ^ 0x4D;  // header SEED 0x4D
+    const bars=ohlcFromCloses(closes, seed, UNIVERSE[sym].avgvol/1000||1e5);
+    return {q,closes,n,closedN,bars};
+  },
+
+  // ---- VCP (Minervini) — composite 0.25 Trend +0.25 Contraction +0.20 Vol +0.15 Pivot +0.15 RS ----
+  vcp(sym){
+    const {closes,closedN,bars}=this.frame(sym);
+    if(closedN<40) return {score:0, matched:false, flag:'VCP', grade:'No-VCP', level:'ok', pips:0};
+    const cl=closes.slice(0,closedN);           // CLOSED closes only
+    const last=cl[cl.length-1];
+    const sma=(p)=>{ const a=INDICATOR_CALC.sma(cl,p); return a[a.length-1]; };
+    const sma50=sma(50), sma150=sma(150), sma200=sma(200);
+    const lo52=Math.min(...cl), hi52=Math.max(...cl);
+    // Trend Template: 7 criteria × 14.3pt, PASS ≥85 (≥6 of 7). SMA150/200 need ~222 bars;
+    // we only have 160 closed → c1..c4 UNVERIFIABLE → FAIL CONSERVATIVE (met=false), like the Python.
+    const rsProxy = clamp(((last-lo52)/((hi52-lo52)||1))*100, 0, 100); // RS proxy from 52w position
+    const crit=[
+      isFinite(sma150)&&isFinite(sma200)&& last>sma150 && last>sma200,   // c1 (needs 200) → false here
+      isFinite(sma150)&&isFinite(sma200)&& sma150>sma200,                // c2 (needs 200) → false
+      false,                                                            // c3 SMA200 rising 22d — UNVERIFIABLE → fail-conservative
+      isFinite(sma50)&& last>sma50,                                      // c4 (needs 50) → verifiable
+      (last >= lo52*1.25),                                               // c5 ≥25% above 52w-low
+      (last >= hi52*0.75),                                               // c6 within 25% of 52w-high
+      rsProxy>70                                                         // c7 RS>70 (proxy)
+    ];
+    const met=crit.filter(Boolean).length;
+    const trendScore=met*14.3;                    // 0..100
+    const trendPass = trendScore>=85 && met>=6;
+    // Contraction quality: scan last ~40 closed bars for tightening pullbacks.
+    const seg=cl.slice(-Math.min(50,cl.length));
+    const {contractions, maxDepth, tightening} = this._contractions(seg);
+    const t1ok = maxDepth>=8 && maxDepth<=35;     // T1 depth 8–35%
+    const contractionQ = (contractions>=2 && tightening && t1ok) ? 90 : (contractions>=2 ? 60 : 30);
+    // Volume dry-up ≤0.85× (BURST-style vol ratio on closed bars)
+    const vols=bars.slice(0,closedN).map(b=>b.v);
+    const vDry = this._volDryUp(vols)<=0.85 ? 90 : 55;
+    // Pivot proximity: how close to the 52w-high pivot (within 25% window)
+    const pivot = clamp(100 - ((hi52-last)/((hi52*0.25)||1))*100, 0, 100);
+    const composite = 0.25*trendScore + 0.25*contractionQ + 0.20*vDry + 0.15*pivot + 0.15*rsProxy;
+    // matched only if trend template passes AND a real VCP (≥2 contractions, T1 in band)
+    const matched = trendPass && contractions>=2 && t1ok;
+    const grade = composite>=90?'Textbook':composite>=80?'Strong':composite>=70?'Good':composite>=60?'Developing':composite>=50?'Weak':'No-VCP';
+    const level = composite>=80?'high':composite>=60?'warn':'ok';
+    return {score:Math.round(composite), matched, flag:'VCP', grade, level, pips: matched?(composite>=80?3:2):1};
+  },
+  _contractions(seg){
+    // find local peaks→troughs; measure each pullback depth; check monotone tightening
+    const depths=[]; let peak=seg[0], inPull=false, trough=seg[0];
+    for(let i=1;i<seg.length;i++){
+      if(seg[i]>peak && !inPull){ peak=seg[i]; }
+      if(seg[i]<peak){ inPull=true; trough=Math.min(trough,seg[i]); }
+      if(inPull && seg[i]>=peak*0.999){ // recovered → close the contraction
+        depths.push((peak-trough)/peak*100); peak=seg[i]; trough=seg[i]; inPull=false;
+      }
+    }
+    if(inPull) depths.push((peak-trough)/peak*100);
+    let tightening=depths.length>=2;
+    // strict: every contraction ≤0.75× the prior (contraction_ratio 0.75)
+    for(let i=1;i<depths.length;i++){ if(depths[i] > depths[i-1]*0.75){ tightening=false; break; } }
+    return {contractions:depths.length, maxDepth: depths.length?depths[0]:0, tightening};
+  },
+  _volDryUp(vols){
+    if(vols.length<25) return 1;
+    const recent=vols.slice(-5).reduce((a,b)=>a+b,0)/5;
+    const base=vols.slice(-25,-5).reduce((a,b)=>a+b,0)/20;
+    return base? recent/base : 1;
+  },
+
+  // ---- CANSLIM (O'Neil) — C15 A20 N15 S15 L20 I10 M5 ----
+  canslim(sym){
+    const f=this.scanFundamentals(sym);
+    if(f.isCrypto) return {score:NaN, matched:false, flag:'CANSLIM', grade:'N/A', level:'ok', na:true};
+    const {closes,closedN}=this.frame(sym);
+    const cl=closes.slice(0,closedN); const last=cl[cl.length-1];
+    const hi52=Math.max(...cl), lo52=Math.min(...cl);
+    // C: EPS QoQ ≥50%=100 / 30–49=80 / 18–29=60  (×0.15)
+    const C = f.epsQoQ>=50?100:f.epsQoQ>=30?80:f.epsQoQ>=18?60:30;
+    // A: 3y EPS CAGR ≥40=90 / 30–39=70 / 25–29=50  (×0.20)
+    const A = f.epsCAGR>=40?90:f.epsCAGR>=30?70:f.epsCAGR>=25?50:30;
+    // N: within 5% of 52w-high=100 / 10%=80  (×0.15)  — price-honest
+    const distHi=(hi52-last)/((hi52)||1)*100;
+    const N = distHi<=5?100:distHi<=10?80:40;
+    // S: up/down-vol ratio (proxy from recent up vs down closes) (×0.15)
+    const S = this._upDownVol(cl)>=2.0?100:this._upDownVol(cl)>=1.5?80:this._upDownVol(cl)>=1.0?60:30;
+    // L: weighted RS proxy (52w position) (×0.20)
+    const rs=clamp(((last-lo52)/((hi52-lo52)||1))*100,0,100); const L = rs>=90?100:rs>=80?85:rs>=70?70:50;
+    // I: institutional % approx (×0.10)
+    const I = f.instPct>=80?100:f.instPct>=60?80:60;
+    // M: market gate — SPY vs its 50-EMA; bear = hard veto (0)  (×0.05)
+    const M = this._marketGate()?100:0;
+    let comp = 0.15*C + 0.20*A + 0.15*N + 0.15*S + 0.20*L + 0.10*I + 0.05*M;
+    if(M===0) comp=0;   // hard veto (bear market → whole screen fails)
+    const grade = comp>=90?'Except+':comp>=80?'Except':comp>=70?'Strong':comp>=60?'Above-Avg':'Weak';
+    const matched = comp>=70 && M!==0;
+    const level = comp>=80?'high':comp>=60?'warn':'ok';
+    return {score:Math.round(comp), matched, flag:'CANSLIM', grade, level, pips: matched?(comp>=80?3:2):1};
+  },
+  _upDownVol(cl){
+    let up=0,dn=0; for(let i=Math.max(1,cl.length-30);i<cl.length;i++){ if(cl[i]>=cl[i-1]) up++; else dn++; }
+    return dn? up/dn : 3;
+  },
+  _marketGate(){
+    const spy=DataEngine.get('SPY'); const cl=spy.hist['1M']; const n=cl.length-1;
+    const e=INDICATOR_CALC.ema(cl.slice(0,n),50); const last=e[e.length-1];
+    return isFinite(last) ? cl[n-1] > last : true;   // insufficient data → not a hard veto
+  },
+
+  // ---- BURST (Stockbee momentum-burst) — trigger20 vol20 setup25 close10 risk15 ----
+  burst(sym){
+    const {closes,closedN,bars}=this.frame(sym);
+    if(closedN<25) return {score:0, matched:false, flag:'BURST', grade:'Reject', level:'ok', pips:0};
+    const b=bars.slice(0,closedN);              // CLOSED bars only
+    const cur=b[b.length-1], prev=b[b.length-2];
+    const pctUp=(cur.c/prev.c - 1)*100;
+    // trigger: 4%-breakout close/prevClose≥1.04 + volume>prev + volume≥100k floor
+    const trigFire = cur.c/prev.c>=1.04 && cur.v>prev.v && cur.v>=1e5;
+    let trigger = trigFire?14:0; if(pctUp>=7) trigger+=3;    // +3 if ≥7%
+    trigger=Math.min(trigger,20);
+    // volume: best of vol_1d/vol_20d ≥3.0=20/≥2.0=15/≥1.5=10/≥1.0=6
+    const v20=b.slice(-21,-1).reduce((a,x)=>a+x.v,0)/20; const vr=v20?cur.v/v20:1;
+    const volume = vr>=3?20:vr>=2?15:vr>=1.5?10:vr>=1?6:0;
+    // setup25: base-days ≥10=10, narrow prior-day range ≤3%=5, base vol dry-up ≤0.85×=+3
+    const baseDays=this._baseDays(b); const priorRange=(prev.h-prev.l)/prev.c*100;
+    let setup = (baseDays>=10?10:0) + (priorRange<=3?5:0) + (this._volDryUp(b.map(x=>x.v))<=0.85?3:0);
+    setup=Math.min(setup,25);
+    // close-quality10: (close-low)/(high-low) ≥90%=10 …≥50%=3
+    const cq=(cur.h>cur.l)?(cur.c-cur.l)/(cur.h-cur.l):1; const closeQ = cq>=0.9?10:cq>=0.7?7:cq>=0.5?3:0;
+    // risk-distance15: dist to base-low ≤2.5%=15,≤4%=12,≤6%=8
+    const baseLow=Math.min(...b.slice(-Math.min(20,b.length)).map(x=>x.l));
+    const riskDist=(cur.c-baseLow)/cur.c*100; const risk = riskDist<=2.5?15:riskDist<=4?12:riskDist<=6?8:3;
+    let score = trigger+volume+setup+closeQ+risk;   // + market-gate 5 (assumed open below)
+    score += this._marketGate()?5:0;
+    // Achievable ceiling = trig17 + vol20 + setup18 + close10 + risk15 + market5 = 85, so the top
+    // grade A must be reachable BELOW that (was A≥90 — unawardable). Bands relabelled to the real max.
+    const grade = score>=82?'A':score>=72?'A-':score>=62?'B':score>=50?'Watch':'Reject';
+    const matched = trigFire && score>=70;
+    const level = score>=80?'high':score>=55?'warn':'ok';
+    return {score:Math.round(clamp(score,0,100)), matched, flag:'BURST', grade, level, pips: matched?(score>=80?3:2):1};
+  },
+  _baseDays(b){ // consecutive prior bars whose range stayed inside a tight band before the trigger
+    let days=0; const ref=b[b.length-1].c;
+    for(let i=b.length-2;i>=1;i--){ const rng=(b[i].h-b[i].l)/b[i].c*100; if(rng>6) break; days++; if(days>30) break; }
+    return days;
+  },
+
+  // ---- DIVPULL (dividend-growth pullback) — Div40 Quality30 Technical20 Val10 ----
+  divpull(sym){
+    const f=this.scanFundamentals(sym);
+    const u=UNIVERSE[sym];
+    if(f.isCrypto || u.div===0) return {score:NaN, matched:false, flag:'DIVPULL', grade:'N/A', level:'ok', na:true};
+    const {closes,closedN}=this.frame(sym);
+    const cl=closes.slice(0,closedN);
+    const rsiArr=INDICATOR_CALC.rsi(cl, THRESHOLDS.RSI_PERIOD); const rsi=rsiArr[rsiArr.length-1];
+    // Gates: yield ≥1.5%, 3y div-CAGR ≥12%, RSI(14) ≤40
+    const gates = f.yieldPct>=1.5 && f.divCAGR>=12 && isFinite(rsi) && rsi<=40;
+    // Div score: CAGR ≥20=40/≥15=35/≥12=30/else20 (+5 consistency)
+    const div = (f.divCAGR>=20?40:f.divCAGR>=15?35:f.divCAGR>=12?30:20) + (f.divCAGR>=12?5:0);
+    // Quality30: ROE ≥20=12/≥15=10/≥10=7 (+ margin/D-E proxies folded in)
+    const qual = (f.roe>=20?12:f.roe>=15?10:f.roe>=10?7:4) + 10 + (u.beta<1.2?8:3);
+    // Technical20 (RSI): ≤25=20/≤30=18/≤35=15/≤40=12/else5
+    const tech = !isFinite(rsi)?5: rsi<=25?20:rsi<=30?18:rsi<=35?15:rsi<=40?12:5;
+    // Valuation10: cheaper PE → higher
+    const val = u.pe<20?10:u.pe<30?7:u.pe<40?4:2;
+    const comp = clamp(0.40*div + 0.30*Math.min(qual,30) + 0.20*tech + 0.10*val, 0, 100);
+    const matched = gates && comp>=60;
+    const grade = comp>=80?'Strong':comp>=65?'Buy-zone':comp>=50?'Watch':'Pass';
+    const level = comp>=75?'high':comp>=55?'warn':'ok';
+    return {score:Math.round(comp), matched, flag:'DIVPULL', grade, level, pips: matched?(comp>=75?3:2):1, rsi};
+  },
+
+  // ---- dispatch one preset over one symbol ----
+  run(preset, sym){
+    if(preset==='VCP')     return this.vcp(sym);
+    if(preset==='CANSLIM') return this.canslim(sym);
+    if(preset==='BURST')   return this.burst(sym);
+    if(preset==='DIVPULL') return this.divpull(sym);
+    // ALL = best matched score across the four
+    const parts=[this.vcp(sym),this.canslim(sym),this.burst(sym),this.divpull(sym)];
+    const real=parts.filter(p=>isFinite(p.score));
+    real.sort((a,b)=> (b.matched-a.matched) || (b.score-a.score));
+    const best=real[0] || {score:0,matched:false,flag:'—',grade:'No-VCP',level:'ok',pips:0};
+    return {...best, flag: best.matched? best.flag : (best.flag||'—')};
+  }
+};
+
+/* =========================================================================
+   SCANNER SCREEN (id=scan) — reference wave-2 implementation.
+   Non-repainting: closed-bar metrics + memo per (preset, dataV). Row order only
+   re-sorts on candle finalize; between candles last/1D% live-flash via setTickText.
+   ========================================================================= */
+const Scan = {
+  preset:'ALL',                       // boot default = ALL (always populated, ranked); strict screeners (VCP/BURST/DIVPULL) can legitimately return 0 on this static seed
+                                      // (VCP/DIVPULL are mathematically unreachable at 160 closed bars — dead heroes)
+  sortKey:'SCORE',                    // SCORE | 1D% | RSI
+  cached:false,                        // 'SCAN: CACHED' badge (fundamentals-fetch failover echo)
+  cache:{},                            // key: `${preset}|${dataV}` -> rows
+  dataV:0
+};
+function scanBumpData(){ Scan.dataV++; Scan.cache={}; }
+
+function scanCountFor(preset){
+  let c=0; DEFAULT_ROSTER.forEach(s=>{ if(SCAN_CALC.run(preset,s).matched) c++; }); return c;
+}
+function scanComputeRows(){
+  const key=`${Scan.preset}|${Scan.dataV}`;
+  if(Scan.cache[key]) return Scan.cache[key];
+  const rows=DEFAULT_ROSTER.map(sym=>{
+    const q=DataEngine.get(sym);
+    const r=SCAN_CALC.run(Scan.preset, sym);
+    // RSI on CLOSED bars for the rail cell (honest, non-repainting)
+    const cl=q.hist['1M'].slice(0, Math.max(0,q.hist['1M'].length-1));
+    const rsiArr=INDICATOR_CALC.rsi(cl, THRESHOLDS.RSI_PERIOD);
+    const rsi=rsiArr[rsiArr.length-1];
+    return {sym, q, r, rsi:isFinite(rsi)?rsi:null, dayPct:q.dayPct, last:q.last};
+  });
+  Scan.cache[key]=rows; return rows;
+}
+function scanSortRows(rows){
+  const k=Scan.sortKey;
+  const val=(x)=> k==='1D%'? x.dayPct : k==='RSI'? (x.rsi==null?-1:x.rsi) : (isFinite(x.r.score)?x.r.score:-1);
+  // matched first, then chosen key desc; N/A & unmatched sink (honest: still shown, dimmed)
+  return rows.slice().sort((a,b)=> (b.r.matched-a.r.matched) || (val(b)-val(a)));
+}
+function scanRsiRail(rsi){
+  if(rsi==null) return '<span class="mono" style="color:var(--ink-soft)">N/A</span>';
+  const os=THRESHOLDS.RSI_OVERSOLD, ob=THRESHOLDS.RSI_OVERBOUGHT;
+  const x=clamp(rsi,0,100)/100*34;
+  return `<span class="rsi-rail"><span class="mono">${rsi.toFixed(0)}</span>`+
+    `<span class="rr-track"><span class="rr-os" style="left:${os/100*34}px"></span>`+
+    `<span class="rr-ob" style="left:${ob/100*34}px"></span>`+
+    `<span class="rr-dot" style="left:${x}px"></span></span></span>`;
+}
+function scanSetupCell(r){
+  if(r.na) return statusChip(r.flag+' N/A','ok',{na:true});
+  // unmatched: the SHARED chip (0 filled pips) — not a hand-built divergence. The row is already
+  // scan-dim, so it reads secondary without re-implementing the chip markup.
+  if(!r.matched) return statusChip(r.flag+' —','ok',{pips:0});
+  const word = `${r.flag} ${r.grade}`;
+  return statusChip(word, r.level, {pips:r.pips});
+}
+function renderScanner(){
+  // preset seg toggle (orange-active-only) with live match counts
+  buildSegToggle($('#scanPresets'),
+    SCAN_PRESETS.map(p=>({key:p.key, label:p.label, count: scanCountFor(p.key)})),
+    Scan.preset,
+    (key)=>{ Scan.preset=key; renderScanner(); });
+  const activeName = (SCAN_PRESETS.find(p=>p.key===Scan.preset)||{}).name || Scan.preset;
+  $('#scanPlabel').textContent = `SCANNER // ${activeName} · MODEL`;
+  $('#scanMethod').innerHTML = SCAN_METHOD[Scan.preset] || '';
+  $('#scanSortKey').textContent = Scan.sortKey;
+  const badge=$('#scanBadge'); badge.textContent = Scan.cached?'SCAN: CACHED':'SCAN: LIVE';
+  badge.classList.toggle('cached', Scan.cached);
+
+  const rows=scanSortRows(scanComputeRows());
+  const wrap=$('#scanLedWrap');
+  const anyMatch=rows.some(x=>x.r.matched);
+  // HONEST-DATA LAW: the header promises "8 INSTRUMENTS" and the ALL note promises rows stay
+  // visible ("still evaluated, not hidden"). When nothing matches we render the empty BANNER
+  // ABOVE the full DIMMED ledger (every row scan-dim, no scan-top) — never hide the evaluated rows.
+  let topSet=false;
+  const body=rows.map(x=>{
+    const matched=x.r.matched;
+    const cls = (matched && !topSet) ? (topSet=true,'scan-top') : (matched?'':'scan-dim');
+    const scoreTxt = isFinite(x.r.score) ? x.r.score : 'N/A';
+    const sel = x.sym===State.selected ? ' style="outline:1.5px solid var(--teal);outline-offset:-1.5px"' : '';
+    return `<tr class="${cls}"${sel} data-sym="${x.sym}">
+      <td class="l sym">${x.sym.replace('-USD','')}</td>
+      <td class="mono" data-scanlast>${fmtUSD(x.last, x.last<10?4:2)}</td>
+      <td class="mono ${glClass(x.dayPct)}" data-scanpct>${arrow(x.dayPct)} ${Math.abs(x.dayPct).toFixed(2)}%</td>
+      <td>${scanRsiRail(x.rsi)}</td>
+      <td class="l">${scanSetupCell(x.r)}</td>
+      <td class="mono scan-score">${scoreTxt}</td>
+    </tr>`;
+  }).join('');
+  const banner = anyMatch ? '' : `<div class="scan-empty">NO INSTRUMENTS MATCH THIS PRESET &#8212; LOOSEN THE FILTER OR SELECT A DIFFERENT SCREEN.<br>(Every preset is a real screener; a strict market rarely yields matches. All 8 instruments stay listed below, evaluated and dimmed.)</div>`;
+  wrap.innerHTML=`${banner}<table class="ledger">
+    <thead><tr>
+      <th class="l">SYM</th><th>LAST</th><th>1D%</th><th>RSI</th><th class="l">SETUP</th><th>SCORE</th>
+    </tr></thead><tbody>${body}</tbody></table>`;
+  // roster click → select row (reuse selectInstrument routing)
+  wrap.querySelectorAll('tr[data-sym]').forEach(tr=>tr.addEventListener('click',()=>selectInstrument(tr.dataset.sym)));
+}
+// NON-REPAINTING tick: between candles only the last/1D% cells live-update (digit flash);
+// setup flags/scores/order HOLD. A full recompute+resort happens on candle finalize only.
+let scanLastClosedN=null;
+function scanTick(){
+  // detect candle finalize via SPY's 1M closed count as a shared clock (all syms share cadence).
+  // DEAD UNTIL ENGINE ROLLS 1M/1Y BARS — app port will exercise this: DataEngine.tick() only rolls
+  // hist['1D'], so closedN is constant and the scanBumpData()+resort branch below never fires today.
+  const spy=DataEngine.get('SPY'); const closedN=Math.max(0, spy.hist['1M'].length-1);
+  if(scanLastClosedN!==null && closedN!==scanLastClosedN){ scanBumpData(); renderScanner(); scanLastClosedN=closedN; return; }
+  scanLastClosedN=closedN;
+  // live-flash only the price cells; never rebuild the DOM/resort mid-candle
+  $$('#scanLedWrap tr[data-sym]').forEach(tr=>{
+    const sym=tr.dataset.sym; const q=DataEngine.get(sym);
+    const lastEl=tr.querySelector('[data-scanlast]'); if(lastEl) setTickText(lastEl, fmtUSD(q.last, q.last<10?4:2));
+    const pctEl=tr.querySelector('[data-scanpct]'); if(pctEl){ pctEl.className='mono '+glClass(q.dayPct); pctEl.textContent=`${arrow(q.dayPct)} ${Math.abs(q.dayPct).toFixed(2)}%`; }
+  });
+}
+
+/* =========================================================================
+   JOURNAL SCREEN (id=journal, WND-0x9C) — the session PAPER DIARY.
+   Answers: "for each trade I made this session, what did I do and think — and is my
+   process actually working?" Each State.ordersLog fill auto-becomes a dated writable
+   card (humanist-body note + TEAL tag chips + optional forward-only lifecycle pill).
+   The SESSION LEDGER sidebar shows honest descriptive stats (fills/BP/notes/tagged);
+   win-rate / expectancy / PF / R stay em-dash placeholders — a session of one-legged
+   fills has NO closed round-trips, so computed-looking numbers would be dishonest
+   (weekly-performance-digest: "closed trades only for headline numbers").
+
+   NON-REPAINTING DISCIPLINE: a card is a FINALIZED artefact of a closed action (a
+   confirmed fill) — it never mutates on tick. journalTick() updates ONLY the sidebar
+   numeral spans via setTickText, and skips even that while a note is focused, so it can
+   never blow away in-progress text or steal caret/focus. The feed re-renders only on a
+   new fill (journalOnFill) or an explicit tag/pill click.
+
+   [WIREUP] app port: replace the in-memory JOURNAL.cards store + seed with
+   tauri-plugin-sql (src/db/) persistence; recompute CLOSED-TRADE STATS from persisted
+   closed round-trips using ported win_rate/expectancy/profit_factor/R formulas
+   (weekly-performance-digest generate_weekly_digest.py). Notes/tags currently live only
+   in-session and vanish on reload — persistence is the app port's job, not the prototype's.
+   ========================================================================= */
+// One place for the single tunable guess (THRESHOLDS discipline): the review interval.
+const JOURNAL_CONST = { REVIEW_INTERVAL_DAYS:30 }; // trader-memory-core monitoring.review_interval_days default:30
+const JN_TAGS = ['WIN','MISTAKE','LESSON','WATCHING'];          // toggle chips (TEAL when on — never green/red)
+const JN_LIFECYCLE = ['IDEA','ENTRY READY','ACTIVE','CLOSED'];  // forward-only pill (trader-memory-core status enum, condensed)
+// Session-local card store, keyed by ordersLog index. `sample:true` cards are demonstrative
+// seeds that clear the instant a real fill lands. A card carries {note, tags:Set, lifeIdx}.
+const JOURNAL = { cards:[], seeded:false };
+
+function journalSeed(){
+  // Seed 2 demonstrative pages from the SAME seeded DataEngine the rest of the app shows,
+  // so the diary reads full on a fresh session. Flagged SAMPLE; retired on first real fill.
+  if(JOURNAL.seeded) return;
+  const now=new Date();
+  const stamp=(minsAgo)=> new Date(now.getTime()-minsAgo*60000).toTimeString().slice(0,8);
+  const mk=(sym,side,qty,minsAgo,tags,life,note)=>{
+    const q=DataEngine.get(sym); const price=q.last; const est=qty*price;
+    return { sample:true, time:stamp(minsAgo), sym:sym.replace('-USD',''), side, qty, price, est,
+             note, tags:new Set(tags), lifeIdx: life };
+  };
+  JOURNAL.cards = [
+    mk('NVDA','BUY',40,42,['WATCHING'],2,'Added into strength on the AI-capex read; watching the 50-DMA hold before I press.'),
+    mk('SPY','SELL',20,18,['LESSON'],3,'Trimmed the index hedge a touch early — note to self: let the plan run, not the nerves.')
+  ]; // newest-first is handled at render; store chronological
+  JOURNAL.seeded=true;
+}
+function journalRealCards(){
+  // Build the live card list from State.ordersLog (each confirmed fill), preserving any
+  // note/tag the operator already typed for that index. Never drops user edits.
+  return State.ordersLog.map((o,i)=>{
+    const prev=JOURNAL.cards.find(c=>!c.sample && c.logIdx===i);
+    return prev || { sample:false, logIdx:i, time:o.time, sym:o.sym, side:o.side, qty:o.qty,
+                     price:o.price, est:o.est, note:'', tags:new Set(), lifeIdx: (o.side==='BUY'?2:3) };
+  });
+}
+function journalActiveCards(){
+  // Real fills win the moment any exist; otherwise show the SAMPLE seeds.
+  if(State.ordersLog.length){ JOURNAL.cards = journalRealCards(); return JOURNAL.cards; }
+  journalSeed(); return JOURNAL.cards;
+}
+function journalReviewDate(timeStr){
+  // Card timestamp ("HH:MM[:SS]", today's session) + REVIEW_INTERVAL_DAYS (purely informational,
+  // never a blocker). Anchor to the card's own time so a fill just before midnight reviews on the
+  // correct calendar day, then add the interval and format short.
+  const d=new Date();
+  const m=/^(\d{1,2}):(\d{2})/.exec(timeStr||'');
+  if(m){ d.setHours(+m[1], +m[2], 0, 0); }
+  d.setDate(d.getDate()+JOURNAL_CONST.REVIEW_INTERVAL_DAYS);
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}).toUpperCase();
+}
+
+function renderJournal(){
+  const feed=$('#jnFeed'); if(!feed) return;
+  const cards=journalActiveCards();
+  $('#jnFeedNote').textContent = cards.length
+    ? (State.ordersLog.length ? cards.length+(cards.length===1?' PAGE':' PAGES') : 'SAMPLE PAGES · CLEAR ON FIRST FILL')
+    : '—';
+  if(!cards.length){
+    feed.innerHTML = `<div class="orders-empty">NO ENTRIES THIS SESSION &mdash; STAGE AND CONFIRM FROM <b>POSITIONS.dat</b>, OR JOT A FREE NOTE</div>`;
+    journalRenderStats(cards);
+    return;
+  }
+  // newest-first
+  const view=cards.slice().reverse();
+  feed.innerHTML = view.map((c,vi)=>{
+    const idx = cards.indexOf(c);                         // stable index into the store (for handlers)
+    const buy=c.side==='BUY'; const cls=buy?'gain':'loss';
+    const sampleTag = c.sample ? `<span class="jn-sampletag">SAMPLE</span>` : '';
+    const tags = JN_TAGS.map(t=>`<span class="tag${c.tags.has(t)?' on':''}" data-jtag="${t}" data-jidx="${idx}">${t}</span>`).join('');
+    const life = c.lifeIdx>=0 ? (()=>{ const closed=c.lifeIdx>=JN_LIFECYCLE.length-1;
+        return `<span class="jn-pill${closed?' closed':''}" data-jlife="${idx}">${JN_LIFECYCLE[c.lifeIdx]}${closed?'':' <span class="jn-pillarrow">▶</span>'}</span>`; })() : '';
+    const anyTag = c.tags.size>0;
+    const review = anyTag ? `<span class="jn-review">next review <b>${journalReviewDate(c.time)}</b></span>` : '';
+    const noteVal = (c.note||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<div class="jn-card${c.sample?' sample':''}">
+      <div class="jn-cardhead">
+        <span class="jn-time">${c.time}</span>
+        <span class="jn-side ${cls}">${arrow(buy?1:-1)} ${c.side}</span>
+        <span class="jn-qty">${c.qty}</span>
+        <span class="jn-sym">${c.sym}</span>
+        <span class="jn-at">@</span>
+        <span class="jn-price mono ${cls}">${fmtUSD(c.price, c.price<10?4:2)}</span>
+        ${sampleTag}
+      </div>
+      <textarea class="jn-note" data-jidx="${idx}" rows="2" placeholder="What did I do and think here…">${noteVal}</textarea>
+      <div class="jn-cardfoot">
+        <div class="jn-tags">${tags}</div>
+        ${life}
+        ${review}
+      </div>
+    </div>`;
+  }).join('');
+
+  // wire note editing — persist to the in-memory store on input/blur, NEVER on tick.
+  feed.querySelectorAll('textarea.jn-note').forEach(ta=>{
+    ta.addEventListener('input',()=>{ const c=cards[+ta.dataset.jidx]; if(c){ c.note=ta.value; } });
+    ta.addEventListener('blur',()=>{ const c=cards[+ta.dataset.jidx]; if(c){ c.note=ta.value; journalRenderStats(cards); } });
+  });
+  // wire tag chips (toggle) — feed re-renders on an explicit toggle (no textarea focused mid-click)
+  feed.querySelectorAll('[data-jtag]').forEach(el=>{
+    el.addEventListener('click',()=>{ const c=cards[+el.dataset.jidx]; if(!c) return;
+      const t=el.dataset.jtag; if(c.tags.has(t)) c.tags.delete(t); else c.tags.add(t); renderJournal(); });
+  });
+  // wire lifecycle pill — forward-only (IDEA->ENTRY READY->ACTIVE->CLOSED), stops at CLOSED
+  feed.querySelectorAll('[data-jlife]').forEach(el=>{
+    el.addEventListener('click',()=>{ const c=cards[+el.dataset.jlife]; if(!c) return;
+      if(c.lifeIdx < JN_LIFECYCLE.length-1) c.lifeIdx++; renderJournal(); });
+  });
+  journalRenderStats(cards);
+}
+
+function journalRenderStats(cards){
+  // Honest descriptive session stats. NET BP DELTA = signed Σ (sells add, buys subtract BP),
+  // shown sign+▲/▼ + gain/loss class (a MARKET numeral — legitimate green/red).
+  const real = cards.filter(c=>!c.sample);
+  const src = real.length ? real : cards;                 // sample cards populate the demo stats until a real fill
+  // mark the sidebar numerals as (SAMPLE) while no real fill has landed — the demo seeds drive
+  // Fills / Net BP etc., so labelling them keeps the sidebar honest (matches the feed's SAMPLE note).
+  const tag=$('#jnSampleTag'); if(tag) tag.style.display = State.ordersLog.length ? 'none' : '';
+  const fills = src.length;
+  const buys = src.filter(c=>c.side==='BUY').length;
+  const sells = fills-buys;
+  const bpDelta = src.reduce((a,c)=> a + (c.side==='BUY' ? -c.est : c.est), 0);
+  const notes = src.filter(c=>(c.note||'').trim().length>0).length;
+  const tagged = src.filter(c=>c.tags.size>0).length;
+  const setT=(id,txt)=>{ const el=$('#'+id); if(el) setTickText(el, txt); };
+  setT('jnFills', String(fills));
+  const split=$('#jnSplit'); if(split) split.textContent = `${buys} / ${sells}`;
+  const bpEl=$('#jnBP');
+  if(bpEl){
+    if(fills===0){ bpEl.className='v mono'; setTickText(bpEl,'—'); }
+    else { bpEl.className='v mono '+glClass(bpDelta); setTickText(bpEl, `${arrow(bpDelta)} ${fmtUSD(Math.abs(bpDelta))}`); }
+  }
+  setT('jnNotes', String(notes));
+  setT('jnTagged', String(tagged));
+}
+
+// Called from confirmStage() after every fill: retire the SAMPLE seeds, then, if the screen
+// is live, re-render the feed so the new page appends instantly (a fill is a closed action —
+// safe to repaint here; no note can be mid-typed at the instant a fill is confirmed).
+function journalOnFill(){
+  JOURNAL.cards = journalRealCards();
+  if(State.screen==='journal') renderJournal();
+}
+
+// NON-REPAINTING tick: update ONLY the sidebar numerals, and skip even that while a note is
+// focused (setTickText on an unfocused span can't disturb the caret). The feed is untouched.
+function journalTick(){
+  if(document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('jn-note')) return;
+  journalRenderStats(journalActiveCards());
+}
+
+// Keyboard: N focuses the newest card's note (jump-to-write); W toggles WATCHING on it.
+// Both are gated on State.screen==='journal' && !editing (with TEXTAREA in the editing guard),
+// so they never fire while a note is being typed.
+function journalFocusNewest(){
+  const feed=$('#jnFeed'); if(!feed) return;
+  const ta=feed.querySelector('textarea.jn-note');        // newest-first render -> first textarea is newest
+  if(ta){ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
+function journalToggleWatchingNewest(){
+  const cards=journalActiveCards(); if(!cards.length) return;
+  const c=cards[cards.length-1];                          // newest = last chronological
+  if(c.tags.has('WATCHING')) c.tags.delete('WATCHING'); else c.tags.add('WATCHING');
+  renderJournal();
+}
+
+/* =========================================================================
+   COMPARE SCREEN (id=compare, WND-0x8B) — side-by-side VALUE FINGERPRINT.
+   Answers: of the 2-3 picked symbols, which is the better instrument RIGHT NOW —
+   richer value fingerprint, cheaper on PEG/FCF, wider moat — and where each wins/loses.
+
+   HONEST-DATA: the five value dimensions are a METHODOLOGY DEMO derived deterministically
+   from the existing DataEngine + UNIVERSE (GBM personality + per-sector baselines). They are
+   NOT audited financials — the plabel says MODEL and the table header says so too. The ONLY
+   live-capable layer is the price overlay (crypto slots via the already-wired Coinbase feed);
+   equities stay MOCK. Fundamentals are computed locally (never fail) and never jitter on tick.
+
+   NON-REPAINTING LAW: COMPARE_CALC.metrics(sym) is a SETTLED verdict computed once per
+   (symbol,range) assignment and cached — it must NOT wiggle every mock tick (that would be
+   dishonest and defeat the comparison). Only the base-100 price overlay repaints live on 1D.
+   ========================================================================= */
+const CMP_AXES = ['VALUATION','MOAT','FCF','PROFITABILITY','GROWTH']; // 1..5 each, *2 -> pentagon 1..10
+// Per-sector fundamental baselines (stock-analyzer analyze-value 197-231): fwdPE / roe% / netMargin% /
+// fcfYield% / peg. Used to (a) proxy the metrics UNIVERSE lacks and (b) colour rich/cheap vs own sector.
+const CMP_SECTOR_BASE = {
+  'SEMICONDUCTOR': {pe:32, roe:0.20, margin:0.26, fcfy:0.030, peg:1.4},
+  'CONSUMER TECH': {pe:28, roe:0.30, margin:0.25, fcfy:0.035, peg:1.3},
+  'AUTO / ENERGY': {pe:20, roe:0.14, margin:0.11, fcfy:0.030, peg:1.6},
+  'BROAD INDEX':   {pe:22, roe:0.16, margin:0.13, fcfy:0.045, peg:1.5},
+  'DIGITAL ASSET': {pe:NaN,roe:NaN, margin:NaN, fcfy:NaN,   peg:NaN},
+  'SPECIALTY RETAIL':{pe:15, roe:0.08, margin:0.05, fcfy:0.055, peg:1.8},
+  '_DEFAULT':      {pe:22, roe:0.15, margin:0.12, fcfy:0.040, peg:1.5}
+};
+function cmpSectorBase(sym){ const p=cmpProfile(sym); return CMP_SECTOR_BASE[p&&p.sector] || CMP_SECTOR_BASE._DEFAULT; }
+
+/* --- SYNTHETIC FALLBACK for typed non-roster symbols (mirrors perfLoadSeries' UNIVERSE[sym]?…:
+   genSyntheticCloses path). A typed SYM that isn't on the roster has no UNIVERSE profile and no
+   DataEngine quote, so Compare MOCK-derives both deterministically from the ticker hash — the same
+   genSyntheticCloses() the Performance screen uses — and tags the profile with the neutral _DEFAULT
+   sector (pe stays NaN so COMPARE_CALC's crypto-style valuation fallback engages, never a crash).
+   [LIVE SEAM: Tauri-Rust only] the app port swaps these derives for the real quoteSummary lookup. */
+function cmpIsRoster(sym){ return !!UNIVERSE[sym]; }
+// synthetic UNIVERSE-shaped profile for an unlisted ticker (only the fields COMPARE_CALC reads).
+const cmpSynthProfileCache={};
+function cmpSynthProfile(sym){
+  if(cmpSynthProfileCache[sym]) return cmpSynthProfileCache[sym];
+  const h=seedFromString(sym);
+  const drift=(((h>>3)%21)-10)/12000;                       // same personality basis as genSyntheticCloses
+  const mcap = 5e9 + (h%80)*1e9;                             // $5B–$85B unlisted-scale guess
+  const p={ name:'Unlisted / synthetic', sector:'_DEFAULT', style:'SYNTHETIC', tags:[],
+    mcap, pe:NaN, div:0, drift, beta:1.2, avgvol:5e6, live:false, synthetic:true };
+  cmpSynthProfileCache[sym]=p; return p;
+}
+// UNIVERSE profile if roster, else the synthetic profile. Used everywhere COMPARE reads UNIVERSE[sym].
+function cmpProfile(sym){ return UNIVERSE[sym] || cmpSynthProfile(sym); }
+// synthetic DataEngine-quote-shaped object for an unlisted ticker (last/dayPct/prevClose + hist per range).
+const cmpSynthQuoteCache={};
+function cmpSynthQuote(sym){
+  if(cmpSynthQuoteCache[sym]) return cmpSynthQuoteCache[sym];
+  const hist={};
+  ['1D','1W','1M','1Y'].forEach(r=>{ hist[r]=genSyntheticCloses(sym, HIST_POINTS[r], r); });
+  const day=hist['1D']; const last=day[day.length-1]; const prevClose=day[0];
+  const dayPct=prevClose? (last/prevClose-1)*100 : 0;
+  const q={ last, prevClose, dayPct, day:day.slice(), hist, synthetic:true };
+  cmpSynthQuoteCache[sym]=q; return q;
+}
+// DataEngine quote if roster, else the synthetic quote. Used everywhere COMPARE reads DataEngine.get(sym).
+function cmpQuote(sym){ return cmpIsRoster(sym)? DataEngine.get(sym) : cmpSynthQuote(sym); }
+
+/* --- COMPARE_CALC — pure derive-block (no DOM, no canvas), sibling to INDICATOR_CALC/SCAN_CALC.
+   Returns {crypto, valuation,moat,fcf,profit,growth (1..5), composite, verdict, verdictLevel,
+   and delta rows: peg,fcfYield,moatScore,divYield,day} with {val, txt, betterHigh}.
+   LIVE-WIREUP: replace derive*() with ported yahooquery/quoteSummary (Rust-side, see
+   stock-analyzer) — the mock->live swap happens ONLY inside COMPARE_CALC.metrics; the UI never changes. */
+const COMPARE_CALC = {
+  metrics(sym){
+    const p=cmpProfile(sym); const q=cmpQuote(sym); const base=cmpSectorBase(sym);
+    const crypto = !isFinite(p.pe); // BTC/ETH: no PE -> fixed-3 valuation (matches radarScores VALUE fallback)
+    const last=q.last;
+    // ---- growth proxied from GBM personality (annualized drift) so NVDA/TSLA read high-growth,
+    //      SPY/utilities low — internally consistent with the charts that drift already drives.
+    const growthAnn = clamp(p.drift*252, -0.10, 0.40); // ~annual expected return from daily drift
+    // ---- FCF yield proxied off the sector baseline, nudged by relative PE (cheaper PE => higher yield),
+    //      then clamped. Crypto has no FCF concept -> hold at a neutral 3/5 later.
+    const peRel = crypto ? 1 : clamp(base.pe/(p.pe||base.pe), 0.4, 1.8); // >1 = cheaper than sector
+    const fcfYield = crypto ? NaN : clamp(base.fcfy*peRel, 0.005, 0.12);
+    // ---- ROE / net margin proxied from the sector baseline, tilted by the growth personality.
+    const roe = crypto ? NaN : clamp(base.roe*(0.75+peRel*0.35), 0.02, 0.45);
+    const netMargin = crypto ? NaN : clamp(base.margin*(0.8+peRel*0.3), 0.02, 0.40);
+    // ---- PEG = fwdPE / (growth% ) (stock-analyzer METHODOLOGY 282-288). Lower is cheaper.
+    const gPct = Math.max(growthAnn*100, 1);
+    const peg = crypto ? NaN : clamp((p.pe||base.pe)/gPct, 0.2, 4.0);
+    // ---- margin-of-safety: light DCF proxy — FCF yield above the sector bar => cushion.
+    const mos = crypto ? 0 : clamp((fcfYield - base.fcfy)/Math.max(base.fcfy,0.01)*40 + (peRel-1)*30, -40, 60); // %
+    const divYield = p.div>0 ? (p.div/last)*100 : 0;
+
+    // ===== FIVE AXIS SCORES — VERBATIM 1-5 cutoffs (compare.json methodologySource / analyze-value 742-748)
+    // valuation: 5 if MoS>30 else 4 if >15 else 3 if >0 else 2  (crypto: fixed 3)
+    const sVal = crypto ? 3 : (mos>30?5: mos>15?4: mos>0?3: 2);
+    // moat: int(analyze_moat.average) via the exact mcap tiers + margin/roe proxies (469-527)
+    const sMoat = this.moatScore(sym, {roe, netMargin, growthAnn, crypto});
+    // fcf: 5 if fcf>0 && fcf/mcap>0.03 else 4 if fcf>0 else 3  (crypto: neutral 3)
+    const sFcf = crypto ? 3 : (fcfYield>0.03 ? 5 : fcfYield>0 ? 4 : 3);
+    // profit: 5 if roe>0.2 else 4 if >0.15 else 3 if >0.1 else 2  (crypto: neutral 3)
+    const sProf = crypto ? 3 : (roe>0.2?5: roe>0.15?4: roe>0.1?3: 2);
+    // growth: 5 if avg>0.2 else 4 if >0.15 else 3 if >0.1 else 2
+    const sGro = growthAnn>0.2?5: growthAnn>0.15?4: growthAnn>0.1?3: 2;
+
+    const axes = {VALUATION:sVal, MOAT:sMoat, FCF:sFcf, PROFITABILITY:sProf, GROWTH:sGro};
+    const composite = (sVal+sMoat+sFcf+sProf+sGro)/5; // /5.0
+    // final rating gate (SKILL 227-234 / analyze-value 751-758)
+    let verdict='AVOID', verdictLevel='high';
+    if(composite>=4.5 && mos>20){ verdict='STRONG BUY'; verdictLevel='ok'; }
+    else if(composite>=4.0 && mos>10){ verdict='BUY'; verdictLevel='ok'; }
+    else if(composite>=3.5){ verdict='HOLD'; verdictLevel='warn'; }
+    else { verdict='AVOID'; verdictLevel='high'; }
+
+    // ---- delta rows (betterHigh = higher value wins the row; false = lower wins, e.g. PEG)
+    const rows = {
+      peg:     { val: crypto?NaN:peg,        txt: crypto?'N/A':peg.toFixed(2),                     betterHigh:false, sub: crypto?'—':this.pegLabel(peg) },
+      fcfYield:{ val: crypto?NaN:fcfYield*100,txt: crypto?'N/A':(fcfYield*100).toFixed(2)+'%',      betterHigh:true,  sub: crypto?'—':(fcfYield>0.05?'HEALTHY':'THIN') },
+      moatScore:{val: sMoat,                 txt: sMoat.toFixed(0)+' / 5',                          betterHigh:true,  sub: this.moatLabel(sMoat) },
+      divYield:{ val: divYield,              txt: divYield>0?divYield.toFixed(2)+'%':'—',           betterHigh:true,  sub: divYield>0?'PAYS':'NONE' },
+      day:     { val: q.dayPct,              txt: `${arrow(q.dayPct)} ${Math.abs(q.dayPct).toFixed(2)}%`, betterHigh:true, mkt:true }
+    };
+    return {sym, crypto, axes, composite, verdict, verdictLevel, mos, rows};
+  },
+  // analyze_moat (469-527): five sub-moats each 1-5 -> average -> int() for the axis score.
+  moatScore(sym, m){
+    const p=cmpProfile(sym);
+    if(m.crypto){ // digital assets have no classic moat model -> conservative 3 (network only)
+      return 3;
+    }
+    const mc=p.mcap;
+    const network  = mc>500e9?5: mc>100e9?4: 3;                                  // by mcap tier
+    const brand    = (m.roe>0.25 && m.netMargin>0.20)?5: (m.roe>0.15?4:3);       // roe/gross_margin
+    const isTech   = /SEMICONDUCTOR|CONSUMER TECH/.test(p.sector);
+    const tech     = (isTech && m.growthAnn>0.15)?5: isTech?4: 3;                // tech-sector + growth
+    const cost     = m.netMargin>0.2?5: m.netMargin>0.15?4: m.netMargin>0.1?3: 2;// net_margin tiers
+    const switching= m.roe>0.2?5: m.roe>0.15?4: 3;                               // roe tiers
+    const avg=(network+brand+tech+cost+switching)/5;
+    return clamp(Math.round(avg),1,5);
+  },
+  moatLabel(s){ return s>=4.5?'极宽 WIDE+' : s>=4?'宽阔 WIDE' : s>=3?'中等 MODERATE' : '狭窄 NARROW'; },
+  pegLabel(peg){ return peg<0.8?'DEEP VALUE' : peg<1.0?'UNDERVALUED' : peg<1.2?'FAIR' : peg<1.5?'RICH' : 'EXPENSIVE'; }
+};
+
+/* --- Compare state: 3 symbol slots via the shared slotPicker (2 pre-filled for showcase). */
+const CMP_COLORS = ['#EDE4CE', '#C79A5E', '#94A79B']; // paper-cream / warm-brown / cool-grey — NEUTRAL line identity (NOT teal/orange)
+const Compare = {
+  range:'1M',
+  picker: makeSlotPicker(3),
+  metricCache:{}    // `${sym}|${range}` -> COMPARE_CALC.metrics (settled; recomputed on slot/range change only)
+};
+Compare.picker.slots[0]='NVDA';
+Compare.picker.slots[1]='AAPL';
+Compare.picker.slots[2]=null;
+Compare.picker.active=2;
+let cmpRadarAnim={}; // per-cell tween state (keyed by slot index)
+
+function cmpFilledSlots(){ return Compare.picker.slots.map((s,i)=>({sym:s,i})).filter(o=>o.sym); }
+function cmpGetMetrics(sym){
+  const k=`${sym}|${Compare.range}`;
+  if(!Compare.metricCache[k]) Compare.metricCache[k]=COMPARE_CALC.metrics(sym); // settled verdict, cached
+  return Compare.metricCache[k];
+}
+function cmpBumpMetrics(){ Compare.metricCache={}; } // on candle finalize only (non-repainting)
+
+/* --- shared-domain base-100 normalization: index each series to 100 at its first bar, THEN
+   take min/max across ALL series together so a £4 crypto and a £600 index share one y-domain. */
+function cmpBuildOverlay(){
+  const filled=cmpFilledSlots();
+  const out={series:[], min:100, max:100};
+  filled.forEach(o=>{
+    const q=cmpQuote(o.sym); const raw=q.hist[Compare.range]||[];
+    if(raw.length<2){ out.series.push({i:o.i, sym:o.sym, norm:[], endPct:0}); return; }
+    const b0=raw[0]||1;
+    const norm=raw.map(v=>(v/b0)*100);
+    out.series.push({i:o.i, sym:o.sym, norm, endPct:norm[norm.length-1]-100});
+  });
+  out.series.forEach(s=>{ s.norm.forEach(v=>{ if(v<out.min) out.min=v; if(v>out.max) out.max=v; }); });
+  if(out.max-out.min < 0.5){ out.min-=1; out.max+=1; } // guard a flat all-equal domain
+  return out;
+}
+
+/* --- draw the shared normalized price well: dotted grid + base-100 guide + one glow line/slot.
+   Line colours are neutral (paper/brown/grey); direction is read from the base-100 endpoint, not hue. */
+function cmpDrawWell(){
+  const cv=$('#cmpOverlay'); if(!cv) return;
+  const {ctx,w,h,degenerate}=fitCanvas(cv); if(degenerate) return;
+  ctx.clearRect(0,0,w,h);
+  const ov=cmpBuildOverlay();
+  const padX=12, padTop=12, padBot=20;
+  const min=ov.min, max=ov.max, rng=(max-min)||1;
+  const yOf=(v)=> padTop + (1-(v-min)/rng)*(h-padTop-padBot);
+  // dotted teal gridlines + % labels (axis is % vs start, NOT dollars — honest base-100 label)
+  ctx.strokeStyle='rgba(93,139,128,.26)'; ctx.lineWidth=1; ctx.setLineDash([2,4]);
+  ctx.font='10px "IBM Plex Mono", monospace'; ctx.textAlign='left';
+  for(let g=0; g<=4; g++){
+    const val=max-(g/4)*(max-min); const y=padTop+(g/4)*(h-padTop-padBot);
+    ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke();
+    ctx.fillStyle='rgba(93,139,128,.75)'; ctx.fillText((val-100>=0?'+':'')+(val-100).toFixed(1)+'%', padX+2, y-2);
+  }
+  ctx.setLineDash([]);
+  // solid base-100 reference line
+  const y100=yOf(100);
+  ctx.strokeStyle='rgba(237,228,206,.35)'; ctx.lineWidth=1; ctx.setLineDash([5,4]);
+  ctx.beginPath(); ctx.moveTo(padX,y100); ctx.lineTo(w-padX,y100); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='rgba(237,228,206,.55)'; ctx.textAlign='right'; ctx.fillText('BASE 100', w-padX-2, y100-3); ctx.textAlign='left';
+  // one glow line per slot, in its neutral slot colour
+  ov.series.forEach(s=>{
+    if(s.norm.length<2) return;
+    const col=CMP_COLORS[s.i]||CMP_COLORS[0];
+    const pts=s.norm.map((v,i)=>[ padX + (i/(s.norm.length-1))*(w-2*padX), yOf(v) ]);
+    drawGlowLine(ctx, pts, col, {core:1.7});
+    // endpoint dot
+    const ep=pts[pts.length-1];
+    ctx.fillStyle=col; ctx.beginPath(); ctx.arc(ep[0],ep[1],2.6,0,7); ctx.fill();
+  });
+  if(!ov.series.length){
+    ctx.fillStyle='rgba(237,228,206,.5)'; ctx.font='12px "IBM Plex Mono", monospace'; ctx.textAlign='center';
+    ctx.fillText('NO SLOTS FILLED — PRESS C, THEN PICK A ROSTER CARD', w/2, h/2); ctx.textAlign='left';
+  }
+}
+
+/* --- one CMP pentagon (5 VALUE axes) into a cell. Same pentaPoint geometry as the trading radar so
+   the shapes are literally comparable; per-slot neutral fill; 200ms tween guarded by prefersReduced. */
+function cmpDrawRadar(cellEl, slotIndex, sym){
+  if(!cellEl) return;
+  const svgHost = cellEl.querySelector('.cmp-radarsvg'); if(!svgHost) return;
+  const m=cmpGetMetrics(sym);
+  const target={}; CMP_AXES.forEach(a=> target[a]=m.axes[a]*2); // 1..5 -> pentagon 1..10
+  const key='cmp'+slotIndex;
+  const cur=cmpRadarAnim[key] || Object.assign({}, target); cmpRadarAnim[key]=cur;
+  const col=CMP_COLORS[slotIndex]||CMP_COLORS[0];
+  const W=240, H=210, cx=120, cy=104, R=66;
+  const LABELPOS=[
+    {ta:'middle',dx:0,dy:-7},{ta:'start',dx:5,dy:3},{ta:'start',dx:3,dy:12},{ta:'end',dx:-3,dy:12},{ta:'end',dx:-5,dy:3}
+  ];
+  function pt(i,val){ const ang=-Math.PI/2 + i*(2*Math.PI/5); const rr=R*(val/10); return [cx+Math.cos(ang)*rr, cy+Math.sin(ang)*rr]; }
+  function frame(){
+    let web='';
+    for(let ring=1;ring<=5;ring++){ const ps=[]; for(let i=0;i<5;i++){ const[x,y]=pt(i,ring*2); ps.push(x.toFixed(1)+','+y.toFixed(1)); } web+=`<polygon points="${ps.join(' ')}" fill="none" stroke="rgba(35,32,26,.18)" stroke-width="1"/>`; }
+    let axes='',labels='';
+    for(let i=0;i<5;i++){
+      const [ax,ay]=pt(i,10);
+      axes+=`<line x1="${cx}" y1="${cy}" x2="${ax.toFixed(1)}" y2="${ay.toFixed(1)}" stroke="rgba(35,32,26,.22)" stroke-width="1"/>`;
+      const [lx,ly]=pt(i,10); const lp=LABELPOS[i]; const lab=CMP_AXES[i]; const val=m.axes[lab];
+      const short={VALUATION:'VAL',MOAT:'MOAT',FCF:'FCF',PROFITABILITY:'PROF',GROWTH:'GRO'}[lab];
+      const labW=short.length*5.2+val.toFixed(0).length*6+12, ch=14;
+      const tx=lx+lp.dx*1.6, ty=ly+lp.dy;
+      let rectX = lp.ta==='middle'? tx-labW/2 : lp.ta==='end'? tx-labW : tx;
+      rectX=clamp(rectX,1,W-labW-1);
+      labels+=`<g font-size="9.5" font-weight="700" letter-spacing="0.3">
+        <rect x="${rectX.toFixed(1)}" y="${(ty-10).toFixed(1)}" width="${labW.toFixed(1)}" height="${ch}" fill="#5D8B80"/>
+        <text x="${(rectX+5).toFixed(1)}" y="${ty.toFixed(1)}" fill="#EDE4CE" font-family="'Barlow Condensed',sans-serif">${short}</text>
+        <text x="${(rectX+labW-5).toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="end" fill="#EDE4CE" font-family="'IBM Plex Mono',monospace" font-size="9">${val.toFixed(0)}</text></g>`;
+    }
+    return web+axes+labels;
+  }
+  function polyStr(sc){ const ps=[]; for(let i=0;i<5;i++){ const[x,y]=pt(i,sc[CMP_AXES[i]]); ps.push(x.toFixed(1)+','+y.toFixed(1)); } return ps.join(' '); }
+  function vertsStr(sc){ let s=''; for(let i=0;i<5;i++){ const[x,y]=pt(i,sc[CMP_AXES[i]]); s+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="${col}" stroke="#23201A" stroke-width="1"/>`; } return s; }
+  const fillRGBA = col==='#EDE4CE'?'rgba(237,228,206,.28)': col==='#C79A5E'?'rgba(199,154,94,.30)':'rgba(148,167,155,.30)';
+  svgHost.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Value fingerprint for ${sym}. Axes: valuation, moat, FCF, profitability, growth.">
+    ${frame()}
+    <polygon id="${key}-poly" points="${polyStr(cur)}" fill="${fillRGBA}" stroke="${col}" stroke-width="2"/>
+    <g id="${key}-verts">${vertsStr(cur)}</g>
+  </svg>`;
+  const poly=$('#'+key+'-poly'), vg=$('#'+key+'-verts');
+  const start=Object.assign({},cur); const t0=performance.now(); const dur=prefersReduced?0:200;
+  function step(now){
+    const t=dur? clamp((now-t0)/dur,0,1):1;
+    CMP_AXES.forEach(a=> cur[a]=lerp(start[a],target[a],t));
+    if(poly) poly.setAttribute('points', polyStr(cur));
+    if(vg) vg.innerHTML=vertsStr(cur);
+    if(t<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* --- the slot picker rail: filled slots show SYM + colour key + day%; the empty slot is a
+   diegetic SYM⌐ input + hint; the ACTIVE slot carries the orange focus ring (legal verb use). */
+function cmpRenderSlots(){
+  const wrap=$('#cmpSlots'); if(!wrap) return;
+  wrap.innerHTML = Compare.picker.slots.map((sym,i)=>{
+    const active = i===Compare.picker.active;
+    const col=CMP_COLORS[i];
+    if(!sym){
+      return `<div class="cmp-slot empty${active?' active':''}" data-slot="${i}">
+        <span class="swatch" style="background:${col}"></span>
+        <span class="slotno">SLOT ${i+1}</span>
+        <span class="pfx">SYM&#9002;</span>
+        <input class="mono" maxlength="9" placeholder="TYPE&hellip;" spellcheck="false" autocomplete="off" data-slotinput="${i}">
+        <span class="empt">${active?'&#183; ACTIVE':'PRESS C'}</span>
+      </div>`;
+    }
+    const q=cmpQuote(sym); const p=cmpProfile(sym);
+    return `<div class="cmp-slot${active?' active':''}" data-slot="${i}">
+      <span class="swatch" style="background:${col}"></span>
+      <span class="slotno">SLOT ${i+1}</span>
+      <span class="sym">${sym.replace('-USD','')}</span>
+      <span class="nm">${p?p.name:''}</span>
+      <span class="pct mono ${glClass(q.dayPct)}">${arrow(q.dayPct)}${Math.abs(q.dayPct).toFixed(2)}%</span>
+    </div>`;
+  }).join('');
+  // click a slot => make it active (and focus its input if empty). Filled slot header stays a plain select.
+  wrap.querySelectorAll('.cmp-slot').forEach(el=>{
+    el.addEventListener('click', ev=>{
+      if(ev.target.matches('input[data-slotinput]')) return; // don't steal focus from the field
+      Compare.picker.active=parseInt(el.dataset.slot,10); renderCompare();
+    });
+  });
+  // typed-symbol commit per empty slot
+  wrap.querySelectorAll('input[data-slotinput]').forEach(inp=>{
+    inp.addEventListener('keydown', e=>{
+      if(e.key==='Enter'){
+        const raw=e.target.value.trim().toUpperCase();
+        if(raw){ const sym=cmpResolveSym(raw); Compare.picker.set(parseInt(inp.dataset.slotinput,10), sym); e.target.blur(); renderCompare(); }
+      }
+      e.stopPropagation(); // letters must not fire Q/E/C/D while typing
+    });
+  });
+}
+// map a typed ticker to a roster key if it matches one (so BTC -> BTC-USD); otherwise the raw
+// ticker becomes a SYNTHETIC slot — cmpProfile()/cmpQuote() MOCK-derive a full profile + history
+// from the hash (neutral _DEFAULT sector, pe=NaN -> the crypto-style valuation fallback in
+// COMPARE_CALC engages), so any typed symbol is safely comparable and never dereferences undefined.
+function cmpResolveSym(raw){
+  const direct=DEFAULT_ROSTER.find(s=>s===raw || s.replace('-USD','')===raw); if(direct) return direct;
+  return raw.slice(0,9); // unknown -> synthetic (bounded to the input maxlength; MOCK-derived downstream)
+}
+
+/* --- the key-stat DELTA table: one row per headline metric, one column per slot + a signed Δ vs SLOT-1.
+   The BEST cell per row gets a 3px orange LEFT-BORDER + ▲ (a "look-here" flag) — NEVER an orange fill. */
+const CMP_DELTA_ROWS = [
+  {key:'peg',      label:'PEG',        note:'fwdPE / growth · lower cheaper'},
+  {key:'fcfYield', label:'FCF YIELD',  note:'&gt;5% healthy · higher better'},
+  {key:'moatScore',label:'MOAT SCORE', note:'analyze_moat avg · 1&#8211;5'},
+  {key:'divYield', label:'DIV YIELD',  note:'div / last · higher better'},
+  {key:'day',      label:'1D %',       note:'live day move · market number'}
+];
+function cmpRenderDelta(){
+  const scroll=$('#cmpDeltaScroll'); if(!scroll) return;
+  const filled=cmpFilledSlots();
+  if(filled.length<2){
+    scroll.innerHTML=`<div class="cmp-empty">FILL AT LEAST <b>TWO SLOTS</b> TO COMPARE.<br>Press <b>C</b> to focus a slot, then click a roster card or type a SYM&#9002;.</div>`;
+    return;
+  }
+  const metricsBy=filled.map(o=>({i:o.i, sym:o.sym, m:cmpGetMetrics(o.sym)}));
+  const s1=metricsBy[0]; // Δ is measured vs SLOT-1 (the leftmost filled slot)
+  const headCols=metricsBy.map(x=>`<th>${x.sym.replace('-USD','')}</th>`).join('');
+  const body=CMP_DELTA_ROWS.map(rowDef=>{
+    // find the winning slot for this row (skip N/A values)
+    let bestIdx=-1, bestVal=null;
+    metricsBy.forEach((x,ci)=>{
+      const r=x.m.rows[rowDef.key]; if(!isFinite(r.val)) return;
+      if(bestVal===null || (r.betterHigh? r.val>bestVal : r.val<bestVal)){ bestVal=r.val; bestIdx=ci; }
+    });
+    const cells=metricsBy.map((x,ci)=>{
+      const r=x.m.rows[rowDef.key];
+      const best = ci===bestIdx;
+      // market-number rows keep gain/loss colour; classification rows stay ink
+      const numCls = r.mkt ? 'mono '+glClass(r.val) : 'mono';
+      const bmark = best ? '<span class="bmark">&#9650;</span>' : '';
+      // the live 1D% row's cells carry [data-cmpday=slotIndex] so cmpTick refreshes them in place
+      const dayAttr = rowDef.key==='day' ? ` data-cmpday="${x.i}"` : '';
+      return `<td class="${numCls}${best?' cmp-best':''}"${dayAttr}>${bmark}${r.txt}</td>`;
+    }).join('');
+    // signed Δ vs SLOT-1 (only for numeric, non-market rows; market row shows spread in points)
+    let deltaCell='<td class="mono" style="color:var(--ink-soft)">&#8212;</td>';
+    const rLast=metricsBy[metricsBy.length-1].m.rows[rowDef.key], r1=s1.m.rows[rowDef.key];
+    if(metricsBy.length>=2 && isFinite(rLast.val) && isFinite(r1.val)){
+      const d=rLast.val-r1.val;
+      const unit = rowDef.key==='moatScore'?'' : (rowDef.key==='peg'?'' : (rowDef.key==='day'?' pt':'%'));
+      deltaCell=`<td class="mono">${d>=0?'+':''}${d.toFixed(2)}${unit}</td>`;
+    }
+    return `<tr>
+      <td class="l cmp-metric">${rowDef.label}<div class="cmp-sub">${rowDef.note}</div></td>
+      ${cells}
+      ${deltaCell}
+    </tr>`;
+  }).join('');
+  scroll.innerHTML=`<table class="ledger">
+    <thead><tr><th class="l">METRIC</th>${headCols}<th>&#916; vs SLOT-1</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>`;
+}
+
+function renderCompare(){
+  cmpRenderSlots();
+  // range toggle reflect
+  $$('#cmpRangeTog button').forEach(b=>b.classList.toggle('on', b.dataset.r===Compare.range));
+  // radar band: one cell per slot (filled = pentagon + verdict; empty = diegetic empty state)
+  const band=$('#cmpRadarBand');
+  band.innerHTML = Compare.picker.slots.map((sym,i)=>{
+    const active=i===Compare.picker.active; const col=CMP_COLORS[i];
+    if(!sym){
+      return `<div class="cmp-radarcell empty" data-slot="${i}">
+        <div class="cmp-radar-empt">SLOT ${i+1} &#183; <b>EMPTY</b><br>${active?'ACTIVE &#8212; pick a roster card or type SYM&#9002;':'press C to focus'}</div>
+      </div>`;
+    }
+    const m=cmpGetMetrics(sym);
+    return `<div class="cmp-radarcell" data-slot="${i}">
+      <div class="cmp-radartop">
+        <span class="swatch" style="background:${col}"></span>
+        <span class="sym">${sym.replace('-USD','')}</span>
+        <span class="verdict">${statusChip(m.verdict, m.verdictLevel, {pips: m.verdict==='STRONG BUY'?4:m.verdict==='BUY'?3:m.verdict==='HOLD'?2:1})}</span>
+      </div>
+      <div class="cmp-radarsvg"></div>
+      <div class="cmp-radarcap">COMPOSITE <b>${m.composite.toFixed(1)}/5</b>${m.crypto?' &#183; MODEL N/A (CRYPTO)':''}</div>
+    </div>`;
+  }).join('');
+  // draw each filled pentagon into its cell
+  band.querySelectorAll('.cmp-radarcell:not(.empty)').forEach(cell=>{
+    const i=parseInt(cell.dataset.slot,10); cmpDrawRadar(cell, i, Compare.picker.slots[i]);
+  });
+  // clicking a radar cell also makes it the active slot
+  band.querySelectorAll('.cmp-radarcell').forEach(cell=>cell.addEventListener('click',()=>{ Compare.picker.active=parseInt(cell.dataset.slot,10); renderCompare(); }));
+  // legend keyed to the price well
+  const legend=$('#cmpWellLegend'); const ov=cmpBuildOverlay();
+  legend.innerHTML = ov.series.map(s=>{
+    const col=CMP_COLORS[s.i]||CMP_COLORS[0]; const up=s.endPct>=0;
+    return `<span class="cmp-lg"><span class="sw" style="background:${col}"></span><span class="lgsym">${s.sym.replace('-USD','')}</span><span class="lgend ${glClass(s.endPct)}">${up?'▲':'▼'} ${(up?'+':'')}${s.endPct.toFixed(1)}%</span></span>`;
+  }).join('') || '<span class="cmp-lg" style="color:var(--ink-soft)">— NO SLOTS FILLED —</span>';
+  cmpDrawWell();
+  cmpRenderDelta();
+}
+
+/* NON-REPAINTING tick: only the base-100 price overlay repaints live on 1D (day% moves); the
+   five-dim radars + fundamental delta rows are SETTLED verdicts — recomputed only on a closed
+   candle roll (cmpBumpMetrics) or a slot/range change, never on every mock tick. */
+let cmpLastClosedN=null;
+function cmpTick(){
+  // DEAD UNTIL ENGINE ROLLS 1M/1Y BARS — app port will exercise this. DataEngine.tick() only
+  // rolls hist['1D'], so hist['1M'] length is constant and closedN never changes: cmpBumpMetrics()
+  // + the settled-verdict re-render below never fire in the prototype. Wired for the app port.
+  const spy=DataEngine.get('SPY'); const closedN=Math.max(0, spy.hist['1M'].length-1);
+  if(cmpLastClosedN!==null && closedN!==cmpLastClosedN){ cmpBumpMetrics(); cmpLastClosedN=closedN; renderCompare(); return; }
+  cmpLastClosedN=closedN;
+  // live layers only: the slot day% badges + the base-100 overlay (1D range moves intraday).
+  // Synthetic (unlisted) slots read a static MOCK-derived day% — honest: no live engine feeds them.
+  $$('#cmpSlots .cmp-slot').forEach(el=>{
+    const i=parseInt(el.dataset.slot,10); const sym=Compare.picker.slots[i]; if(!sym) return;
+    const q=cmpQuote(sym); const pc=el.querySelector('.pct');
+    if(pc){ pc.className='pct mono '+glClass(q.dayPct); pc.textContent=`${arrow(q.dayPct)}${Math.abs(q.dayPct).toFixed(2)}%`; }
+  });
+  if(Compare.range==='1D'){ cmpDrawWell();
+    // refresh only the live 1D% delta-row cells (no full table rebuild / no focus thrash).
+    const filled=cmpFilledSlots();
+    filled.forEach(o=>{
+      const q=cmpQuote(o.sym);
+      const cell=document.querySelector(`#cmpDeltaScroll [data-cmpday="${o.i}"]`);
+      if(cell){ cell.className='mono '+glClass(q.dayPct)+(cell.classList.contains('cmp-best')?' cmp-best':'');
+        const bmark=cell.classList.contains('cmp-best')?'<span class="bmark">&#9650;</span>':'';
+        cell.innerHTML=`${bmark}${arrow(q.dayPct)} ${Math.abs(q.dayPct).toFixed(2)}%`; }
+    });
+  }
+}
+
+/* =========================================================================
+   ALERTS SCREEN (id=alerts, WND-0x7B) — armed watches + market-regime monitors.
+   TWO families, both derived from the EXISTING DataEngine so nothing is fabricated:
+     (1) PRICE / INDICATOR / DAY% watches — arm a predicate against a roster symbol;
+         it LATCHES ARMED->TRIGGERED on first cross (jitter can't re-arm/spam).
+     (2) REGIME monitors — a faithful PORT of two skills over CLOSED daily bars:
+         • ibd-distribution-day-monitor  (Distribution-Day count + risk classifier +
+           UNLEVERAGED exposure policy)
+         • ftd-detector                   (rally-attempt / follow-through state machine)
+   Dual-index: SPY (roster proxy) + a synthetic 'NDX' (genSyntheticCloses) so the
+   QQQ-weighted combine the skills require has two real inputs.
+   NON-REPAINTING IS LAW: the regime engines finalize ONLY on a settled daily bar
+   (gated on a closed-bar roll + cached in State.regime). RSI watches evaluate on
+   CLOSED bars (forming candle dropped). Informational only — NEVER a trade gate.
+   ========================================================================= */
+
+// PORTED THRESHOLDS — the debugged numbers from the two skills. Do NOT "improve"
+// them; any deviation must be flagged // TUNABLE (none are — these are the ports).
+const ALERT_TH = {
+  DD_MIN_DECLINE:      -0.002,  // ibd: Distribution Day = close <= -0.2% vs prior
+  DD_EXPIRE_SESSIONS:  25,      // ibd: expiration_sessions
+  DD_INVALIDATE_GAIN:  0.05,    // ibd: +5% from DD close invalidates (source: high)
+  FTD_MIN_CORRECTION:  3.0,     // ftd: MIN_CORRECTION_PCT (%)
+  FTD_MIN_DOWN_DAYS:   3,       // ftd: MIN_DOWN_DAYS
+  FTD_LOOKBACK:        40,      // ftd: recent-high lookback window (days)
+  FTD_DAY_START:       4,       // ftd: FTD_DAY_START (window opens Day 4)
+  FTD_DAY_END:         10,      // ftd: FTD_DAY_END (window closes Day 10)
+  FTD_GAIN_MIN:        1.25,    // ftd: FTD_GAIN_MINIMUM (%)
+  FTD_GAIN_REC:        1.5,     // ftd: FTD_GAIN_RECOMMENDED (%)
+  FTD_GAIN_STRONG:     2.0      // ftd: FTD_GAIN_STRONG (%)
+};
+
+// ---- IBD Distribution-Day tracker (port of distribution_day_tracker.py) ----
+// Walks CLOSED bars. A DD at index k is close_k <= -0.2% vs close_{k-1} AND
+// vol_k > vol_{k-1}. It EXPIRES when age_sessions (settled sessions since it formed)
+// > 25, OR the index high in any post-DD session gains >= +5% from the DD close.
+// Today's DD (k = last index) is never invalidated (no post-DD sessions exist yet).
+function ibdDistribution(bars){
+  const n=bars.length; const active=[];
+  for(let k=1;k<n;k++){
+    const chg=(bars[k].c/bars[k-1].c)-1;
+    if(chg<=ALERT_TH.DD_MIN_DECLINE && bars[k].v>bars[k-1].v){
+      // is this DD still active as of the LAST closed bar?
+      const ageSessions=(n-1)-k; // settled sessions since it formed
+      if(ageSessions>ALERT_TH.DD_EXPIRE_SESSIONS) continue; // expired by age
+      // +5% invalidation: any post-DD session high >= DD close * 1.05
+      let invalidated=false;
+      for(let j=k+1;j<n;j++){ if(bars[j].h>=bars[k].c*(1+ALERT_TH.DD_INVALIDATE_GAIN)){ invalidated=true; break; } }
+      if(invalidated) continue;
+      active.push({idx:k, age:ageSessions});
+    }
+  }
+  const within=(a)=>active.filter(d=>d.age<=a).length;
+  return { d5:within(5), d15:within(15), d25:within(25), records:active };
+}
+
+// ---- risk classifier (port of risk_classifier.py + default.yaml thresholds) ----
+// Per-index band, plus the boolean market_below_MA (close below 21EMA or 50SMA).
+function ibdRiskBand(dd, closes){
+  const belowMA=(()=>{
+    const ema21=INDICATOR_CALC.ema(closes,21); const sma50=INDICATOR_CALC.sma(closes,50);
+    const c=closes[closes.length-1]; const e=ema21[ema21.length-1], s=sma50[sma50.length-1];
+    return (isFinite(e)&&c<e) || (isFinite(s)&&c<s);
+  })();
+  const {d5,d15,d25}=dd;
+  let band;
+  if(d25>=6 || d15>=4 || (belowMA && d25>=5)) band='SEVERE';
+  else if(d25>=5 || d15>=3 || d5>=2)          band='HIGH';
+  else if(d25>=3)                             band='CAUTION';
+  else                                        band='NORMAL';
+  return {band, belowMA};
+}
+// dual-index QQQ-weighted combine (QQQ==NDX proxy here; SPY is the S&P proxy)
+function ibdCombine(ndxBand, spyBand){
+  const rank={NORMAL:0,CAUTION:1,HIGH:2,SEVERE:3};
+  if(ndxBand==='SEVERE'||spyBand==='SEVERE') return 'SEVERE';
+  if(ndxBand==='HIGH') return 'HIGH';
+  if(ndxBand==='NORMAL' && spyBand==='HIGH') return 'HIGH';
+  if(ndxBand==='CAUTION' && rank[spyBand]>=1) return 'HIGH';
+  // otherwise take the more cautious of the two
+  return rank[ndxBand]>=rank[spyBand]?ndxBand:spyBand;
+}
+// UNLEVERAGED exposure policy (port of exposure_policy.py, unlevered QQQ variant).
+// Reframed as an INFORMATIONAL ceiling/hint — never a trade gate.
+const IBD_EXPOSURE = {
+  NORMAL:  {ceiling:100, hint:'FULL EXPOSURE OK'},
+  CAUTION: {ceiling:100, hint:'AVOID NEW ADDS'},
+  HIGH:    {ceiling:75,  hint:'REDUCE EXPOSURE'},
+  SEVERE:  {ceiling:50,  hint:'DEFENSIVE · TIGHTEN STOPS'}
+};
+const IBD_LEVEL = { NORMAL:'ok', CAUTION:'warn', HIGH:'high', SEVERE:'severe' };
+
+// ---- FTD rally state machine (port of rally_tracker.py + SKILL.md) ----
+// Walks CLOSED bars with no look-ahead. Finds the most-recent correction (>=3% off a
+// 40-day high with >=3 down days), then tracks Day 1..n from the swing low. Returns a
+// state string + swing-low / FTD-day watch levels + a quality hint.
+function ftdState(bars){
+  const n=bars.length; if(n<10) return {state:'NO SIGNAL', level:'ok', lowLvl:null, ftdLvl:null, day:0, hint:'INSUFFICIENT HISTORY'};
+  const closes=bars.map(b=>b.c);
+  // recent high within lookback, ending a few bars back so a correction can develop
+  const look=Math.min(ALERT_TH.FTD_LOOKBACK, n-1);
+  let hiIdx=n-1-look, hiVal=closes[hiIdx];
+  for(let i=n-1-look;i<n;i++){ if(closes[i]>hiVal){ hiVal=closes[i]; hiIdx=i; } }
+  // swing low = lowest CLOSE after the high
+  let loIdx=hiIdx, loVal=closes[hiIdx];
+  for(let i=hiIdx;i<n;i++){ if(closes[i]<loVal){ loVal=closes[i]; loIdx=i; } }
+  const declinePct=(1-loVal/hiVal)*100;
+  // count down days between high and low
+  let downDays=0; for(let i=hiIdx+1;i<=loIdx;i++){ if(closes[i]<closes[i-1]) downDays++; }
+  const corrected = declinePct>=ALERT_TH.FTD_MIN_CORRECTION && downDays>=ALERT_TH.FTD_MIN_DOWN_DAYS;
+  if(!corrected){
+    return {state:'NO SIGNAL', level:'ok', lowLvl:null, ftdLvl:bars[n-1].c, day:0, hint:'MARKET IN UPTREND · NO CORRECTION'};
+  }
+  const swingLow=bars[loIdx];
+  // Day 1 = first session after the low that closes up OR in the top 50% of range
+  let day1=-1;
+  for(let i=loIdx+1;i<n;i++){
+    const b=bars[i]; const up=b.c>bars[i-1].c;
+    const rng=(b.h-b.l)||1; const topHalf=(b.c-b.l)/rng>=0.5;
+    if(up||topHalf){ day1=i; break; }
+  }
+  if(day1<0){
+    return {state:'CORRECTION', level:'warn', lowLvl:swingLow.l, ftdLvl:null, day:0, hint:`OFF ${declinePct.toFixed(1)}% · AWAITING RALLY ATTEMPT`};
+  }
+  // any close below the swing low after day1 invalidates the rally
+  for(let i=day1;i<n;i++){ if(bars[i].c<swingLow.l){ return {state:'RALLY FAILED', level:'warn', lowLvl:swingLow.l, ftdLvl:null, day:0, hint:'UNDERCUT SWING LOW · NEW ATTEMPT NEEDED'}; } }
+  const dayNum=(n-1)-day1+1; // Day count as of last closed bar (Day 1 == day1)
+  // scan the FTD window (Day 4..10) for a Follow-Through Day
+  const day1Low=bars[day1].l;
+  for(let i=day1;i<n;i++){
+    const d=(i-day1)+1;
+    if(i>day1 && bars[i].c<day1Low){ return {state:'RALLY FAILED', level:'warn', lowLvl:swingLow.l, ftdLvl:null, day:0, hint:'BREACHED DAY-1 LOW'}; }
+    if(d>=ALERT_TH.FTD_DAY_START && d<=ALERT_TH.FTD_DAY_END){
+      const chg=(bars[i].c/bars[i-1].c-1)*100;
+      if(chg>=ALERT_TH.FTD_GAIN_MIN && bars[i].v>bars[i-1].v){
+        // FTD confirmed — invalidated if a LATER close is below the FTD day's low
+        let inval=false; for(let j=i+1;j<n;j++){ if(bars[j].c<bars[i].l){ inval=true; break; } }
+        const tier = chg>=ALERT_TH.FTD_GAIN_STRONG?'STRONG':chg>=ALERT_TH.FTD_GAIN_REC?'RECOMMENDED':'MINIMUM';
+        if(inval) return {state:'FTD INVALIDATED', level:'warn', lowLvl:swingLow.l, ftdLvl:bars[i].l, day:d, hint:'UNDERCUT FTD-DAY LOW'};
+        return {state:'FTD CONFIRMED', level:'ok', lowLvl:swingLow.l, ftdLvl:bars[i].l, day:d, hint:`${tier} · +${chg.toFixed(2)}% ON HIGHER VOL`};
+      }
+    }
+  }
+  // no FTD yet — report window position
+  if(dayNum<ALERT_TH.FTD_DAY_START) return {state:`RALLY ATTEMPT DAY ${dayNum}`, level:'warn', lowLvl:swingLow.l, ftdLvl:null, day:dayNum, hint:'FTD WINDOW OPENS DAY 4'};
+  if(dayNum<=ALERT_TH.FTD_DAY_END)  return {state:`FTD WINDOW DAY ${dayNum}`, level:'warn', lowLvl:swingLow.l, ftdLvl:null, day:dayNum, hint:`WATCH FOR +${ALERT_TH.FTD_GAIN_MIN}% ON HIGHER VOL`};
+  return {state:'WINDOW CLOSED', level:'warn', lowLvl:swingLow.l, ftdLvl:null, day:dayNum, hint:'NO FTD DAY 4–10 · AWAITING NEW ATTEMPT'};
+}
+
+// [LIVE SEAM: Tauri-Rust only] — the ONE swap point. Returns {spy,ndx} OHLCV bar
+// arrays. MOCK today: SPY from DataEngine (roster proxy), NDX from genSyntheticCloses.
+// In the app port this points at the FMP historical-price-full adapter (routed through
+// the Rust fetch, like the T212 adapter, to dodge CORS); the engines downstream never
+// change. Kept behind the same 3s-failover discipline as DataEngine.tryLive.
+function alertsRegimeSource(){
+  const spyCloses=DataEngine.get('SPY').hist['1Y'];            // 240 daily closes
+  const spy=ohlcFromCloses(spyCloses, seedFromString('SPY|REGIME'), 6.1e7);
+  const ndxCloses=genSyntheticCloses('NDX', HIST_POINTS['1Y'], '1Y');
+  const ndx=ohlcFromCloses(ndxCloses, seedFromString('NDX|REGIME'), 5.2e8);
+  return {spy, ndx};
+}
+
+// State for the ALERTS screen. State.alerts[sym] = {order,watch} already exists globally; a
+// triggered watch sets the WATCH bit (setAlertWatch) and renderRoster() ORs the two bits into
+// the orange .flag star (free cross-screen surfacing).
+const Alerts = {
+  watches: [],                 // {id,sym,metric,op,level,state,firedAt,now}
+  regime: null,                // cached {dd,ftd,band,...} — recomputed on closed-bar roll only
+  regimeClosedN: null,         // last settled-bar count the regime was computed at
+  ticket: { sym:'NVDA', metric:'PRICE', op:'>', level:0 },
+  seq: 1
+};
+const ALERT_METRICS = ['PRICE','RSI','DAY%'];
+// a seeded, screenshot-stable starter book (seed=77 world) so the board is populated.
+function alertsSeedBook(){
+  if(Alerts.watches.length) return;
+  const mk=(sym,metric,op,level)=>({id:Alerts.seq++, sym, metric, op, level, state:'ARMED', firedAt:null, now:null});
+  Alerts.watches = [
+    mk('NVDA','PRICE','>',130.00),
+    mk('TSLA','RSI','<',30),
+    mk('SPY','DAY%','<',-2.00),
+    mk('AAPL','PRICE','>',230.00),
+    mk('BTC-USD','PRICE','<',90000)
+  ];
+}
+
+// live "NOW" value for a watch's metric — PRICE/DAY% read q.last live (that IS the
+// intended 'now' semantic); RSI reads CLOSED bars only (drop the forming candle).
+function alertWatchNow(w){
+  const q=DataEngine.get(w.sym);
+  if(w.metric==='PRICE') return q.last;
+  if(w.metric==='DAY%')  return q.dayPct;
+  // RSI: 1M closed series, forming bar dropped
+  const cl=q.hist['1M'].slice(0, Math.max(0,q.hist['1M'].length-1));
+  const arr=INDICATOR_CALC.rsi(cl, THRESHOLDS.RSI_PERIOD);
+  const v=arr[arr.length-1]; return isFinite(v)?v:null;
+}
+function alertPredicate(now, op, level){
+  if(now==null) return false;
+  return op==='>' ? now>level : now<level;
+}
+// evaluate ALL watches every tick (cheap). LATCH on first cross: ARMED->TRIGGERED,
+// never re-arm on jitter. Sets the WATCH star bit (setAlertWatch) so renderRoster() flags it
+// cross-screen (free surfacing). Called unconditionally from tickLoop.
+function evaluateWatches(){
+  let changed=false;
+  Alerts.watches.forEach(w=>{
+    const now=alertWatchNow(w); w.now=now;
+    if(w.state==='ARMED' && alertPredicate(now, w.op, w.level)){
+      w.state='TRIGGERED'; w.firedAt=nowClock(); setAlertWatch(w.sym, true); changed=true;
+    }
+  });
+  return changed;
+}
+function nowClock(){ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+
+// NON-REPAINTING regime recompute — only when the settled daily bar has rolled.
+function alertsComputeRegime(force){
+  const spyClosedN=Math.max(0, DataEngine.get('SPY').hist['1M'].length-1);
+  if(!force && Alerts.regime && Alerts.regimeClosedN===spyClosedN) return Alerts.regime;
+  const {spy,ndx}=alertsRegimeSource();
+  const spyDD=ibdDistribution(spy), ndxDD=ibdDistribution(ndx);
+  const spyBand=ibdRiskBand(spyDD, spy.map(b=>b.c)).band;
+  const ndxBand=ibdRiskBand(ndxDD, ndx.map(b=>b.c)).band;
+  const band=ibdCombine(ndxBand, spyBand);
+  const exposure=IBD_EXPOSURE[band];
+  const ftd=ftdState(spy);
+  const settled=alertsSettledDate(spy.length);
+  Alerts.regime={ spyDD, ndxDD, spyBand, ndxBand, band, exposure, ftd, settled };
+  Alerts.regimeClosedN=spyClosedN;
+  return Alerts.regime;
+}
+// a plausible 'last settled session' date (mock bars carry no real calendar) — walk
+// back N weekdays from today so the footnote reads honestly as a trading day.
+function alertsSettledDate(){
+  const d=new Date(); let back=1;
+  while(back>0){ d.setDate(d.getDate()-1); const wd=d.getDay(); if(wd!==0&&wd!==6) back--; }
+  return d.toLocaleDateString('en-US',{month:'short',day:'2-digit'}).toUpperCase();
+}
+
+/* ---- ALERTS RENDER ---- */
+function alertMetricLabel(w){
+  if(w.metric==='PRICE') return `PRICE ${w.op} ${fmtUSD(w.level, w.level<10?4:2)}`;
+  if(w.metric==='RSI')   return `RSI(14) ${w.op} ${w.level.toFixed(0)}`;
+  return `DAY% ${w.op} ${w.level>=0?'+':''}${w.level.toFixed(2)}%`;
+}
+function alertNowCell(w){
+  if(w.now==null) return '<span class="mono" style="color:var(--ink-soft)">N/A</span>';
+  const triggered=w.state==='TRIGGERED';
+  let txt, dir='';
+  if(w.metric==='PRICE') txt=fmtUSD(w.now, w.now<10?4:2);
+  else if(w.metric==='RSI') txt=w.now.toFixed(0);
+  else txt=`${w.now>=0?'+':''}${w.now.toFixed(2)}%`;
+  // direction SHAPE reads the crossed direction (op>) even on a triggered row — the
+  // ▲/▼ marks which way NOW sits relative to the line, colour-independent.
+  if(triggered) dir = w.op==='>' ? '▲ ' : '▼ ';
+  return `<span class="mono${triggered?' al-nowfire':''}" data-alnow>${dir}${txt}</span>`;
+}
+function alertAgeCell(w){
+  if(w.state!=='TRIGGERED') return '<span class="mono" style="color:var(--ink-soft)">—</span>';
+  return `<span class="mono">${w.firedAt||''}</span>`;
+}
+function renderAlertsBoard(){
+  const wrap=$('#alWatchWrap'); if(!wrap) return;
+  if(!Alerts.watches.length){
+    wrap.innerHTML=`<div class="al-empty">NO WATCHES ARMED &#8212; STAGE ONE BELOW.<br>`+
+      `<span class="al-empty-sub">The desk is quiet, operator. Arm a price line or an indicator and this board lights when the market crosses it. (Regime monitors run on their own; they never sleep.)</span></div>`;
+    return;
+  }
+  const body=Alerts.watches.map(w=>{
+    const triggered=w.state==='TRIGGERED';
+    const cls=triggered?'al-fire':'';
+    const state = triggered
+      ? `<span class="al-statechip fire">TRIGGERED</span>`
+      : `<span class="al-statechip armed">ARMED</span>`;
+    return `<tr class="${cls}" data-wid="${w.id}">
+      <td class="l sym">${w.sym.replace('-USD','')}</td>
+      <td class="l al-cond">${alertMetricLabel(w)}</td>
+      <td>${alertNowCell(w)}</td>
+      <td class="l">${state}</td>
+      <td>${alertAgeCell(w)}</td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML=`<table class="ledger">
+    <thead><tr><th class="l">SYM</th><th class="l">CONDITION</th><th>NOW</th><th class="l">STATE</th><th>AGE</th></tr></thead>
+    <tbody>${body}</tbody></table>`;
+  // click a row → select that watch as the reset target (and select its symbol)
+  wrap.querySelectorAll('tr[data-wid]').forEach(tr=>tr.addEventListener('click',()=>{
+    const id=+tr.dataset.wid; const w=Alerts.watches.find(x=>x.id===id);
+    if(w) selectInstrument(w.sym);
+  }));
+}
+function renderAlertsRegime(){
+  const R=alertsComputeRegime();
+  // DISTRIBUTION panel
+  // Dual-index (SPY + NDX): the combined band is the WORSE of the two, so headline the index that
+  // DRIVES it and show both counts — else "2 of 25 · SEVERE" reads as a broken classification.
+  const spyDD=R.spyDD, ndxDD=R.ndxDD, band=R.band, lvl=IBD_LEVEL[band];
+  const ndxDrives = R.ndxBand===band && (R.spyBand!==band || ndxDD.d25>=spyDD.d25);
+  const drv = ndxDrives ? {n:'NDX', d:ndxDD} : {n:'SPY', d:spyDD};
+  $('#alDDcount').textContent = `${drv.d.d25} of ${ALERT_TH.DD_EXPIRE_SESSIONS}`;
+  $('#alDDsub').textContent = `${drv.n} drives · SPY d25 ${spyDD.d25} · NDX d25 ${ndxDD.d25}`;
+  $('#alDDchip').innerHTML = statusChip(band, lvl);
+  $('#alDDhint').textContent = `${R.exposure.hint} · CEILING ${R.exposure.ceiling}%`;
+  $('#alDDfoot').textContent = `FINALIZES ON CLOSE · LAST SETTLED ${R.settled}`;
+  // FOLLOW-THROUGH panel
+  const ftd=R.ftd;
+  $('#alFTDstate').textContent = ftd.state;
+  $('#alFTDchip').innerHTML = statusChip(ftd.day?`DAY ${ftd.day}`:'—', ftd.level, {pips: ftd.state==='FTD CONFIRMED'?4:ftd.day?2:1});
+  $('#alFTDlow').textContent = ftd.lowLvl!=null ? fmtUSD(ftd.lowLvl,2) : '—';
+  $('#alFTDwatch').textContent = ftd.ftdLvl!=null ? fmtUSD(ftd.ftdLvl,2) : '—';
+  $('#alFTDhint').textContent = ftd.hint;
+  $('#alFTDfoot').textContent = `FINALIZES ON CLOSE · LAST SETTLED ${R.settled}`;
+}
+function renderAlertsTicket(){
+  const t=Alerts.ticket;
+  // metric + op segmented toggles (orange-active-only)
+  buildSegToggle($('#alMetricSeg'), ALERT_METRICS.map(m=>({key:m,label:m})), t.metric,
+    (k)=>{ t.metric=k; renderAlertsTicket(); });
+  buildSegToggle($('#alOpSeg'), [{key:'>',label:'▲ ABOVE'},{key:'<',label:'▼ BELOW'}], t.op,
+    (k)=>{ t.op=k; renderAlertsTicket(); });
+  $('#alTicketSym').textContent = t.sym.replace('-USD','');
+  const inp=$('#alLevel'); if(inp && document.activeElement!==inp) inp.value = alertTicketDisplayLevel();
+  $('#alLevelUnit').textContent = t.metric==='PRICE'?'USD':t.metric==='RSI'?'RSI':'%';
+}
+function alertTicketDisplayLevel(){
+  const t=Alerts.ticket;
+  if(t.metric==='RSI') return String(t.level|0);
+  if(t.metric==='PRICE') return t.level.toFixed(t.level<10?4:2);
+  return t.level.toFixed(2);
+}
+function alertTicketStep(dir){
+  const t=Alerts.ticket;
+  const step = t.metric==='RSI'?1 : t.metric==='DAY%'?0.25 : (t.level<10?0.5:1);
+  t.level = t.metric==='RSI' ? clamp((t.level|0)+dir, 0, 100) : +(t.level+dir*step).toFixed(4);
+  const inp=$('#alLevel'); if(inp) inp.value=alertTicketDisplayLevel();
+}
+function alertArmTicket(){
+  const t=Alerts.ticket;
+  const w={id:Alerts.seq++, sym:t.sym, metric:t.metric, op:t.op, level:t.level, state:'ARMED', firedAt:null, now:null};
+  Alerts.watches.unshift(w);
+  renderAlertsBoard();
+}
+// reset the focused/most-recent TRIGGERED watch back to ARMED (re-arm), clearing its flag.
+function alertResetWatch(){
+  // most-recent triggered first; else the newest watch
+  let w=Alerts.watches.find(x=>x.state==='TRIGGERED') || Alerts.watches[0];
+  if(!w) return;
+  w.state='ARMED'; w.firedAt=null;
+  // clear only the WATCH bit, and only if no other triggered watch holds this symbol. A wave-1
+  // ORDER bit on the same symbol is untouched (that star survives re-arming a watch).
+  if(!Alerts.watches.some(x=>x.sym===w.sym && x.state==='TRIGGERED')) setAlertWatch(w.sym, false);
+  renderAlertsBoard(); renderRoster();
+}
+function alertCycleMetric(){ const i=ALERT_METRICS.indexOf(Alerts.ticket.metric); Alerts.ticket.metric=ALERT_METRICS[(i+1)%ALERT_METRICS.length]; renderAlertsTicket(); }
+function alertToggleOp(){ Alerts.ticket.op = Alerts.ticket.op==='>'?'<':'>'; renderAlertsTicket(); }
+function alertFocusLevel(){ const inp=$('#alLevel'); if(inp){ inp.focus(); inp.select(); } }
+
+let alertsWired=false;
+function wireAlertsTicket(){
+  if(alertsWired) return; alertsWired=true;
+  const up=$('#alStepUp'), dn=$('#alStepDn'), arm=$('#alArmBtn'), inp=$('#alLevel');
+  if(up) up.addEventListener('click',()=>alertTicketStep(+1));
+  if(dn) dn.addEventListener('click',()=>alertTicketStep(-1));
+  if(arm) arm.addEventListener('click',()=>{
+    const raw=parseFloat(inp&&inp.value);
+    if(isFinite(raw)) Alerts.ticket.level = Alerts.ticket.metric==='RSI'?clamp(raw|0,0,100):raw;
+    alertArmTicket();
+  });
+  if(inp){
+    // commit typed value on change so the ticket level stays in sync
+    inp.addEventListener('input',()=>{ const raw=parseFloat(inp.value); if(isFinite(raw)) Alerts.ticket.level = Alerts.ticket.metric==='RSI'?clamp(raw|0,0,100):raw; });
+  }
+}
+function renderAlerts(){
+  alertsSeedBook();
+  wireAlertsTicket();
+  // ticket symbol always mirrors the current roster selection (selectInstrument prefill)
+  Alerts.ticket.sym = State.selected;
+  evaluateWatches();
+  renderAlertsBoard();
+  renderAlertsRegime();
+  renderAlertsTicket();
+}
+// NON-REPAINTING tick: re-eval watches (latch only), live-flash NOW cells; the regime
+// engine recomputes ONLY on a settled-bar roll (alertsComputeRegime is gated). Never
+// rebuild the whole board DOM per tick.
+let alertsLastClosedN=null;
+function alertsTick(){
+  evaluateWatches();
+  // regime: only repaint the two panels when the settled bar actually rolled.
+  // DEAD UNTIL ENGINE ROLLS 1M/1Y BARS — app port will exercise this: DataEngine.tick() only rolls
+  // hist['1D'], so spyClosedN is constant and the alertsComputeRegime()+repaint branch never fires today.
+  const spyClosedN=Math.max(0, DataEngine.get('SPY').hist['1M'].length-1);
+  if(alertsLastClosedN!==null && spyClosedN!==alertsLastClosedN){ alertsComputeRegime(true); renderAlertsRegime(); }
+  alertsLastClosedN=spyClosedN;
+  // live-flash NOW cells + flip STATE/left-bar in place if a row just triggered
+  let justFired=false;
+  $$('#alWatchWrap tr[data-wid]').forEach(tr=>{
+    const id=+tr.dataset.wid; const w=Alerts.watches.find(x=>x.id===id); if(!w) return;
+    const nowTd=tr.querySelector('td:nth-child(3)');
+    if(nowTd) nowTd.innerHTML=alertNowCell(w);
+    const wasFire=tr.classList.contains('al-fire');
+    if(w.state==='TRIGGERED' && !wasFire){
+      // just crossed this tick — repaint the row's STATE + AGE + left-bar without full rebuild
+      tr.classList.add('al-fire');
+      const stTd=tr.querySelector('td:nth-child(4)'); if(stTd) stTd.innerHTML=`<span class="al-statechip fire">TRIGGERED</span>`;
+      const agTd=tr.querySelector('td:nth-child(5)'); if(agTd) agTd.innerHTML=alertAgeCell(w);
+      justFired=true;
+    }
+  });
+  // a watch that triggers while you're ON the alerts screen must surface the roster star too —
+  // evaluateWatches() set the WATCH bit but updateRosterPrices() doesn't rebuild flags. Rebuild once.
+  if(justFired) renderRoster();
+}
+
+/* =========================================================================
+   NEWS SCREEN (id=news, WND-0x7C) — the HOLDINGS WIRE.
+   Answers "what's about to hit the stuff I hold?" — the next holdings-relevant
+   catalyst (earnings / macro release / impact-ranked headline) for the roster,
+   scannable in under 2s.
+
+   THREE lanes, all derived from the EXISTING DataEngine/UNIVERSE so nothing is
+   fabricated and every number reconciles with the roster/chart already on screen:
+     (1) EARNINGS — per roster symbol, exact earnings-calendar JSON shape. Ports
+         earnings-calendar/fetch_earnings_fmp.py: MIN_MARKET_CAP $2B hard gate
+         (all roster names pass truthfully), timing BMO/AMC/TAS, sort key
+         (date ASC, timing_order{BMO:1,AMC:2,TAS:3}, marketCap DESC). EPS/REV EST
+         derived from mcap/pe so EPS ties back to price.
+     (2) MACRO — a fixed diegetic set (FOMC / CPI / NFP / GDP / PPI) in the
+         economic-calendar field schema (country US, USD, previous/estimate,
+         impact High/Medium), spread over the next 7 days.
+     (3) HEADLINES — scored with the market-news-analyst formula over LIVE numbers:
+         dayPct -> price-impact band -> Price Score; breadth multiplier from
+         UNIVERSE.tags; forward modifier from sign vs drift; Impact = Price*Breadth
+         + Forward. Consequence authored in the tired-desk-analyst voice, consistent
+         with sign + dayPct.
+
+   HONEST-DATA / CORS: FMP (earnings + macro) and Yahoo/RSS (headlines) send NO
+   permissive CORS header and leak an apikey — unlike Coinbase. A static browser
+   build CANNOT fetch them. So NEWS ships MOCK-FIRST behind a single marked live
+   seam in NewsEngine.tryLive(); the real fetch belongs in the Tauri/Rust app port
+   (reqwest, server-side, no CORS). On a static file tryLive() falls through to the
+   MockWireProvider and the taskbar reads OFFLINE // CACHED — no console CORS spam.
+
+   NON-REPAINTING IS LAW (honouring the CLOSED-candle discipline): EARNINGS and MACRO
+   are SCHEDULED events — computed once per refresh, immutable until the next explicit
+   R / day rollover (a scheduled release must never flicker on the 1-2s price tick).
+   HEADLINE scores MAY recompute on tick (dayPct is live) but the row ORDER is FROZEN
+   between refreshes and only the changed digits flash — the feed is never re-sorted
+   under the reader.
+   ========================================================================= */
+const NEWS_LANES = [
+  {key:'EARNINGS', label:'EARNINGS.q3'},
+  {key:'MACRO',    label:'MACRO.rel'},
+  {key:'HEADLINES',label:'HEADLINES.desk'}
+];
+// economic-calendar impact map (SKILL.md): High=FOMC/NFP/CPI/GDP, Medium=Retail/PMI.
+// Authored diegetic set — internally consistent, spread over the next 7 sessions.
+const NEWS_MACRO_DEFS = [
+  {event:'FOMC RATE DECISION', currency:'USD', country:'US', impact:'High',   prev:'4.50%', est:'4.50%', dayOffset:2, timeTxt:'14:00 EST',
+   line:'Hold widely priced; the dots and the presser move more than the number. A hawkish hold pressures <b>growth/tech</b> and lifts the dollar.'},
+  {event:'CPI YoY',            currency:'USD', country:'US', impact:'High',   prev:'3.0%',  est:'2.9%',  dayOffset:1, timeTxt:'08:30 EST',
+   line:'A hot print revives the higher-for-longer trade — <b>rate-sensitive megacaps</b> wear it first, gold and duration catch a bid.'},
+  {event:'NON-FARM PAYROLLS',  currency:'USD', country:'US', impact:'High',   prev:'206K',  est:'190K',  dayOffset:4, timeTxt:'08:30 EST',
+   line:'Too strong and cuts get pushed out; too weak and the soft-landing story cracks. Either tail hits <b>high-beta</b> hardest.'},
+  {event:'GDP QoQ (ADV)',      currency:'USD', country:'US', impact:'Medium', prev:'2.8%',  est:'2.6%',  dayOffset:5, timeTxt:'08:30 EST',
+   line:'Backward-looking, but a big miss reprices the cycle. Broad-index read; single names shrug unless it moves the Fed.'},
+  {event:'PPI MoM',            currency:'USD', country:'US', impact:'Medium', prev:'0.2%',  est:'0.2%',  dayOffset:3, timeTxt:'08:30 EST',
+   line:'The CPI appetiser — pipeline inflation. In-line is a non-event; a spike front-runs the CPI reaction by a day.'}
+];
+const NEWS_DOW = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+const NEWS_TIMING_ORDER = { BMO:1, AMC:2, TAS:3 };
+
+const NewsEngine = {
+  live:true,               // overall feed banner state; mock draws when false
+  cached:false,            // 'FEED: CACHED' badge (mirrors Scan.cached failover echo)
+  dataV:0,                 // bumped on refresh (R) / day rollover — freezes scheduled rows between bumps
+  _now:null,               // frozen "now" per refresh so scheduled dates don't drift mid-session
+  cache:{},                // laneKey|dataV -> rows
+
+  bump(){ this.dataV++; this.cache={}; this._now=new Date(); },
+
+  // [LIVE SEAM: Tauri-Rust only] app port fetches FMP earnings-calendar +
+  // economics-calendar + Yahoo per-ticker RSS HERE (Tauri/Rust reqwest, server-side
+  // => no CORS, apikey stays out of the webview). A static BROWSER build has no
+  // permissive-CORS path to any of these (unlike Coinbase spot), so tryLive() ALWAYS
+  // falls through to MockWireProvider — no fetch, no console CORS spam, no leaked key.
+  tryLive(){
+    // On a static file this resolves to mock immediately; the app port swaps in a real
+    // Promise.all(reqwest...) at this one marker, folding live rows over the mock skeleton.
+    this.live=false; this.cached=true;   // honest: the browser build is always CACHED
+    this.bump();
+    return Promise.resolve(false);
+  },
+
+  // ---- EARNINGS lane (per roster symbol; exact earnings-calendar shape) ----
+  earnings(){
+    const key='EARNINGS|'+this.dataV; if(this.cache[key]) return this.cache[key];
+    const now=this._now||new Date();
+    const rows=DEFAULT_ROSTER.map(sym=>{
+      const p=UNIVERSE[sym]; const q=DataEngine.get(sym);
+      const rng=mulberry32((DEFAULT_SEED^seedFromString('NEWS|EARN|'+sym))>>>0);
+      // deterministic next business day, 1..10 sessions out
+      const sessions=1+Math.floor(rng()*10);
+      const d=nextBusinessDay(now, sessions);
+      const timing=['BMO','AMC','TAS'][Math.floor(rng()*3)];
+      // EPS EST derived from mcap/pe so it ties back to price (fallback for pe=NaN crypto)
+      const eps = isFinite(p.pe) ? (q.last/p.pe)/4 : null;            // quarterly EPS ≈ (price/PE)/4
+      const rev = p.mcap * (isFinite(p.pe)? (1/p.pe) : 0.08) * (0.9+rng()*0.35); // rough quarterly revenue
+      const held=positionFor(sym).qty;
+      const daysOut=businessDaysBetween(now,d);
+      return {
+        id:'e-'+sym, lane:'EARNINGS', sym, companyName:p.name, sector:p.sector, style:p.style, tags:p.tags,
+        date:d, timing, marketCap:p.mcap, epsEstimated:eps, revenueEstimated:rev, heldQty:held,
+        daysOut, imminent: daysOut<=1 && (timing==='BMO'||timing==='AMC')
+      };
+    });
+    // sort key = (date ASC, timing_order, marketCap DESC) — the earnings-calendar port
+    rows.sort((a,b)=> (a.date-b.date) || (NEWS_TIMING_ORDER[a.timing]-NEWS_TIMING_ORDER[b.timing]) || (b.marketCap-a.marketCap));
+    this.cache[key]=rows; return rows;
+  },
+
+  // ---- MACRO lane (fixed diegetic set, economic-calendar schema) ----
+  macro(){
+    const key='MACRO|'+this.dataV; if(this.cache[key]) return this.cache[key];
+    const now=this._now||new Date();
+    const rows=NEWS_MACRO_DEFS.map(m=>{
+      const d=nextBusinessDay(now, m.dayOffset);
+      const daysOut=businessDaysBetween(now,d);
+      return { id:'m-'+m.event, lane:'MACRO', event:m.event, currency:m.currency, country:m.country,
+        impact:m.impact, prev:m.prev, est:m.est, timeTxt:m.timeTxt, line:m.line, date:d, daysOut,
+        imminent: daysOut<=1 && m.impact==='High' };
+    });
+    rows.sort((a,b)=> (a.date-b.date) || (macroImpactRank(b.impact)-macroImpactRank(a.impact)));
+    this.cache[key]=rows; return rows;
+  },
+
+  // ---- HEADLINES lane (market-news-analyst scoring over LIVE numbers) ----
+  // Order FROZEN per refresh (cached list of syms); scores recompute live on tick.
+  headlines(){
+    const key='HEADLINES|'+this.dataV; if(this.cache[key]) return this.cache[key];
+    // freeze the ROSTER ORDER at refresh time; a headline exists per name, focused = State.selected
+    const rows=DEFAULT_ROSTER.map(sym=> this.scoreHeadline(sym));
+    // rank once, then freeze (impact DESC); tick recomputes score-in-place, never re-sorts
+    rows.sort((a,b)=> b.impact - a.impact);
+    this.cache[key]=rows; return rows;
+  },
+  // pure scorer — safe to call every tick for a live digit without touching order
+  scoreHeadline(sym){
+    const p=UNIVERSE[sym]; const q=DataEngine.get(sym);
+    const dp=q.dayPct, ad=Math.abs(dp);
+    // single-stock price bands (market-news-analyst): Severe>=10 / Major 5-10 / Moderate 2-5 / Minor / Negligible
+    const priceScore = ad>=10?10 : ad>=5?7 : ad>=2?4 : ad>=1?2 : 1;
+    const priceLabel = ad>=10?'SEVERE' : ad>=5?'MAJOR' : ad>=2?'MODERATE' : ad>=1?'MINOR' : 'NEGLIGIBLE';
+    // breadth multiplier from tags: INDEX/BROAD -> Systemic 3x, CRYPTO/AI -> Sector 1.5x, single name 1x
+    const isIndex=p.tags.some(t=>/INDEX/.test(t))||/INDEX/.test(p.sector);
+    const isSector=p.tags.some(t=>/CRYPTO|AI/.test(t));
+    const breadthMult = isIndex?3 : isSector?1.5 : 1;
+    const breadthLabel = isIndex?'SYSTEMIC' : isSector?'SECTOR-WIDE' : 'STOCK-SPECIFIC';
+    // forward modifier: sign agrees with structural drift -> Trend Confirmation +25%, disagrees -> Contrary -25%
+    const agrees = (dp>=0) === (p.drift>=0);
+    const fwdMult = ad<1 ? 1.0 : (agrees ? 1.25 : 0.75);
+    const fwdLabel = ad<1 ? 'ISOLATED' : (agrees ? 'TREND CONFIRMATION' : 'CONTRARY MOVE');
+    const impact = priceScore * breadthMult * fwdMult;
+    return { id:'h-'+sym, lane:'HEADLINES', sym, companyName:p.name, sector:p.sector, style:p.style, tags:p.tags,
+      bio:p.bio, priors:p.priors, dayPct:dp, last:q.last, impact,
+      priceLabel, breadthLabel, breadthMult, fwdLabel,
+      imminent: impact>=15,   // genuinely high-impact catalyst — the one orange marker
+      line: headlineConsequence(sym, dp, breadthLabel, fwdLabel) };
+  }
+};
+// business-day helpers (skip Sat/Sun) — scheduled catalysts land on trading days only
+function nextBusinessDay(from, sessions){
+  const d=new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  let n=sessions;
+  while(n>0){ d.setDate(d.getDate()+1); const g=d.getDay(); if(g!==0&&g!==6) n--; }
+  return d;
+}
+function businessDaysBetween(from, to){
+  const a=new Date(from.getFullYear(),from.getMonth(),from.getDate());
+  const b=new Date(to.getFullYear(),to.getMonth(),to.getDate());
+  let n=0; const d=new Date(a);
+  while(d<b){ d.setDate(d.getDate()+1); const g=d.getDay(); if(g!==0&&g!==6) n++; }
+  return n;
+}
+function macroImpactRank(x){ return x==='High'?3 : x==='Medium'?2 : 1; }
+// relative-time readout, honest about market state (isMarketOpen)
+function newsWhen(row){
+  const d=row.daysOut;
+  if(row.lane==='HEADLINES') return 'LIVE · ON THE TAPE';
+  const dow=NEWS_DOW[row.date.getDay()];
+  if(d<=0){ const {open}=isMarketOpen(new Date()); return 'TODAY '+dow+(open?' · MKT OPEN':' · PRE'); }
+  if(d===1) return 'NEXT SESSION · '+dow;
+  return 'IN '+d+' SESSIONS · '+dow;
+}
+// tired-desk-analyst consequence, consistent with sign + dayPct (rate-HIKE playbook etc.)
+function headlineConsequence(sym, dp, breadth, fwd){
+  const up=dp>=0, mag=Math.abs(dp).toFixed(2), disp=sym.replace('-USD','');
+  const numHtml=`<span class="w-num ${glClass(dp)}">${arrow(dp)} ${mag}%</span>`;
+  if(Math.abs(dp)<1) return `Desk quiet on ${disp} — ${numHtml} on the session, inside the noise. ${breadth.toLowerCase()} read; nobody's writing home.`;
+  if(up){
+    if(breadth==='SYSTEMIC') return `Broad tape green, ${disp} ${numHtml} carrying the index — ${fwd.toLowerCase()}. Risk-on holds until it doesn't.`;
+    if(breadth==='SECTOR-WIDE') return `${disp} ${numHtml} leading its group higher — ${fwd.toLowerCase()}. Momentum crowd already long; watch for the chase.`;
+    return `${disp} bid ${numHtml} on the day — ${fwd.toLowerCase()}. Single-name move, no read-through to the book yet.`;
+  } else {
+    if(breadth==='SYSTEMIC') return `Index heavy, ${disp} ${numHtml} dragging breadth — ${fwd.toLowerCase()}. Duration and gold catch the safety bid.`;
+    if(breadth==='SECTOR-WIDE') return `${disp} ${numHtml}, its whole group offered — ${fwd.toLowerCase()}. The AI/crypto beta unwinds together, as it always does.`;
+    return `${disp} sold ${numHtml} — ${fwd.toLowerCase()}. Contained to the name; the desk isn't reaching for the panic button.`;
+  }
+}
+
+/* ---- NEWS render (all DOM; no canvas). renderNews() rebuilds on lane change /
+   refresh / roster jump ONLY. renderNewsTape + score digits update on tick without
+   re-sorting or rebuilding the feed. ---- */
+function newsLaneRows(){
+  const lane=News.lane;
+  return lane==='EARNINGS'?NewsEngine.earnings() : lane==='MACRO'?NewsEngine.macro() : NewsEngine.headlines();
+}
+function newsCountFor(laneKey){
+  // roster-relevant catalysts within the next 7 sessions (headlines are always "on the tape")
+  if(laneKey==='HEADLINES') return DEFAULT_ROSTER.length;
+  const rows = laneKey==='EARNINGS'?NewsEngine.earnings():NewsEngine.macro();
+  return rows.filter(r=>r.daysOut<=7).length;
+}
+const News = { lane:'EARNINGS', focusId:null };
+
+function newsWireRow(r){
+  const sel = (r.id===News.focusId) ? ' sel' : '';
+  const imm = r.imminent ? ' imminent' : '';
+  if(r.lane==='EARNINGS'){
+    const timingChip = statusChip(r.timing, r.timing==='BMO'?'high':r.timing==='AMC'?'warn':'ok', {pips:r.timing==='BMO'?3:r.timing==='AMC'?2:1});
+    const badge = r.imminent ? `<span class="news-immchip">IMMINENT</span>` : statusChip('EARNINGS','warn',{pips:2});
+    const held = r.heldQty>0 ? ` · held <b>${fmtNum(r.heldQty,0)}</b>` : '';
+    return `<div class="news-wire${sel}${imm}" data-nid="${r.id}" data-sym="${r.sym}">
+      <div class="w-badges">${badge}${timingChip}</div>
+      <div class="w-head"><span class="w-sym">${r.sym.replace('-USD','')}</span> &middot; ${r.companyName}</div>
+      <div class="w-when${r.imminent?' now':''}">${newsWhen(r)}</div>
+      <div class="w-line">Reports <b>${r.timing}</b> &middot; EPS EST <b>${r.epsEstimated!=null?fmtUSD(r.epsEstimated):'N/A'}</b> &middot; REV EST <b>$${fmtCompact(r.revenueEstimated)}</b> &middot; ${r.sector}${held}</div>
+    </div>`;
+  }
+  if(r.lane==='MACRO'){
+    const lvl = r.impact==='High'?'high':r.impact==='Medium'?'warn':'ok';
+    const impChip = statusChip(r.impact.toUpperCase()+' IMPACT', lvl);
+    const badge = r.imminent ? `<span class="news-immchip">IMMINENT</span>` : statusChip('MACRO','ok',{pips:1});
+    return `<div class="news-wire${sel}${imm}" data-nid="${r.id}" data-sym="">
+      <div class="w-badges">${badge}${impChip}</div>
+      <div class="w-head">${r.event} <span style="font-family:var(--f-mono);font-weight:500;font-size:11px;color:var(--ink-soft)">&middot; ${r.country}/${r.currency}</span></div>
+      <div class="w-when${r.imminent?' now':''}">${newsWhen(r)} &middot; ${r.timeTxt}</div>
+      <div class="w-line">PREV <b>${r.prev}</b> &middot; EST <b>${r.est}</b> &mdash; ${r.line}</div>
+    </div>`;
+  }
+  // HEADLINES
+  const badge = r.imminent ? `<span class="news-immchip">HIGH IMPACT</span>` : statusChip('HEADLINE','ok',{pips:1});
+  const brChip = statusChip(r.breadthLabel, r.breadthLabel==='SYSTEMIC'?'high':r.breadthLabel==='SECTOR-WIDE'?'warn':'ok');
+  return `<div class="news-wire${sel}${imm}" data-nid="${r.id}" data-sym="${r.sym}">
+    <div class="w-badges">${badge}${brChip}</div>
+    <div class="w-head"><span class="w-sym">${r.sym.replace('-USD','')}</span> &middot; IMPACT <span data-nimpact="${r.sym}">${r.impact.toFixed(1)}</span></div>
+    <div class="w-when">${newsWhen(r)}</div>
+    <div class="w-line" data-nline="${r.sym}">${r.line}</div>
+  </div>`;
+}
+
+function newsRenderDossier(rows){
+  const label=$('#newsDossierLabel'), body=$('#newsDossierBody');
+  const r = rows.find(x=>x.id===News.focusId) || rows[0];
+  if(!r){ label.textContent='CATALYST DOSSIER'; body.innerHTML=`<div class="news-empty">&mdash;</div>`; return; }
+  if(r.lane==='EARNINGS'){
+    label.textContent='CATALYST DOSSIER // EARNINGS';
+    const tags=[`<span class="tag on">${r.sector}</span>`,`<span class="tag">${r.style}</span>`].join('');
+    const kv=[
+      ['REPORTS', NEWS_DOW[r.date.getDay()]+' '+(r.date.getMonth()+1)+'/'+r.date.getDate()],
+      ['TIMING', r.timing+(r.timing==='BMO'?' · BEFORE OPEN':r.timing==='AMC'?' · AFTER CLOSE':' · TIME TBA')],
+      ['MKT CAP', '$'+fmtCompact(r.marketCap)],
+      ['EPS EST', r.epsEstimated!=null?fmtUSD(r.epsEstimated):'N/A'],
+      ['REV EST', '$'+fmtCompact(r.revenueEstimated)],
+      ['DAYS OUT', r.daysOut+' SESSION'+(r.daysOut===1?'':'S')],
+      ['HELD QTY', r.heldQty>0?fmtNum(r.heldQty,0)+' sh':'&mdash;']
+    ];
+    body.innerHTML =
+      `<div class="news-dosbody">
+        <div class="news-doshero"><span class="news-dossym">${r.sym.replace('-USD','')}</span></div>
+        <div class="news-dosco">${r.companyName}</div>
+        <div class="news-dostags">${tags}</div>
+        ${kv.map(([k,v])=>`<div class="statrow"><span class="lab">${k}</span><span class="val mono">${v}</span></div>`).join('')}
+        <div class="news-blurb" style="margin-top:12px">${r.heldQty>0?`You hold <b>${fmtNum(r.heldQty,0)} sh</b> into this print — mark the calendar.`:`Not in the book — watchlist read only.`} EST from model (price/PE); LIVE swaps FMP consensus. <span style="color:var(--ink-soft)">SIMULATED · NOT INVESTMENT ADVICE</span></div>
+      </div>`;
+  } else if(r.lane==='MACRO'){
+    label.textContent='CATALYST DOSSIER // MACRO';
+    const lvl = r.impact==='High'?'high':r.impact==='Medium'?'warn':'ok';
+    body.innerHTML =
+      `<div class="news-dosbody">
+        <div class="news-doshero"><span class="news-dossym" style="font-size:26px;line-height:1.05">${r.event}</span></div>
+        <div class="news-dostags"><span class="tag on">${r.country} / ${r.currency}</span></div>
+        <div class="news-doschips">${statusChip(r.impact.toUpperCase()+' IMPACT', lvl)}<span class="mono" style="font-size:10px;color:var(--ink-soft)">${r.timeTxt}</span></div>
+        <div class="statrow"><span class="lab">RELEASE</span><span class="val mono">${NEWS_DOW[r.date.getDay()]} ${(r.date.getMonth()+1)}/${r.date.getDate()}</span></div>
+        <div class="statrow"><span class="lab">PREVIOUS</span><span class="val mono">${r.prev}</span></div>
+        <div class="statrow"><span class="lab">ESTIMATE</span><span class="val mono">${r.est}</span></div>
+        <div class="statrow"><span class="lab">DAYS OUT</span><span class="val mono">${r.daysOut} SESSION${r.daysOut===1?'':'S'}</span></div>
+        <div class="news-blurb" style="margin-top:12px">${r.line}</div>
+      </div>`;
+  } else {
+    label.textContent='CATALYST DOSSIER // HEADLINE';
+    const tags=[`<span class="tag on">${r.sector}</span>`,...r.tags.slice(0,2).map(t=>`<span class="tag">${t}</span>`)].join('');
+    body.innerHTML =
+      `<div class="news-dosbody">
+        <div class="news-doshero"><span class="news-dossym">${r.sym.replace('-USD','')}</span><span class="news-dosbig" data-nimpact-big="${r.sym}">${r.impact.toFixed(1)}</span></div>
+        <div class="news-dosco">IMPACT SCORE &middot; ${r.companyName}</div>
+        <div class="news-dostags">${tags}</div>
+        <div class="news-doschips">${statusChip(r.breadthLabel, r.breadthLabel==='SYSTEMIC'?'high':r.breadthLabel==='SECTOR-WIDE'?'warn':'ok')}${statusChip(r.fwdLabel, r.fwdLabel==='TREND CONFIRMATION'?'warn':r.fwdLabel==='CONTRARY MOVE'?'high':'ok',{pips:r.fwdLabel==='ISOLATED'?1:2})}<span class="mono w-num ${glClass(r.dayPct)}" style="font-size:12px">${arrow(r.dayPct)} ${Math.abs(r.dayPct).toFixed(2)}%</span></div>
+        <div class="news-blurb">${r.bio}</div>
+        <div class="news-blurb" style="margin-top:8px;border-color:var(--ink-soft);color:var(--ink-soft)">${r.priors}</div>
+      </div>`;
+  }
+}
+
+function newsRenderWeek(){
+  // 7 day columns Mon–Fri emphasised; per-day count of roster-relevant catalysts
+  // (earnings + macro landing that day). Peak day gets the orange left-border.
+  const now=NewsEngine._now||new Date();
+  const earn=NewsEngine.earnings(), mac=NewsEngine.macro();
+  // Anchor the strip to the Monday of the week that holds the SOONEST upcoming catalyst,
+  // so on a weekend/quiet week the heavy day still reads (not a dead current calendar week).
+  const all=[...earn, ...mac].map(r=>r.date).filter(d=>d>=new Date(now.getFullYear(),now.getMonth(),now.getDate()));
+  const anchor = all.length ? all.reduce((m,d)=> d<m?d:m) : now;
+  const start=new Date(anchor.getFullYear(),anchor.getMonth(),anchor.getDate());
+  const back=(start.getDay()+6)%7; start.setDate(start.getDate()-back);
+  const days=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i);
+    const cnt = earn.filter(r=>sameDay(r.date,d)).length + mac.filter(r=>sameDay(r.date,d)).length;
+    days.push({d, cnt, wknd:(d.getDay()===0||d.getDay()===6)});
+  }
+  const peak = days.reduce((m,x)=> x.cnt>m ? x.cnt : m, 0);
+  const strip=$('#newsWeekStrip');
+  strip.innerHTML = days.map(x=>{
+    const isPeak = x.cnt>0 && x.cnt===peak;
+    return `<div class="news-daycol${x.wknd?' wknd':''}${isPeak?' peak':''}">
+      <span class="d-lbl">${NEWS_DOW[x.d.getDay()]}</span>
+      <span class="d-cnt${x.cnt===0?' zero':''}">${x.cnt}</span>
+    </div>`;
+  }).join('');
+  const peakDay = days.find(x=>x.cnt>0 && x.cnt===peak);
+  $('#newsWeekFoot').innerHTML = peak>0
+    ? `PEAK DAY &middot; ${NEWS_DOW[peakDay.d.getDay()]} ${(peakDay.d.getMonth()+1)}/${peakDay.d.getDate()} &middot; ${peak} ROSTER CATALYST${peak===1?'':'S'}`
+    : `DESK QUIET THIS WEEK &middot; no scheduled roster catalysts`;
+}
+function sameDay(a,b){ return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
+
+// live wire-service TAPE: freshest headline glyphs (reuses the .marquee/.track look;
+// NOT the global #alertTrack — its own #newsTape so the two never fight).
+function renderNewsTape(){
+  const track=$('#newsTape'); if(!track) return;
+  // FRESHEST live impacts: score each roster name LIVE (scoreHeadline reads live dayPct) rather than
+  // the frozen headlines() cache — the tape's "freshest" claim must reflect the current tape, not the
+  // last bump. Rank by live impact, keep the top 6. Cheap; called on the price tick.
+  const hl=DEFAULT_ROSTER.map(sym=>NewsEngine.scoreHeadline(sym)).sort((a,b)=>b.impact-a.impact).slice(0,6);
+  const html = hl.map(r=>
+    `<span${r.imminent?' class="fl"':''}>${r.sym.replace('-USD','')} ${arrow(r.dayPct)}${Math.abs(r.dayPct).toFixed(2)}% · IMPACT ${r.impact.toFixed(1)}</span><span> // </span>`
+  ).join('');
+  const wrap = html || '<span>NO CATALYSTS ON THE WIRE · desk is quiet</span>';
+  track.innerHTML = wrap + wrap; // duplicate for seamless loop
+}
+
+let newsHandshaked=false;
+function renderNews(){
+  // First entry: attempt the live handshake. On a static browser build there is NO
+  // permissive-CORS path to FMP/RSS (unlike Coinbase), so tryLive() silently resolves
+  // false and the feed reads OFFLINE // CACHED — honest, no console CORS spam.
+  if(!newsHandshaked){ newsHandshaked=true; NewsEngine.tryLive(); }
+  // ensure a refresh has run at least once (freezes _now + scheduled rows)
+  if(!NewsEngine._now) NewsEngine.bump();
+  // lane seg toggle (orange-active-only) with roster-relevant counts
+  buildSegToggle($('#newsLanes'),
+    NEWS_LANES.map(l=>({key:l.key, label:l.label, count:newsCountFor(l.key)})),
+    News.lane,
+    (key)=>{ News.lane=key; News.focusId=null; renderNews(); });
+  $('#newsPlabel').textContent = `NEWS // ${News.lane} · MODEL`;
+  const badge=$('#newsBadge'); badge.textContent = NewsEngine.live?'FEED: LIVE':'FEED: CACHED';
+  badge.classList.toggle('cached', !NewsEngine.live);
+
+  const rows = newsLaneRows();
+  // focus: prefer the roster-selected symbol's row, else the top (most imminent/impactful)
+  if(!News.focusId || !rows.some(r=>r.id===News.focusId)){
+    const bySel = rows.find(r=>r.sym===State.selected);
+    News.focusId = (bySel||rows[0]||{}).id || null;
+  }
+  const wrap=$('#newsFeedWrap');
+  if(!rows.length){
+    wrap.innerHTML=`<div class="news-empty">NO CATALYSTS ON THE WIRE &mdash; desk is quiet.<br>Feed CACHED; last handshake 07:41 EST.</div>`;
+  } else {
+    wrap.innerHTML = rows.map(newsWireRow).join('');
+    wrap.querySelectorAll('.news-wire[data-nid]').forEach(el=>el.addEventListener('click',()=>{
+      News.focusId=el.dataset.nid;
+      if(el.dataset.sym) selectInstrument(el.dataset.sym);   // routes roster + re-renders us
+      else renderNews();
+    }));
+  }
+  newsRenderDossier(rows);
+  newsRenderWeek();
+  renderNewsTape();
+}
+
+// NON-REPAINTING tick: EARNINGS/MACRO are scheduled — frozen until R/rollover. Only
+// HEADLINE impact digits (dayPct is live) update in place, and only when that lane is
+// shown; the feed is NEVER re-sorted or rebuilt under the reader.
+let newsLastDay=null;
+function newsTick(){
+  // day rollover -> re-freeze scheduled rows once (a new session shifts every DAYS OUT)
+  const dnow=new Date().getDate();
+  if(newsLastDay!==null && dnow!==newsLastDay){ NewsEngine.bump(); if(State.screen==='news') renderNews(); newsLastDay=dnow; return; }
+  newsLastDay=dnow;
+  // the TAPE tracks the freshest live impacts regardless of lane (glyphs only)
+  renderNewsTape();
+  if(News.lane!=='HEADLINES') return;  // scheduled lanes don't flicker on the price tick
+  // recompute HEADLINE score digits in place — no re-sort, no DOM rebuild
+  DEFAULT_ROSTER.forEach(sym=>{
+    const s=NewsEngine.scoreHeadline(sym);
+    const cell=document.querySelector(`[data-nimpact="${sym}"]`);
+    if(cell) setTickText(cell, s.impact.toFixed(1));
+    const big=document.querySelector(`[data-nimpact-big="${sym}"]`);
+    if(big) setTickText(big, s.impact.toFixed(1));
+    const line=document.querySelector(`[data-nline="${sym}"]`);
+    if(line) line.innerHTML = s.line;
+  });
+}
 
 /* ---- PERF STATE + toggle registry ---- */
 const Perf = {
@@ -3028,12 +5593,20 @@ function wireEvents(){
   });
   pw.addEventListener('mouseleave', ()=>{ Perf.cross=null; perfDrawOverlay(); });
 
+  /* ---- COMPARE screen wiring (WAVE 2) ---- */
+  // shared range toggle: recompute settled metrics for the new range, then full re-render
+  $('#cmpRangeTog').addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    Compare.range=b.dataset.r; cmpBumpMetrics(); renderCompare();
+  });
+
   // redraw on resize
   let rz; window.addEventListener('resize', ()=>{ clearTimeout(rz); rz=setTimeout(()=>{
     if(State.screen==='dash') drawMainChart();
     else if(State.screen==='pos'){ drawRadar($('#posRadarWrap'),State.selected,State.staged,true); }
     else if(State.screen==='watch'){ drawWatchChart(); drawRadar($('#wRadarWrap'),State.selected,0,false); }
     else if(State.screen==='perf'){ perfResize(); }
+    else if(State.screen==='compare'){ cmpDrawWell(); cmpFilledSlots().forEach(o=>{ const cell=$(`.cmp-radarcell[data-slot="${o.i}"]`); if(cell) cmpDrawRadar(cell,o.i,o.sym); }); }
   },120); });
 }
 
