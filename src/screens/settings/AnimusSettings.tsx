@@ -111,6 +111,7 @@ function CredentialSlot({
   title,
   desc,
   placeholder,
+  secondaryPlaceholder,
   ariaLabel,
   focused,
   registerFieldRef,
@@ -119,6 +120,9 @@ function CredentialSlot({
   title: string;
   desc: string;
   placeholder: string;
+  /** When set, a SECOND input renders for the credential's other half (T212's
+   *  API Secret — the pair authenticates as base64(key:secret)). */
+  secondaryPlaceholder?: string;
   ariaLabel: string;
   focused: boolean;
   registerFieldRef?: (el: HTMLInputElement | null) => void;
@@ -171,6 +175,24 @@ function CredentialSlot({
             </button>
           )}
         </div>
+
+        {/* the credential's SECOND half (T212's API Secret) — only while editing
+            a new pair; committed secrets are never rendered back, same as the key */}
+        {secondaryPlaceholder && (showInput || slot.input2.length > 0) && (
+          <div className={s.field}>
+            <input
+              className={s.keyInput}
+              type="password"
+              inputMode="text"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={secondaryPlaceholder}
+              value={slot.input2}
+              onChange={(e) => slot.setInput2(e.target.value)}
+              aria-label={`${ariaLabel} secret`}
+            />
+          </div>
+        )}
 
         <button
           type="button"
@@ -342,8 +364,9 @@ function SettingsView({
         <CredentialSlot
           slot={vault.t212}
           title="Trading 212 Key"
-          desc="Your broker API credential — bound for the macOS Keychain, never written to disk."
-          placeholder="paste key to seat it…"
+          desc="Your broker credential is a KEY + SECRET pair (the secret shows once at generation) — both go to the macOS Keychain, never to disk."
+          placeholder="paste API key…"
+          secondaryPlaceholder="paste API secret…"
           ariaLabel="Trading 212 API key"
           focused={GROUP_IDS[focusIdx] === "t212"}
           registerFieldRef={(el) => (t212FieldRef.current = el)}

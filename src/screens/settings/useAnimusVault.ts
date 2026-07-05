@@ -51,6 +51,11 @@ export interface VaultSlot {
   /** The credential text as typed (masked in the UI while resting). */
   input: string;
   setInput: (v: string) => void;
+  /** The SECOND credential part (T212's API Secret — a key+secret PAIR; the
+   *  secret is shown once at generation). Unused ("" always) for single-token
+   *  slots like FMP. */
+  input2: string;
+  setInput2: (v: string) => void;
   /** True while the input diverges from what's committed (enables SAVE). */
   dirty: boolean;
   /** Whether a key is seated in the Keychain. */
@@ -233,8 +238,9 @@ interface SlotConfig {
   id: SlotId;
   /** Reads whether a key is seated (Keychain has-check). */
   hasKey: () => Promise<boolean>;
-  /** Writes the raw key to the Keychain. */
-  setKey: (raw: string) => Promise<void>;
+  /** Writes the raw credential to the Keychain. `raw2` is the optional SECOND
+   *  part (T212's API Secret); single-token slots ignore it. */
+  setKey: (raw: string, raw2: string) => Promise<void>;
   /** Deletes the seated key from the Keychain. */
   delKey: () => Promise<void>;
   /** Runs the live probe → { probe, note }. */
@@ -243,6 +249,7 @@ interface SlotConfig {
 
 function useSlot(cfg: SlotConfig): VaultSlot {
   const [input, setInput] = useState("");
+  const [input2, setInput2] = useState("");
   const [seat, setSeat] = useState<SeatState>("unknown");
   // The tail of the committed key, for the mask. Set on save; discovered as
   // "••••" placeholder on load (we can't read the real value back from the
@@ -282,13 +289,14 @@ function useSlot(cfg: SlotConfig): VaultSlot {
   }, []);
 
   const trimmed = input.trim();
+  const trimmed2 = input2.trim();
   const dirty = trimmed.length > 0;
 
   const save = useCallback(async () => {
     if (trimmed.length === 0) return;
     setSaving(true);
     try {
-      await cfg.setKey(trimmed);
+      await cfg.setKey(trimmed, trimmed2);
       // A newly-saved key invalidates the in-memory Keychain caches so the next
       // live sync uses it (otherwise the cached old/absent key would win until an
       // app restart), then re-sync immediately.
@@ -297,7 +305,8 @@ function useSlot(cfg: SlotConfig): VaultSlot {
       if (!mounted.current) return;
       setSeat("seated");
       setCommittedTail(trimmed.slice(-4));
-      setInput(""); // never keep the raw key in component state after commit
+      setInput(""); // never keep the raw credential in component state after commit
+      setInput2("");
       setProbe("idle"); // a new key invalidates the prior probe result
       setNote("Saved — press TEST to verify");
     } catch {
@@ -308,7 +317,7 @@ function useSlot(cfg: SlotConfig): VaultSlot {
     } finally {
       if (mounted.current) setSaving(false);
     }
-  }, [trimmed, cfg]);
+  }, [trimmed, trimmed2, cfg]);
 
   const clear = useCallback(async () => {
     try {
@@ -322,6 +331,7 @@ function useSlot(cfg: SlotConfig): VaultSlot {
       setSeat("empty");
       setCommittedTail(null);
       setInput("");
+      setInput2("");
       setProbe("idle");
       setNote("");
     } catch {
@@ -352,6 +362,8 @@ function useSlot(cfg: SlotConfig): VaultSlot {
     id: cfg.id,
     input,
     setInput,
+    input2,
+    setInput2,
     dirty,
     seat,
     maskedTail: maskTail(committedTail),
@@ -375,8 +387,20 @@ function t212Config(env: Environment, accountId: string): SlotConfig {
     // keys authenticate as key-only in Basic auth for read scopes). We store what
     // the user pasted as the api_key and an empty secret — testConnection reads
     // both back through the Keychain.
-    setKey: async (raw: string) => {
-      await invoke("keychain_set_credentials", { accountId, apiKey: raw, apiSecret: "" });
+    setKey: async (raw: string, raw2: string) => {
+      // T212 credentials are a KEY + SECRET PAIR (the API Secret is shown ONCE at
+      // generation — help centre confirmed). Basic auth is base64(key:secret), so
+      // saving a key with an empty secret authenticates as base64(key:) → 401
+      // "bad key". The second field carries the secret; a combined "KEY:SECRET"
+      // paste in the first field is tolerated too (split on the FIRST colon).
+      let apiKey = raw;
+      let apiSecret = raw2;
+      if (!apiSecret && raw.includes(":")) {
+        const i = raw.indexOf(":");
+        apiKey = raw.slice(0, i).trim();
+        apiSecret = raw.slice(i + 1).trim();
+      }
+      await invoke("keychain_set_credentials", { accountId, apiKey, apiSecret });
       // Touch ID on for this slot → migrate the fresh key into the bio store
       // (reads pick the bio item first, so a stale one would shadow the new key).
       if (await invoke<boolean>("keychain_bio_has", { slot: "creds" }).catch(() => false)) {
@@ -426,7 +450,7 @@ function fmpConfig(): SlotConfig {
     // bio existence) — the right seat-check. (A full cached read here would fire
     // a Touch ID prompt just for opening Settings once the key is bio-protected.)
     hasKey: () => invoke<boolean>("keychain_has_marketdata_key"),
-    setKey: async (raw: string) => {
+    setKey: async (raw: string, _raw2: string) => {
       await invoke("keychain_set_marketdata_key", { key: raw });
       if (await invoke<boolean>("keychain_bio_has", { slot: "marketdata" }).catch(() => false)) {
         await invoke("keychain_bio_enable", { slot: "marketdata" });
@@ -463,7 +487,7 @@ function mockConfig(id: SlotId): SlotConfig {
   return {
     id,
     hasKey: async () => mockStore[id].seated,
-    setKey: async (raw: string) => {
+    setKey: async (raw: string, _raw2: string) => {
       mockStore[id] = { seated: true, tail: raw.slice(-4) };
     },
     delKey: async () => {
