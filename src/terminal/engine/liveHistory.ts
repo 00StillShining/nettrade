@@ -459,6 +459,19 @@ async function syncTable<T extends { id: string }>(
         await writeCursor(cursorKey, null); // truly empty — end of history
         return;
       }
+    } else if (cursor !== null && cursor === resumeCursor && pageAllKnown(pageIds, knownBefore, true)) {
+      // SILENT-IGNORE RECOVERY: a genuinely-resumed page can NEVER be all-known
+      // (its resume point was persisted BEFORE that page was fetched), so an
+      // all-known page at a resumed cursor means the server IGNORED the token
+      // and served page 1 — stopping here would orphan everything older than
+      // the newest page with no error (observed live: transactions frozen at 50
+      // rows, "done", deposits silently undercounted). Discard the token and
+      // re-walk from page 1 to exhaustion.
+      console.warn(`history sync (${cursorKey}): resume token ignored by server — re-walking from page 1`);
+      await writeCursor(cursorKey, null);
+      cursor = null;
+      forceFullWalk = true;
+      continue;
     } else if (
       // forceFullWalk disables the all-known stop (a re-walk after a poisoned
       // resume MUST reach exhaustion to recover the orphaned older pages); the
