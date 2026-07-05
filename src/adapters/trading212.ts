@@ -207,8 +207,10 @@ export interface AccountCash {
   freeMinor: number; // buying power (available cash)
   totalMinor: number; // total account value (invested + cash)
   investedMinor: number;
-  pplMinor: number; // open positions' total P/L (account ccy)
+  pplMinor: number; // open positions' UNREALISED P/L (account ccy)
+  resultMinor: number; // REALISED result from closed positions (account ccy)
   currency: string | null;
+  raw: unknown; // full payload, for forward-compat / debugging
 }
 export async function fetchAccountCash(creds: Credentials, env: Environment): Promise<AccountCash> {
   const res = await request("/equity/account/cash", creds, env);
@@ -220,7 +222,9 @@ export async function fetchAccountCash(creds: Credentials, env: Environment): Pr
     totalMinor: toMinor(n(r.total)),
     investedMinor: toMinor(n(r.invested)),
     pplMinor: toMinor(n(r.ppl)),
+    resultMinor: toMinor(n(r.result)),
     currency: typeof r.currencyCode === "string" ? r.currencyCode : null,
+    raw: r,
   };
 }
 

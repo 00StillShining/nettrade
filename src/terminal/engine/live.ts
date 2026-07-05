@@ -24,7 +24,7 @@ import {
   type Credentials,
   type Position,
 } from "../../adapters/trading212";
-import { fmpBatchQuotes, fmpHasKey } from "../../adapters/fmp";
+import { fmpBatchQuotes, fmpProfile, fmpHasKey, resetFmpKeyCache } from "../../adapters/fmp";
 import {
   DataEngine,
   UNIVERSE,
@@ -112,19 +112,39 @@ function foldLivePrice(sym: string, price: number, dayPct?: number): void {
   if (UNIVERSE[sym]) UNIVERSE[sym]._liveHeld = true;
 }
 
+// Same reasoning as the FMP key (see fmp.ts): the Keychain read prompts on a
+// self-signed build, so read the T212 credentials ONCE per launch and cache them.
+// Without this, every 5-minute refresh re-prompts. `resetLiveCaches()` drops the
+// cache (and the FMP one) when the user saves/clears a key in Settings.
+let credsPromise: Promise<Credentials | null> | undefined;
+
+/** Drop the cached credentials + market-data key so the next sync re-reads them.
+ *  Call after the user saves or clears a key in Settings. */
+export function resetLiveCaches(): void {
+  credsPromise = undefined;
+  resetFmpKeyCache();
+}
+
 async function getCreds(): Promise<Credentials | null> {
-  try {
-    const c = await invoke<{ apiKey: string; apiSecret: string } | null>(
-      "keychain_get_credentials",
-      { accountId: "default" },
-    );
-    if (c && typeof c.apiKey === "string" && c.apiKey.length > 0) {
-      return { apiKey: c.apiKey, apiSecret: typeof c.apiSecret === "string" ? c.apiSecret : "" };
+  if (credsPromise) return credsPromise;
+  credsPromise = (async () => {
+    try {
+      const c = await invoke<{ apiKey: string; apiSecret: string } | null>(
+        "keychain_get_credentials",
+        { accountId: "default" },
+      );
+      if (c && typeof c.apiKey === "string" && c.apiKey.length > 0) {
+        return { apiKey: c.apiKey, apiSecret: typeof c.apiSecret === "string" ? c.apiSecret : "" };
+      }
+      return null;
+    } catch {
+      // no keychain access / prompt dismissed → treat as no key, and drop the
+      // cache so a later refresh can retry rather than being stuck on mock.
+      credsPromise = undefined;
+      return null;
     }
-  } catch {
-    /* no keychain access → treated as no key (mock) */
-  }
-  return null;
+  })();
+  return credsPromise;
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -142,6 +162,7 @@ async function refresh(): Promise<void> {
       // No key: honest — no live claim. Leave the mock world running.
       DataEngine.provider = "MOCK";
       DataEngine.live = false;
+      DataEngine.accountLive = false;
       return;
     }
 
@@ -150,11 +171,13 @@ async function refresh(): Promise<void> {
     let totalMinor = 0;
     let freeMinor = 0;
     let pplMinor = 0;
+    let resultMinor = 0;
     try {
       positions = await fetchPositions(creds, "live");
     } catch {
       DataEngine.provider = "MOCK"; // T212 unreachable → keep last-good; don't fake live
       DataEngine.live = false;
+      DataEngine.accountLive = false;
       return;
     }
     try {
@@ -163,6 +186,7 @@ async function refresh(): Promise<void> {
       totalMinor = cash.totalMinor;
       freeMinor = cash.freeMinor;
       pplMinor = cash.pplMinor;
+      resultMinor = cash.resultMinor;
     } catch {
       /* cash summary optional — value falls back to Σ position value below */
     }
@@ -177,6 +201,7 @@ async function refresh(): Promise<void> {
         : null;
       DataEngine.provider = "LIVE";
       DataEngine.live = true;
+      DataEngine.accountLive = true;
       DataEngine.notify();
       notifyState();
       return;
@@ -210,13 +235,44 @@ async function refresh(): Promise<void> {
       book[h.sym] = { qty: h.qty, avgCost: h.avgCost };
     });
     State.positions = book;
+
+    // --- ACCOUNT MASTHEAD figures, all in the ACCOUNT currency ---
+    // T212's /equity/account/cash does NOT return the account currency, and per
+    // account / under rate-limiting it can come back with `total`/`ppl` absent
+    // (=0). So we derive the headline from the POSITIONS: each carries an
+    // account-currency `walletImpact` (value + P/L + currency) — no FX mixing.
+    // /cash is used for free cash (buying power) and as the preferred total when
+    // it actually reports one.
+    const acctCcy =
+      positions.find((p) => p.accountCurrency)?.accountCurrency || cashCcy || State.accountCcy;
+    const investedMinor = positions.reduce((s, p) => s + (p.currentValueMinor || 0), 0);
+    const posPplMinor = positions.reduce((s, p) => s + (p.unrealizedPlMinor || 0), 0);
+    const acctTotalMinor = totalMinor > 0 ? totalMinor : investedMinor + freeMinor;
+    // TOTAL RETURN = unrealised (open positions) + realised (closed positions).
+    // The user's headline "+£40" is their total return; open positions alone can
+    // net to ~£0 while realised gains carry the account. /cash reports both; if it's
+    // unavailable, fall back to summing the open positions' unrealised P&L only.
+    const unrealMinor = pplMinor !== 0 ? pplMinor : posPplMinor;
+    const acctPplMinor = unrealMinor + resultMinor;
+
     if (freeMinor) State.cash = freeMinor / 100;
-    State.accountCcy = cashCcy || State.accountCcy;
-    State.liveAccount = totalMinor ? { totalMinor, freeMinor, pplMinor, ccy: cashCcy } : null;
+    State.accountCcy = acctCcy;
+    // positions exist on this path, so we always have a real headline to show.
+    State.liveAccount = { totalMinor: acctTotalMinor, freeMinor, pplMinor: acctPplMinor, ccy: acctCcy };
     if (!syms.includes(State.selected)) State.selected = syms[0];
+
 
     // mark the crypto holdings as Coinbase-capable so DataEngine.tryLive picks them up
     held.forEach((h) => { if (CRYPTO_PAIR[cleanTicker(h.sym)] || h.sym.includes("-USD")) { if (UNIVERSE[h.sym]) UNIVERSE[h.sym].live = true; } });
+
+    // FAST FIRST PAINT: the real portfolio (holdings + T212 prices + account value)
+    // is ready now — show it immediately; the FMP day-% + profile enrichment below
+    // (rate-limited ~1/s on a cold cache) then refines it and notifies again.
+    DataEngine.provider = "LIVE";
+    DataEngine.live = true;
+    DataEngine.accountLive = true;
+    DataEngine.notify();
+    notifyState();
 
     // --- FMP day-% enrichment (stocks only; optional) ---
     try {
@@ -231,6 +287,22 @@ async function refresh(): Promise<void> {
             const pct = fq.changesPercentage != null && Number.isFinite(fq.changesPercentage) ? fq.changesPercentage : undefined;
             foldLivePrice(sym, price, pct);
           });
+          // 2b — enrich each holding's profile (real name/sector/mktcap/beta/bio).
+          // Cached 24h in the adapter so this is ~one call per symbol per DAY,
+          // well within the 250/day budget. Best-effort: a paid-gated / failed
+          // profile leaves the synthesized placeholder ("—") in place, honestly.
+          await Promise.all(stockSyms.map(async (sym) => {
+            try {
+              const prof = await fmpProfile(sym);
+              const p = UNIVERSE[sym];
+              if (!prof || !p) return;
+              if (prof.companyName) p.name = prof.companyName;
+              if (prof.sector) p.sector = prof.sector;
+              if (prof.marketCap != null && prof.marketCap > 0) p.mcap = prof.marketCap;
+              if (prof.beta != null && Number.isFinite(prof.beta)) p.beta = prof.beta;
+              if (prof.description) p.bio = prof.description;
+            } catch { /* profile unavailable → keep the synthesized placeholder */ }
+          }));
         }
       }
     } catch {
@@ -239,6 +311,7 @@ async function refresh(): Promise<void> {
 
     DataEngine.provider = "LIVE";
     DataEngine.live = true;
+    DataEngine.accountLive = true;
     DataEngine.notify();
     notifyState();
   } finally {

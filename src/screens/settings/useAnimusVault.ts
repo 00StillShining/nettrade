@@ -24,7 +24,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { testConnection, type Environment } from "../../adapters/trading212";
-import { fmpTestKey } from "../../adapters/fmp";
+import { fmpTestKey, fmpHasKey } from "../../adapters/fmp";
+import { resetLiveCaches, refreshLive } from "../../terminal/engine/live";
 
 const IS_MOCK = !!import.meta.env.VITE_MOCK;
 
@@ -165,6 +166,11 @@ function useSlot(cfg: SlotConfig): VaultSlot {
     setSaving(true);
     try {
       await cfg.setKey(trimmed);
+      // A newly-saved key invalidates the in-memory Keychain caches so the next
+      // live sync uses it (otherwise the cached old/absent key would win until an
+      // app restart), then re-sync immediately.
+      resetLiveCaches();
+      refreshLive();
       if (!mounted.current) return;
       setSeat("seated");
       setCommittedTail(trimmed.slice(-4));
@@ -184,6 +190,10 @@ function useSlot(cfg: SlotConfig): VaultSlot {
   const clear = useCallback(async () => {
     try {
       await cfg.delKey();
+      // a removed key must also drop the in-memory caches + re-sync (falls back to
+      // the honest mock/last-good world rather than a stale live claim).
+      resetLiveCaches();
+      refreshLive();
       // only report "removed" once the Keychain delete actually succeeded
       if (!mounted.current) return;
       setSeat("empty");
@@ -271,7 +281,9 @@ function t212Config(env: Environment, accountId: string): SlotConfig {
 function fmpConfig(): SlotConfig {
   return {
     id: "fmp",
-    hasKey: () => invoke<boolean>("keychain_has_marketdata_key"),
+    // Route the seat-check through the cached reader so opening Settings reuses the
+    // key the live sync already read (rather than firing a second ACL prompt).
+    hasKey: () => fmpHasKey(),
     setKey: (raw: string) => invoke("keychain_set_marketdata_key", { key: raw }),
     delKey: () => invoke("keychain_delete_marketdata_key"),
     probeFn: async () => {

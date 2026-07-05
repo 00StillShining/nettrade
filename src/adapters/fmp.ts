@@ -228,27 +228,44 @@ const CACHE_VERSION = 1; // bump to invalidate all persisted cache entries
 
 /* ====================== KEY ACCESS ====================== */
 
-// The key is fetched fresh per request and never retained. Callers that want to
-// test "is a key even seated" can call `fmpHasKey()`.
+// The Keychain read triggers a macOS ACL prompt on a self-signed build, so we must
+// NOT read per request — a single live refresh makes a dozen+ FMP calls, and each
+// fresh read would pop its own password prompt (the "Always Allow doesn't stick"
+// symptom: you're really clearing a queue of ~14 identical prompts). Instead we
+// read the key ONCE per app launch and hold it in memory. Concurrent callers share
+// the single in-flight read. The value is never logged, echoed, or persisted.
+//
+// Invalidation: `resetFmpKeyCache()` (called when the user saves/clears the key in
+// Settings) drops the cache so the next read re-fetches — otherwise a newly-saved
+// key would be ignored until the app restarts.
+let keyPromise: Promise<string | null> | undefined;
 
-async function readKey(): Promise<string | null> {
-  try {
-    const key = await invoke<string | null>("keychain_get_marketdata_key");
-    if (typeof key === "string" && key.trim().length > 0) return key.trim();
-    return null;
-  } catch {
-    // Keychain unavailable (e.g. non-Tauri context) — treat as no key.
-    return null;
-  }
+/** Drop the cached market-data key so the next read re-fetches from the Keychain. */
+export function resetFmpKeyCache(): void {
+  keyPromise = undefined;
 }
 
-/** True when a market-data key is seated in the Keychain. Cheap, no network. */
+async function readKey(): Promise<string | null> {
+  if (keyPromise) return keyPromise;
+  keyPromise = (async () => {
+    try {
+      const key = await invoke<string | null>("keychain_get_marketdata_key");
+      return typeof key === "string" && key.trim().length > 0 ? key.trim() : null;
+    } catch {
+      // Keychain unavailable / prompt dismissed — treat as no key AND drop the
+      // cache so a later refresh can retry rather than being stuck on "no key".
+      keyPromise = undefined;
+      return null;
+    }
+  })();
+  return keyPromise;
+}
+
+/** True when a market-data key is seated. Reuses the cached read — no extra prompt.
+ *  (The old `keychain_has_marketdata_key` path also called get_password, i.e. a
+ *  second ACL prompt for the very same secret; folding it into readKey avoids that.) */
 export async function fmpHasKey(): Promise<boolean> {
-  try {
-    return await invoke<boolean>("keychain_has_marketdata_key");
-  } catch {
-    return false;
-  }
+  return (await readKey()) !== null;
 }
 
 /* ====================== CACHE LAYER ====================== */

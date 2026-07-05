@@ -172,6 +172,8 @@ export const DataEngine = {
   seed: DEFAULT_SEED,
   provider: "MOCK" as "MOCK" | "LIVE", // 'LIVE' segments may coexist; taskbar shows LIVE until a failure
   live: true,                          // overall feed banner state
+  accountLive: false,                  // the T212 account link is live (owned by live.ts) — keeps a
+                                       // failed Coinbase crypto fetch from blanking a live account to MOCK
   quotes: {} as Record<string, Quote>, // sym -> {last, prevClose, dayPct, hist:{range:[...]}, day:[...]}
   latencyMs: 12,
 
@@ -267,7 +269,9 @@ export const DataEngine = {
       // DIEGETIC failover — no toast, no console cascade. Taskbar flips to OFFLINE // CACHED.
       // release held flags so the mock walk resumes from the last live level (no freeze).
       liveSyms.forEach((s) => { UNIVERSE[s]._liveHeld = false; });
-      this.live = false; this.provider = "MOCK";
+      // Only blank the feed to MOCK if the T212 account link isn't independently
+      // live — a Coinbase hiccup must not relabel a live real-money account.
+      if (!this.accountLive) { this.live = false; this.provider = "MOCK"; }
       return false;
     }
   },

@@ -130,6 +130,7 @@ export default function Terminal() {
   const dotRef = useRef<HTMLDivElement | null>(null);
   // taskbar segments (imperatively patched every second — no shell re-render)
   const tbFeedRef = useRef<HTMLSpanElement | null>(null);
+  const tbDiscRef = useRef<HTMLSpanElement | null>(null);
   const tbMktRef = useRef<HTMLSpanElement | null>(null);
   const tbVolRef = useRef<HTMLSpanElement | null>(null);
   const tbClockRef = useRef<HTMLSpanElement | null>(null);
@@ -275,6 +276,15 @@ export default function Terminal() {
       else { feed.className = "seg feed offline"; feed.innerHTML = `feed: <b>OFFLINE // CACHED</b>`; }
     }
     if (tbVolRef.current) tbVolRef.current.innerHTML = `vol: <b>${State.muted ? "MUTED" : State.vol + "%"}</b>`;
+    const disc = tbDiscRef.current;
+    if (disc) {
+      // Honest disclaimer: when the account link is LIVE the holdings/value/P&L are
+      // real, but the intraday candles + equity curve are still modelled (2c) — say
+      // so rather than blanket-labelling live money "SIMULATED".
+      disc.textContent = DataEngine.live
+        ? "LIVE ACCOUNT · INTRADAY MODELLED · NOT INVESTMENT ADVICE"
+        : "SIMULATED · NOT INVESTMENT ADVICE";
+    }
   }
 
   /* ---------------- MOUNT: clock, keyboard, jitter, delegates ---------------- */
@@ -486,7 +496,7 @@ export default function Terminal() {
             className="seg" ref={tbVolRef} style={{ cursor: "pointer" }}
             onClick={() => { State.muted = !State.muted; updateTaskbar(); }}
           >vol: <b>30%</b></span>
-          <span className="disc">SIMULATED · NOT INVESTMENT ADVICE</span>
+          <span className="disc" ref={tbDiscRef}>SIMULATED · NOT INVESTMENT ADVICE</span>
           <span className="spacer" />
           <span className="seg clock mono" ref={tbClockRef}>--:--:--</span>
         </div>
