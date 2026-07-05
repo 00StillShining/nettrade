@@ -7,18 +7,22 @@
 // Animus world (NO Frame, NO BakedCrt) — its own fixed pale-void root, exactly
 // like the "/" Animus route.
 //
-// Every control is wired to useSettingsPanel (the same hook the legacy cream
-// Settings used); only the PRESENTATION is the Animus style. This screen follows
-// the approved mockup's five groups, so it intentionally shows a leaner control
-// set than the old panel (the minute-interval range beyond 5m and the display
-// toggles return with the sync-engine step). Interactivity is LOCAL-STATE ONLY
-// this sprint — the real Keychain write + live API probe are a later step — so
-// the status captions stay honest ("staged locally", "not verified"), never a
-// fabricated live connection. The station is READ-ONLY: it never trades.
+// PHASE 1 — the CREDENTIAL FOUNDATION is now LIVE. The panel is a real DUAL-KEY
+// vault (useAnimusVault): SAVE writes the secret to the macOS Keychain for real,
+// and TEST performs a live connection probe:
+//   • SLOT A — Trading 212 Key → keychain_set_credentials + trading212
+//     testConnection().
+//   • SLOT B — Market Data Key (FMP) → keychain_set_marketdata_key + fmpTestKey().
+// The CONNECTION group reflects the REAL combined state. Env/interval/display
+// prefs still come from useSettingsPanel (local-state — those are UI prefs, not
+// secrets). Under VITE_MOCK the vault runs against an in-memory stub (no
+// Keychain, no network) so design builds render without a password prompt, and
+// its statuses are labelled sample state — never a fabricated live connection in
+// a real build. Masked slots show ONLY the committed key's tail; the raw key is
+// never rendered back or logged. The station is READ-ONLY: it never trades.
 //
 // ESC (and the bar's BACK) dive back to the Animus menu ("/") through the SAME
-// white-flash cover the menu leaves use (triggerFlash from ../../animus/flash),
-// so Settings enters and leaves under the one shared transition.
+// white-flash cover the menu leaves use (triggerFlash from ../../animus/flash).
 //
 // LAWS: animate only transform/opacity (no filter/blend/backdrop); the ONE red
 // family; NO green — ever.
@@ -31,6 +35,7 @@ import {
   type SettingsPanelState,
   type SyncInterval,
 } from "./useSettingsPanel";
+import { useAnimusVault, type AnimusVault, type VaultSlot } from "./useAnimusVault";
 import s from "./AnimusSettings.module.css";
 
 /* The cog glyph — the same 15px stroke cog the mockup pins to the SETTINGS
@@ -55,28 +60,12 @@ function Cog({ size = 15, stroke = "#f6f4f0" }: { size?: number; stroke?: string
   );
 }
 
-/* Mask a credential for the resting slot display — never render the raw key
-   back to screen. Shows shape only: dots + last 4 (matches the mockup's
-   "••••••••••••3f2a" treatment). */
-function maskKey(key: string): string {
-  const k = key.trim();
-  if (k.length === 0) return "";
-  if (k.length <= 4) return "•".repeat(k.length);
-  const tail = k.slice(-4);
-  return "•".repeat(Math.min(k.length - 4, 12)) + tail;
-}
-
 /* The mockup's Refresh chips are 15s / 30s / 60s / 5m. The hook's SyncInterval
    is minute-based (manual | 5 | 15 | 30 | 60). We surface the mockup labels but
-   commit HONEST hook values: the three sub-minute chips stage as MANUAL (the
-   1 req/s limit means sub-minute auto-refresh is not offered as a real
-   schedule), and "5m" stages the real 5-minute interval. The active chip
-   reflects the committed interval so the UI never lies about what was set. */
+   commit HONEST hook values: the sub-minute chips are shown DISABLED (the
+   1 req/s limit can't keep a sub-minute schedule), and "5m" stages the real
+   5-minute interval. The lit chip always names the interval actually committed. */
 type RefreshChip = { label: string; interval: SyncInterval; disabled?: boolean };
-// HONEST set: at 1 req/s only MANUAL and 5M are schedules the station can truly
-// keep. The sub-minute chips are shown DISABLED (they'd assert a cadence the
-// rate-limit can't honour), so the lit chip always names the interval that is
-// actually committed — the UI never claims a schedule it didn't set.
 const REFRESH_CHIPS: RefreshChip[] = [
   { label: "MANUAL", interval: "manual" },
   { label: "15s", interval: "manual", disabled: true },
@@ -85,65 +74,186 @@ const REFRESH_CHIPS: RefreshChip[] = [
   { label: "5m", interval: 5 },
 ];
 
-/* Control groups, top→bottom, for ↑↓ keyboard focus. Enter/↵ acts on the
-   focused group's PRIMARY control (edit the key field, or advance the toggle);
-   mouse-click on any chip is always the primary path. */
-const GROUP_IDS = ["key", "connection", "environment", "refresh", "datamode"] as const;
+/* Control groups, top→bottom, for ↑↓ keyboard focus. */
+const GROUP_IDS = ["t212", "marketdata", "connection", "environment", "refresh", "datamode"] as const;
 type GroupId = (typeof GROUP_IDS)[number];
+
+/* Map a slot's honest probe state to a status word + whether it's a "good" tone
+   (drives the red vs. muted dot — red only when a claim is real). */
+function slotStatusWord(slot: VaultSlot): { word: string; good: boolean } {
+  switch (slot.probe) {
+    case "connected":
+      return { word: slot.note || "Verified", good: true };
+    case "checking":
+      return { word: "Probing…", good: false };
+    case "bad-key":
+      return { word: "Bad key", good: false };
+    case "rate-limited":
+      return { word: "Rate-limited", good: false };
+    case "unreachable":
+      return { word: "Unreachable", good: false };
+    case "no-key":
+      return { word: "No key", good: false };
+    case "error":
+      return { word: "Probe error", good: false };
+    default:
+      // idle — reflect seat state honestly
+      if (slot.seat === "seated") return { word: "Seated · not verified", good: false };
+      return { word: "Slot empty", good: false };
+  }
+}
+
+/* One credential slot — reused for BOTH Trading 212 and Market Data (FMP). Same
+   Animus markup as the original single slot: a masked field that reveals to edit,
+   SAVE (real Keychain write), TEST (real probe), CLEAR, and an honest status. */
+function CredentialSlot({
+  slot,
+  title,
+  desc,
+  placeholder,
+  ariaLabel,
+  focused,
+  registerFieldRef,
+}: {
+  slot: VaultSlot;
+  title: string;
+  desc: string;
+  placeholder: string;
+  ariaLabel: string;
+  focused: boolean;
+  registerFieldRef?: (el: HTMLInputElement | null) => void;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const seated = slot.seat === "seated";
+  const showInput = revealed || (!seated && slot.input.length === 0) || slot.input.length > 0;
+  const { word, good } = slotStatusWord(slot);
+
+  return (
+    <div className={`${s.grp} ${focused ? s.grpFocus : ""}`}>
+      <div className={s.lab}>
+        <div className={s.t}>{title}</div>
+        <div className={s.d}>{desc}</div>
+      </div>
+      <div className={s.ctl}>
+        <div className={s.field}>
+          {showInput ? (
+            <input
+              ref={(el) => {
+                inputRef.current = el;
+                registerFieldRef?.(el);
+              }}
+              className={s.keyInput}
+              type={revealed ? "text" : "password"}
+              inputMode="text"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={seated ? "paste to replace the seated key…" : placeholder}
+              value={slot.input}
+              onChange={(e) => slot.setInput(e.target.value)}
+              onFocus={() => setRevealed(true)}
+              onBlur={() => setRevealed(false)}
+              aria-label={ariaLabel}
+            />
+          ) : (
+            <button
+              type="button"
+              className={s.val}
+              style={{ background: "transparent", border: 0, cursor: "text", font: "inherit" }}
+              onClick={() => {
+                setRevealed(true);
+                requestAnimationFrame(() => inputRef.current?.focus());
+              }}
+              aria-label={`Edit ${ariaLabel}`}
+            >
+              <span className={s.val}>{slot.maskedTail || "— no key —"}</span>
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className={`${s.chip} ${slot.dirty ? s.on : ""}`}
+          onClick={() => void slot.save()}
+          disabled={!slot.dirty || slot.saving}
+          title={
+            slot.dirty ? "Write this key to the macOS Keychain" : "Type a key to enable Save"
+          }
+        >
+          {slot.saving ? "Saving…" : "Save"}
+        </button>
+
+        <button
+          type="button"
+          className={s.chip}
+          onClick={() => void slot.test()}
+          disabled={!seated || slot.probe === "checking"}
+          title={
+            seated
+              ? "Probe the seated key for a live connection"
+              : "Seat a key first, then test the connection"
+          }
+        >
+          Test
+        </button>
+
+        {seated && (
+          <button
+            type="button"
+            className={s.chip}
+            onClick={() => void slot.clear()}
+            title="Remove the seated key from the Keychain"
+          >
+            Clear
+          </button>
+        )}
+
+        <span className={`${s.status} ${good ? s.stored : s.pending}`}>
+          <i className={s.dot} />
+          {word}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function SettingsView({
   panel,
+  vault,
   keychainNote,
 }: {
   panel: SettingsPanelState;
+  vault: AnimusVault;
   keychainNote: string;
 }) {
-  const {
-    keyInput,
-    setKeyInput,
-    keyStatus,
-    dirty,
-    saveKey,
-    savedKey,
-    env,
-    setEnv,
-    interval,
-    setInterval,
-  } = panel;
+  const { env, setEnv, interval, setInterval } = panel;
 
   const navigate = useNavigate();
   const navRef = useRef(navigate);
   navRef.current = navigate;
 
-  // Dive back to the Animus menu under the shared white flash — the same
-  // mechanism the menu's leaves use (triggerFlash → cover → navigate → fade).
   const diveBack = useCallback(() => {
     triggerFlash((r) => navRef.current(r), "/");
   }, []);
 
-  // Reveal-while-editing: the resting slot shows the masked shape; focusing the
-  // field reveals the raw text to edit. Local UI state only.
-  const [revealed, setRevealed] = useState(false);
-  const keyRef = useRef<HTMLInputElement>(null);
-
-  // Keyboard focus across control groups (↑↓). Mouse remains the priority path;
-  // this is the "↑↓ NAVIGATE / ↵ EDIT / ESC BACK" legend, kept simple.
+  // Keyboard focus across control groups (↑↓). Mouse remains the priority path.
   const [focusIdx, setFocusIdx] = useState(0);
+  const t212FieldRef = useRef<HTMLInputElement | null>(null);
+  const fmpFieldRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // Don't hijack typing while the key field is focused (except Escape).
-      const editingKey = document.activeElement === keyRef.current;
+      const ae = document.activeElement;
+      const editingKey = ae === t212FieldRef.current || ae === fmpFieldRef.current;
       if (e.key === "Escape") {
         e.preventDefault();
-        if (editingKey) keyRef.current?.blur();
+        if (editingKey && ae instanceof HTMLElement) ae.blur();
         else diveBack();
         return;
       }
       if (editingKey) return;
-      // If a real control (button/input) holds focus, let IT handle Enter/Space
-      // natively — never re-route the activation to the group-focus target.
-      const ae = document.activeElement;
+      // Let a focused real control handle Enter/Space natively.
       if (
         (e.key === "Enter" || e.key === " ") &&
         ae instanceof HTMLElement &&
@@ -159,14 +269,16 @@ function SettingsView({
       } else if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         const g: GroupId = GROUP_IDS[focusIdx];
-        if (g === "key") {
-          keyRef.current?.focus();
+        if (g === "t212") {
+          t212FieldRef.current?.focus();
+        } else if (g === "marketdata") {
+          fmpFieldRef.current?.focus();
         } else if (g === "connection") {
-          // Reconnect is an honest no-op this sprint (needs the deferred probe).
+          // Re-test the required Trading 212 link (the honest "Reconnect").
+          void vault.t212.test();
         } else if (g === "environment" || g === "datamode") {
           setEnv(env === "live" ? "demo" : "live");
         } else if (g === "refresh") {
-          // cycle only the ENABLED intervals (manual ⇄ 5m)
           const order: SyncInterval[] = ["manual", 5];
           const cur = order.indexOf(interval as SyncInterval);
           setInterval(order[(cur + 1) % order.length]);
@@ -175,20 +287,15 @@ function SettingsView({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focusIdx, env, interval, setEnv, setInterval, diveBack]);
+  }, [focusIdx, env, interval, setEnv, setInterval, diveBack, vault.t212]);
 
-  const grpCls = (g: GroupId) =>
-    `${s.grp} ${GROUP_IDS[focusIdx] === g ? s.grpFocus : ""}`;
+  const grpCls = (g: GroupId) => `${s.grp} ${GROUP_IDS[focusIdx] === g ? s.grpFocus : ""}`;
 
-  // Honest key-slot status word + tone. Never claims a live/verified key.
-  const stored = keyStatus === "saved-local";
-  const staged = keyStatus === "staged";
-  const keyStatusWord = stored ? "Staged locally" : staged ? "Key staged" : "Slot empty";
-
-  // The lit chip is the ENABLED chip whose committed interval matches — MANUAL for
-  // manual, 5m for the 5-minute schedule. Disabled sub-minute chips never light.
   const activeRefreshLabel =
     REFRESH_CHIPS.find((c) => !c.disabled && c.interval === interval)?.label ?? "MANUAL";
+
+  const { combined } = vault;
+  const combinedGood = combined.tone === "connected";
 
   return (
     <div className={s.root} role="region" aria-label="Settings — Animus configuration">
@@ -226,86 +333,52 @@ function SettingsView({
         </div>
         <div className={s.rule} />
 
-        {/* (1) TRADING 212 KEY */}
-        <div className={grpCls("key")}>
-          <div className={s.lab}>
-            <div className={s.t}>Trading 212 Key</div>
-            <div className={s.d}>
-              Your API credential — bound for the macOS Keychain, never written to disk.
-            </div>
-          </div>
-          <div className={s.ctl}>
-            <div className={s.field}>
-              {revealed || !savedKey ? (
-                <input
-                  ref={keyRef}
-                  className={s.keyInput}
-                  type={revealed ? "text" : "password"}
-                  inputMode="text"
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="paste key to seat it…"
-                  value={keyInput}
-                  onChange={(e) => setKeyInput(e.target.value)}
-                  onFocus={() => setRevealed(true)}
-                  onBlur={() => setRevealed(false)}
-                  aria-label="Trading 212 API key"
-                />
-              ) : (
-                <button
-                  type="button"
-                  className={s.val}
-                  style={{ background: "transparent", border: 0, cursor: "text", font: "inherit" }}
-                  onClick={() => {
-                    setRevealed(true);
-                    // focus after the input mounts
-                    requestAnimationFrame(() => keyRef.current?.focus());
-                  }}
-                  aria-label="Edit Trading 212 API key"
-                >
-                  <span className={s.val}>{maskKey(dirty ? keyInput : savedKey ?? "")}</span>
-                </button>
-              )}
-            </div>
-            <button
-              type="button"
-              className={`${s.chip} ${dirty ? s.on : ""}`}
-              onClick={saveKey}
-              disabled={!dirty}
-              title={!dirty ? "Nothing to save — key already staged locally" : "Stage this key locally"}
-            >
-              Save
-            </button>
-            <span className={`${s.status} ${stored ? s.stored : s.pending}`}>
-              <i className={s.dot} />
-              {keyStatusWord}
-            </span>
-          </div>
-        </div>
+        {/* (1) TRADING 212 KEY — the required broker link */}
+        <CredentialSlot
+          slot={vault.t212}
+          title="Trading 212 Key"
+          desc="Your broker API credential — bound for the macOS Keychain, never written to disk."
+          placeholder="paste key to seat it…"
+          ariaLabel="Trading 212 API key"
+          focused={GROUP_IDS[focusIdx] === "t212"}
+          registerFieldRef={(el) => (t212FieldRef.current = el)}
+        />
 
-        {/* (2) CONNECTION — honest pending state (no real probe this sprint) */}
+        {/* (2) MARKET DATA KEY (FMP) — optional enrichment */}
+        <CredentialSlot
+          slot={vault.fmp}
+          title="Market Data Key"
+          desc="Financial Modeling Prep (FMP) key — powers quotes, calendars & fundamentals. Optional."
+          placeholder="paste FMP key to seat it…"
+          ariaLabel="Market data (FMP) API key"
+          focused={GROUP_IDS[focusIdx] === "marketdata"}
+          registerFieldRef={(el) => (fmpFieldRef.current = el)}
+        />
+
+        {/* (3) CONNECTION — the REAL combined state */}
         <div className={grpCls("connection")}>
           <div className={s.lab}>
             <div className={s.t}>Connection</div>
-            <div className={s.d}>Live link to your account through the app backend.</div>
+            <div className={s.d}>Live link to your data through the app backend.</div>
           </div>
           <div className={s.ctl}>
-            <span className={`${s.status} ${s.pending}`}>
+            <span className={`${s.status} ${combinedGood ? s.stored : s.pending}`}>
               <i className={s.dot} />
-              Not verified · check pending
+              {combined.label} · {combined.detail}
             </span>
             <button
               type="button"
               className={s.chip}
-              disabled
-              title="Wired with the sync engine — needs the deferred Keychain read + API probe"
+              onClick={() => void vault.t212.test()}
+              disabled={vault.t212.seat !== "seated" || vault.t212.probe === "checking"}
+              title="Re-probe the Trading 212 link"
             >
               Reconnect
             </button>
           </div>
         </div>
 
-        {/* (3) ENVIRONMENT */}
+        {/* (4) ENVIRONMENT */}
         <div className={grpCls("environment")}>
           <div className={s.lab}>
             <div className={s.t}>Environment</div>
@@ -331,7 +404,7 @@ function SettingsView({
           </div>
         </div>
 
-        {/* (4) REFRESH */}
+        {/* (5) REFRESH */}
         <div className={grpCls("refresh")}>
           <div className={s.lab}>
             <div className={s.t}>Refresh</div>
@@ -364,8 +437,7 @@ function SettingsView({
           </div>
         </div>
 
-        {/* (5) DATA MODE — Live account vs the seeded demo model. Same truth as
-            Environment (env), mirrored here exactly as the mockup captions it. */}
+        {/* (6) DATA MODE — Live account vs the seeded demo model. */}
         <div className={grpCls("datamode")}>
           <div className={s.lab}>
             <div className={s.t}>Data Mode</div>
@@ -394,7 +466,7 @@ function SettingsView({
           </div>
         </div>
 
-        {/* honest framing of the whole panel's local-state-only behaviour */}
+        {/* honest framing of the whole panel's behaviour */}
         <p className={s.note} style={{ marginTop: 14 }}>
           {keychainNote}
         </p>
@@ -423,31 +495,25 @@ function SettingsView({
   );
 }
 
-/* Live container — honest real-world baseline. Does NOT read the Keychain or
-   probe the API this sprint (deferred), so it seeds an empty slot and reports a
-   plainly-pending state; SAVE stages locally until the Keychain + sync wiring
-   lands. */
+/* Live container — the REAL vault. Reads seat state from the Keychain on mount;
+   SAVE writes to the Keychain; TEST probes the live providers. */
 function LiveSettings() {
   const panel = useSettingsPanel({ env: "demo", accountLabel: "DEFAULT" });
+  const vault = useAnimusVault(panel.env, "default");
   const keychainNote =
-    "Changes here are staged locally for now — writing the key to the macOS Keychain and verifying a live connection arrive with the sync-engine wiring, so nothing you type is stored to disk this build.";
-  return <SettingsView panel={panel} keychainNote={keychainNote} />;
+    "Keys you Save here are written to the macOS Keychain (never to disk or logs); Test performs a live handshake and the status above reflects the real result. The station is read-only — it never places trades or moves money.";
+  return <SettingsView panel={panel} vault={vault} keychainNote={keychainNote} />;
 }
 
 /* Mock container — placeholder panel for design iteration (VITE_MOCK builds).
-   Seeds an INVENTED demo key so the "seated" slot renders; the note labels it
-   sample state, never a real stored/verified credential. Never touches the
-   Keychain/API. */
+   The vault runs against an in-memory stub (no Keychain, no network); statuses
+   are labelled sample state, never a real stored/verified credential. */
 function MockSettings() {
-  const panel = useSettingsPanel({
-    savedKey: "T212DEMoxxxxxxxxxxxx3f2a",
-    env: "demo",
-    accountLabel: "DEMO-01",
-    interval: 5,
-  });
+  const panel = useSettingsPanel({ env: "demo", accountLabel: "DEMO-01", interval: 5 });
+  const vault = useAnimusVault(panel.env, "default");
   const keychainNote =
     "DEMO placeholder — no real credential is stored or verified, and the station is read-only (it never places trades or moves money). Sample UI state for design.";
-  return <SettingsView panel={panel} keychainNote={keychainNote} />;
+  return <SettingsView panel={panel} vault={vault} keychainNote={keychainNote} />;
 }
 
 /* Build-time switch: VITE_MOCK => placeholder (no Keychain); else live. The

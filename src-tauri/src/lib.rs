@@ -57,7 +57,11 @@ pub fn run() {
             keychain::keychain_set_credentials,
             keychain::keychain_get_credentials,
             keychain::keychain_delete_credentials,
-            keychain::keychain_has_credentials
+            keychain::keychain_has_credentials,
+            keychain::keychain_set_marketdata_key,
+            keychain::keychain_get_marketdata_key,
+            keychain::keychain_delete_marketdata_key,
+            keychain::keychain_has_marketdata_key
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

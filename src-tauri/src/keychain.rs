@@ -114,3 +114,62 @@ pub fn keychain_has_credentials(account_id: String) -> Result<bool, String> {
         Err(e) => Err(format!("keychain error: {e}")),
     }
 }
+
+// ============================================================================
+// MARKET-DATA KEY (Financial Modeling Prep)
+//
+// A SECOND, independent secret: the market-data provider's single API key
+// (Trading 212 uses a key+secret pair above; FMP is one opaque token). Stored
+// under the SAME service but a DISTINCT account so it never collides with the
+// broker credential. Same discipline: the key is NEVER logged, written to disk
+// outside the Keychain, or echoed into an error string.
+// ============================================================================
+
+const MARKETDATA_ACCOUNT: &str = "marketdata:fmp";
+
+fn marketdata_entry() -> Result<Entry, String> {
+    Entry::new(SERVICE, MARKETDATA_ACCOUNT).map_err(|e| format!("keychain error: {e}"))
+}
+
+#[tauri::command]
+pub fn keychain_set_marketdata_key(key: String) -> Result<(), String> {
+    // Reject an empty key up front rather than seating a blank secret that would
+    // then read back as "present". Callers delete to clear, not set to "".
+    if key.trim().is_empty() {
+        return Err("keychain error: refusing to store an empty market-data key".to_string());
+    }
+    let entry = marketdata_entry()?;
+    entry
+        .set_password(&key)
+        .map_err(|e| format!("keychain error: {e}"))
+}
+
+#[tauri::command]
+pub fn keychain_get_marketdata_key() -> Result<Option<String>, String> {
+    let entry = marketdata_entry()?;
+    match entry.get_password() {
+        Ok(key) => Ok(Some(key)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(format!("keychain error: {e}")),
+    }
+}
+
+#[tauri::command]
+pub fn keychain_delete_marketdata_key() -> Result<(), String> {
+    let entry = marketdata_entry()?;
+    match entry.delete_credential() {
+        Ok(()) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(format!("keychain error: {e}")),
+    }
+}
+
+#[tauri::command]
+pub fn keychain_has_marketdata_key() -> Result<bool, String> {
+    let entry = marketdata_entry()?;
+    match entry.get_password() {
+        Ok(_) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(e) => Err(format!("keychain error: {e}")),
+    }
+}

@@ -14,6 +14,9 @@ export default defineConfig({
       // Terminal-77 port: the pure engine layer (src/terminal/engine/**) is
       // DOM-free by law — same node environment, same suite.
       "src/terminal/**/*.test.ts",
+      // Adapter pure-logic tests (cache keying, error classification, defensive
+      // parsing) — DOM-free; the network path is not exercised here.
+      "src/adapters/**/*.test.ts",
     ],
   },
 });

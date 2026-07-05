@@ -15,7 +15,8 @@
       "identifier": "http:default",
       "allow": [
         { "url": "https://live.trading212.com/*" },
-        { "url": "https://demo.trading212.com/*" }
+        { "url": "https://demo.trading212.com/*" },
+        { "url": "https://financialmodelingprep.com/*" }
       ]
     }
   ]
