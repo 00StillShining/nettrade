@@ -22,10 +22,13 @@ import Terminal from "./terminal/Terminal";
  * gone here; BakedCrt is no longer rendered by ANY route (the terminal carries
  * its own overlay stack). Its file remains in place, just unused.
  *
- * The old Frame+Chrome data screens (src/screens/*) plus the legacy cream
- * Settings.tsx are UNROUTED here but their files remain (cleanup is a later
- * stage). The static "/settings" route is matched by the router ahead of the
- * ":screenId" param automatically.
+ * The old Frame+Chrome data screens (src/screens/*) are UNROUTED here but
+ * their files remain (cleanup is a later stage). The legacy cream Settings.tsx
+ * is DELETED (2026-07-05): it offered sub-minute sync keycaps the persisted
+ * refresh pref deliberately refuses (broker 1 req/s budget) — a dead file that
+ * contradicted the live Settings was a trap, not an archive. The static
+ * "/settings" route is matched by the router ahead of the ":screenId" param
+ * automatically.
  */
 
 function Shell() {
