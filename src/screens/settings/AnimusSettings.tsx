@@ -75,7 +75,7 @@ const REFRESH_CHIPS: RefreshChip[] = [
 ];
 
 /* Control groups, top→bottom, for ↑↓ keyboard focus. */
-const GROUP_IDS = ["t212", "marketdata", "connection", "environment", "refresh", "datamode"] as const;
+const GROUP_IDS = ["t212", "marketdata", "connection", "security", "environment", "refresh", "datamode"] as const;
 type GroupId = (typeof GROUP_IDS)[number];
 
 /* Map a slot's honest probe state to a status word + whether it's a "good" tone
@@ -276,6 +276,11 @@ function SettingsView({
         } else if (g === "connection") {
           // Re-test the required Trading 212 link (the honest "Reconnect").
           void vault.t212.test();
+        } else if (g === "security") {
+          if (vault.touchId.available && !vault.touchId.busy) {
+            if (vault.touchId.enabled) void vault.touchId.disable();
+            else void vault.touchId.enable();
+          }
         } else if (g === "environment" || g === "datamode") {
           setEnv(env === "live" ? "demo" : "live");
         } else if (g === "refresh") {
@@ -287,7 +292,7 @@ function SettingsView({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focusIdx, env, interval, setEnv, setInterval, diveBack, vault.t212]);
+  }, [focusIdx, env, interval, setEnv, setInterval, diveBack, vault.t212, vault.touchId]);
 
   const grpCls = (g: GroupId) => `${s.grp} ${GROUP_IDS[focusIdx] === g ? s.grpFocus : ""}`;
 
@@ -375,6 +380,49 @@ function SettingsView({
             >
               Reconnect
             </button>
+          </div>
+        </div>
+
+        {/* (3b) SECURITY — Touch ID protection for the seated keys */}
+        <div className={grpCls("security")}>
+          <div className={s.lab}>
+            <div className={s.t}>Touch ID</div>
+            <div className={s.d}>
+              {vault.touchId.available
+                ? "Require your fingerprint each launch before the station unlocks your keys."
+                : "Biometric unlock isn't available on this Mac."}
+            </div>
+          </div>
+          <div className={s.ctl}>
+            <button
+              type="button"
+              className={`${s.chip} ${vault.touchId.enabled ? s.on : ""}`}
+              aria-pressed={vault.touchId.enabled}
+              disabled={!vault.touchId.available || vault.touchId.busy}
+              onClick={() =>
+                vault.touchId.enabled ? void vault.touchId.disable() : void vault.touchId.enable()
+              }
+              title={
+                !vault.touchId.available
+                  ? "This Mac has no usable biometric policy"
+                  : vault.touchId.enabled
+                    ? "Turn Touch ID off — return the keys to the standard Keychain"
+                    : "Protect the seated keys with Touch ID"
+              }
+            >
+              {vault.touchId.busy
+                ? "Working…"
+                : vault.touchId.enabled
+                  ? "Touch ID ON"
+                  : "Enable Touch ID"}
+            </button>
+            <span
+              className={`${s.status} ${vault.touchId.enabled ? s.stored : s.pending}`}
+            >
+              <i className={s.dot} />
+              {vault.touchId.note ||
+                (vault.touchId.enabled ? "Keys unlock by fingerprint" : "Standard Keychain")}
+            </span>
           </div>
         </div>
 
@@ -498,7 +546,10 @@ function SettingsView({
 /* Live container — the REAL vault. Reads seat state from the Keychain on mount;
    SAVE writes to the Keychain; TEST probes the live providers. */
 function LiveSettings() {
-  const panel = useSettingsPanel({ env: "demo", accountLabel: "DEFAULT" });
+  // env defaults LIVE: the station reads the user's real account; "demo" is the
+  // opt-in (a demo-account key). Defaulting demo made TEST probe the demo host
+  // with a live key → a false "bad key".
+  const panel = useSettingsPanel({ env: "live", accountLabel: "DEFAULT" });
   const vault = useAnimusVault(panel.env, "default");
   const keychainNote =
     "Keys you Save here are written to the macOS Keychain (never to disk or logs); Test performs a live handshake and the status above reflects the real result. The station is read-only — it never places trades or moves money.";

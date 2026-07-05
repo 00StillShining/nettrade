@@ -129,6 +129,19 @@ async function getCreds(): Promise<Credentials | null> {
   if (credsPromise) return credsPromise;
   credsPromise = (async () => {
     try {
+      // Touch ID store FIRST (if enabled) — the biometric item holds the same JSON
+      // payload the password item did ({apiKey, apiSecret}). Prompts Touch ID once
+      // per launch (promise-cached). When on, the password copy is gone.
+      if (await invoke<boolean>("keychain_bio_has", { slot: "creds" }).catch(() => false)) {
+        const payload = await invoke<string | null>("keychain_bio_get", { slot: "creds" });
+        if (payload) {
+          const c = JSON.parse(payload) as { apiKey?: string; apiSecret?: string };
+          if (c && typeof c.apiKey === "string" && c.apiKey.length > 0) {
+            return { apiKey: c.apiKey, apiSecret: typeof c.apiSecret === "string" ? c.apiSecret : "" };
+          }
+        }
+        return null;
+      }
       const c = await invoke<{ apiKey: string; apiSecret: string } | null>(
         "keychain_get_credentials",
         { accountId: "default" },

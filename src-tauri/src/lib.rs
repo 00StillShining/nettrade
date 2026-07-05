@@ -1,4 +1,5 @@
 mod keychain;
+mod keychain_bio;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -61,7 +62,13 @@ pub fn run() {
             keychain::keychain_set_marketdata_key,
             keychain::keychain_get_marketdata_key,
             keychain::keychain_delete_marketdata_key,
-            keychain::keychain_has_marketdata_key
+            keychain::keychain_has_marketdata_key,
+            keychain_bio::keychain_bio_available,
+            keychain_bio::keychain_bio_has,
+            keychain_bio::keychain_bio_get,
+            keychain_bio::keychain_bio_enable,
+            keychain_bio::keychain_bio_disable,
+            keychain_bio::keychain_bio_delete
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

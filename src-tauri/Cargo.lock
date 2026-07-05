@@ -2439,7 +2439,10 @@ dependencies = [
 name = "nettrade"
 version = "0.1.0"
 dependencies = [
+ "block2",
+ "core-foundation 0.9.4",
  "keyring",
+ "objc2",
  "serde",
  "serde_json",
  "tauri",

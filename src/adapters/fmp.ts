@@ -249,8 +249,17 @@ async function readKey(): Promise<string | null> {
   if (keyPromise) return keyPromise;
   keyPromise = (async () => {
     try {
-      const key = await invoke<string | null>("keychain_get_marketdata_key");
-      return typeof key === "string" && key.trim().length > 0 ? key.trim() : null;
+      // Touch ID store FIRST (if the user enabled it) — prompts Touch ID once per
+      // launch (this read is promise-cached). When Touch ID is on, the plain
+      // password copy has been removed, so there is no silent fallback: a cancelled
+      // fingerprint throws → dropped cache → retried next refresh.
+      let raw: string | null;
+      if (await invoke<boolean>("keychain_bio_has", { slot: "marketdata" }).catch(() => false)) {
+        raw = await invoke<string | null>("keychain_bio_get", { slot: "marketdata" });
+      } else {
+        raw = await invoke<string | null>("keychain_get_marketdata_key");
+      }
+      return typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : null;
     } catch {
       // Keychain unavailable / prompt dismissed — treat as no key AND drop the
       // cache so a later refresh can retry rather than being stuck on "no key".

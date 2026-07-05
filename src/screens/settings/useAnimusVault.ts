@@ -24,7 +24,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { testConnection, type Environment } from "../../adapters/trading212";
-import { fmpTestKey, fmpHasKey } from "../../adapters/fmp";
+import { fmpTestKey } from "../../adapters/fmp";
 import { resetLiveCaches, refreshLive } from "../../terminal/engine/live";
 
 const IS_MOCK = !!import.meta.env.VITE_MOCK;
@@ -70,6 +70,22 @@ export interface VaultSlot {
   test: () => Promise<void>;
 }
 
+/** Touch ID (biometric) protection state for the seated keys. */
+export interface TouchIdState {
+  /** The Mac supports a biometric access-control policy. */
+  available: boolean;
+  /** At least one seated key is currently protected by Touch ID. */
+  enabled: boolean;
+  /** An enable/disable operation is in flight. */
+  busy: boolean;
+  /** Honest one-line status. */
+  note: string;
+  /** Move the seated key(s) behind Touch ID (prompts to confirm a fingerprint). */
+  enable: () => Promise<void>;
+  /** Return the key(s) to the standard Keychain (prompts Touch ID once to read). */
+  disable: () => Promise<void>;
+}
+
 export interface AnimusVault {
   t212: VaultSlot;
   fmp: VaultSlot;
@@ -80,8 +96,115 @@ export interface AnimusVault {
     tone: "connected" | "partial" | "pending" | "problem";
     detail: string;
   };
+  /** Touch ID protection for the seated keys. */
+  touchId: TouchIdState;
   /** Whether we're in the mock (no-Keychain) build. */
   isMock: boolean;
+}
+
+const BIO_SLOTS = ["creds", "marketdata"] as const;
+
+/** Strip the internal "keychain error: " prefix for a user-facing note. */
+function shortErr(e: unknown): string {
+  return String(e).replace(/^.*keychain error:\s*/i, "").trim() || "unexpected error";
+}
+
+/** Touch ID vault control. Under VITE_MOCK it's an inert "unavailable" stub. */
+function useTouchId(): TouchIdState {
+  const [available, setAvailable] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const refresh = useCallback(async () => {
+    if (IS_MOCK) {
+      setAvailable(false);
+      setEnabled(false);
+      setNote("Not available in the demo build");
+      return;
+    }
+    const avail = await invoke<boolean>("keychain_bio_available").catch(() => false);
+    let any = false;
+    for (const slot of BIO_SLOTS) {
+      if (await invoke<boolean>("keychain_bio_has", { slot }).catch(() => false)) any = true;
+    }
+    if (!mounted.current) return;
+    setAvailable(avail);
+    setEnabled(any);
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const enable = useCallback(async () => {
+    if (IS_MOCK) return;
+    setBusy(true);
+    setNote("Setting up Touch ID…");
+    try {
+      let done = false;
+      let lastErr = "";
+      for (const slot of BIO_SLOTS) {
+        // ALWAYS call enable — it's idempotent (the gate step is skipped once the
+        // flag is on) and it performs the slot's ACL migration. Skipping a slot
+        // that "looks protected" (gate on + key seated) would leave that key
+        // un-migrated and still password-prompting.
+        try {
+          await invoke("keychain_bio_enable", { slot });
+          done = true;
+        } catch (e) {
+          // "no key seated" just means that slot is empty — not a failure
+          if (!/no key/i.test(String(e))) lastErr = shortErr(e);
+        }
+      }
+      resetLiveCaches();
+      refreshLive();
+      if (!mounted.current) return;
+      if (lastErr) setNote(`Couldn't enable Touch ID — ${lastErr}`);
+      else if (done) setNote("Touch ID on — a fingerprint is required each launch");
+      else setNote("No seated key to protect — save a key first");
+      await refresh();
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+  }, [refresh]);
+
+  const disable = useCallback(async () => {
+    if (IS_MOCK) return;
+    setBusy(true);
+    setNote("Turning Touch ID off…");
+    try {
+      let lastErr = "";
+      for (const slot of BIO_SLOTS) {
+        if (!(await invoke<boolean>("keychain_bio_has", { slot }).catch(() => false))) continue;
+        try {
+          await invoke("keychain_bio_disable", { slot });
+        } catch (e) {
+          lastErr = shortErr(e);
+        }
+      }
+      resetLiveCaches();
+      refreshLive();
+      if (!mounted.current) return;
+      setNote(
+        lastErr
+          ? `Couldn't fully turn off — ${lastErr}`
+          : "Touch ID off — back to the standard Keychain",
+      );
+      await refresh();
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+  }, [refresh]);
+
+  return { available, enabled, busy, note, enable, disable };
 }
 
 /* ============================ MASKING ============================ */
@@ -252,14 +375,32 @@ function t212Config(env: Environment, accountId: string): SlotConfig {
     // keys authenticate as key-only in Basic auth for read scopes). We store what
     // the user pasted as the api_key and an empty secret — testConnection reads
     // both back through the Keychain.
-    setKey: (raw: string) =>
-      invoke("keychain_set_credentials", { accountId, apiKey: raw, apiSecret: "" }),
-    delKey: () => invoke("keychain_delete_credentials", { accountId }),
+    setKey: async (raw: string) => {
+      await invoke("keychain_set_credentials", { accountId, apiKey: raw, apiSecret: "" });
+      // Touch ID on for this slot → migrate the fresh key into the bio store
+      // (reads pick the bio item first, so a stale one would shadow the new key).
+      if (await invoke<boolean>("keychain_bio_has", { slot: "creds" }).catch(() => false)) {
+        await invoke("keychain_bio_enable", { slot: "creds" });
+      }
+    },
+    delKey: async () => {
+      await invoke("keychain_delete_credentials", { accountId });
+      // CLEAR must also remove the bio copy or the key stays seated behind Touch ID.
+      await invoke("keychain_bio_delete", { slot: "creds" }).catch(() => undefined);
+    },
     probeFn: async () => {
-      const creds = await invoke<{ apiKey: string; apiSecret: string } | null>(
-        "keychain_get_credentials",
-        { accountId },
-      );
+      // Touch ID store first (after migration the password copy is gone) — this
+      // read prompts a fingerprint, which is honest: TEST reads the seated key.
+      let creds: { apiKey: string; apiSecret: string } | null = null;
+      if (await invoke<boolean>("keychain_bio_has", { slot: "creds" }).catch(() => false)) {
+        const payload = await invoke<string | null>("keychain_bio_get", { slot: "creds" });
+        if (payload) creds = JSON.parse(payload) as { apiKey: string; apiSecret: string };
+      } else {
+        creds = await invoke<{ apiKey: string; apiSecret: string } | null>(
+          "keychain_get_credentials",
+          { accountId },
+        );
+      }
       if (!creds) return { probe: "no-key", note: "No Trading 212 key seated" };
       const status = await testConnection(creds, env);
       switch (status) {
@@ -281,11 +422,20 @@ function t212Config(env: Environment, accountId: string): SlotConfig {
 function fmpConfig(): SlotConfig {
   return {
     id: "fmp",
-    // Route the seat-check through the cached reader so opening Settings reuses the
-    // key the live sync already read (rather than firing a second ACL prompt).
-    hasKey: () => fmpHasKey(),
-    setKey: (raw: string) => invoke("keychain_set_marketdata_key", { key: raw }),
-    delKey: () => invoke("keychain_delete_marketdata_key"),
+    // keychain_has_marketdata_key is now PROMPT-FREE in Rust (attribute-only +
+    // bio existence) — the right seat-check. (A full cached read here would fire
+    // a Touch ID prompt just for opening Settings once the key is bio-protected.)
+    hasKey: () => invoke<boolean>("keychain_has_marketdata_key"),
+    setKey: async (raw: string) => {
+      await invoke("keychain_set_marketdata_key", { key: raw });
+      if (await invoke<boolean>("keychain_bio_has", { slot: "marketdata" }).catch(() => false)) {
+        await invoke("keychain_bio_enable", { slot: "marketdata" });
+      }
+    },
+    delKey: async () => {
+      await invoke("keychain_delete_marketdata_key");
+      await invoke("keychain_bio_delete", { slot: "marketdata" }).catch(() => undefined);
+    },
     probeFn: async () => {
       const r = await fmpTestKey();
       if (r.ok) {
@@ -333,6 +483,7 @@ function mockConfig(id: SlotId): SlotConfig {
 export function useAnimusVault(env: Environment, accountId = "default"): AnimusVault {
   const t212 = useSlot(IS_MOCK ? mockConfig("t212") : t212Config(env, accountId));
   const fmp = useSlot(IS_MOCK ? mockConfig("fmp") : fmpConfig());
+  const touchId = useTouchId();
 
   // Combined honest state for the CONNECTION group. Trading 212 is the REQUIRED
   // link (the app's whole point); FMP is the optional market-data enrichment.
@@ -372,5 +523,5 @@ export function useAnimusVault(env: Environment, accountId = "default"): AnimusV
     };
   }
 
-  return { t212, fmp, combined, isMock: IS_MOCK };
+  return { t212, fmp, combined, touchId, isMock: IS_MOCK };
 }

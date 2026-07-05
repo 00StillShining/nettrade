@@ -26,3 +26,12 @@ keyring = { version = "3", features = ["apple-native"] }
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-http = "2"
 
+# Touch ID gate + trusted-app keychain ACLs (keychain_bio.rs):
+#  - core-foundation: CF types for raw Security.framework SecItem queries
+#  - objc2 + block2: LAContext (LocalAuthentication has no C API) for the
+#    fingerprint gate; blocks for its async reply
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9"
+objc2 = "0.6"
+block2 = "0.6"
+

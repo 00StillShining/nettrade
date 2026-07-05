@@ -8,8 +8,14 @@
 
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const SERVICE: &str = "com.stillshining.nettrade";
+
+// Once-per-launch guards for the on-read ACL migration below (avoids rewriting
+// the keychain item on every read).
+static MIGRATED_CREDS: AtomicBool = AtomicBool::new(false);
+static MIGRATED_MD: AtomicBool = AtomicBool::new(false);
 
 // Phase-0 (pre-Phase-2) stored the credential as TWO separate keychain items
 // under a different service. We READ these as a fallback so a user who already
@@ -59,16 +65,30 @@ pub fn keychain_set_credentials(
     api_key: String,
     api_secret: String,
 ) -> Result<(), String> {
-    let entry = entry_for(&account_id)?;
     let creds = Credentials { api_key, api_secret };
     let payload = serde_json::to_string(&creds).map_err(|e| format!("keychain error: {e}"))?;
-    entry
-        .set_password(&payload)
-        .map_err(|e| format!("keychain error: {e}"))
+    // Write with the trusted-app ACL (not keyring's set_password): a self-signed
+    // app has no Team ID, so "Always Allow" can never persist on a plain item —
+    // the explicit ACL is what makes our own reads silent across rebuilds.
+    let username = format!("nettrade:{account_id}");
+    crate::keychain_bio::acl_set(&username, &payload)
 }
 
 #[tauri::command]
 pub fn keychain_get_credentials(account_id: String) -> Result<Option<Credentials>, String> {
+    // Existence first (attribute-only, no prompt): if nothing is seated anywhere,
+    // answer None WITHOUT running the Touch ID gate — no sheet for a missing key.
+    let username = format!("nettrade:{account_id}");
+    let here = crate::keychain_bio::file_item_exists(SERVICE, &username);
+    let legacy = account_id == "default"
+        && crate::keychain_bio::file_item_exists(LEGACY_SERVICE, LEGACY_ACCOUNT_KEY)
+        && crate::keychain_bio::file_item_exists(LEGACY_SERVICE, LEGACY_ACCOUNT_SECRET);
+    if !here && !legacy {
+        return Ok(None);
+    }
+    // THE gate: when Touch ID is enabled, no secret leaves this process until one
+    // fingerprint (or the Mac password fallback) passes this launch.
+    crate::keychain_bio::ensure_gate()?;
     let entry = entry_for(&account_id)?;
     match entry.get_password() {
         Ok(payload) => {
@@ -76,15 +96,21 @@ pub fn keychain_get_credentials(account_id: String) -> Result<Option<Credentials
             // could carry fragments of the stored payload (the secret).
             let creds: Credentials = serde_json::from_str(&payload)
                 .map_err(|_| "keychain error: stored credential is malformed".to_string())?;
+            // ON-READ MIGRATION (once per launch): rewrite the item with the
+            // trusted-app ACL so this app's future reads never password-prompt —
+            // this read already passed the old ACL, so it costs nothing extra.
+            if account_id == "default" && !MIGRATED_CREDS.swap(true, Ordering::AcqRel) {
+                let _ = crate::keychain_bio::acl_set(&username, &payload); // best-effort
+            }
             Ok(Some(creds))
         }
         // No entry in the current location — fall back to the Phase-0 location
-        // and migrate it forward so we don't re-read it (and its OS access
-        // prompt) on every launch. The legacy entries are left untouched.
+        // and migrate it forward (onto the trusted-app ACL) so we don't re-read
+        // it on every launch. The legacy entries are left untouched.
         Err(keyring::Error::NoEntry) => match read_legacy(&account_id)? {
             Some(creds) => {
                 if let Ok(payload) = serde_json::to_string(&creds) {
-                    let _ = entry.set_password(&payload); // best-effort migrate
+                    let _ = crate::keychain_bio::acl_set(&username, &payload); // best-effort migrate
                 }
                 Ok(Some(creds))
             }
@@ -106,13 +132,17 @@ pub fn keychain_delete_credentials(account_id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn keychain_has_credentials(account_id: String) -> Result<bool, String> {
-    let entry = entry_for(&account_id)?;
-    match entry.get_password() {
-        Ok(_) => Ok(true),
-        // Not in the current location — count the Phase-0 location too.
-        Err(keyring::Error::NoEntry) => Ok(read_legacy(&account_id)?.is_some()),
-        Err(e) => Err(format!("keychain error: {e}")),
+    // PROMPT-FREE seat-check: attribute-only existence queries, never a secret
+    // read (get_password hits the ACL → a password prompt just for OPENING
+    // Settings). Counts all three locations: current, Phase-0 legacy, and the
+    // Touch ID (biometric) store.
+    let username = format!("nettrade:{account_id}");
+    if crate::keychain_bio::file_item_exists(SERVICE, &username) {
+        return Ok(true);
     }
+    Ok(account_id == "default"
+        && crate::keychain_bio::file_item_exists(LEGACY_SERVICE, LEGACY_ACCOUNT_KEY)
+        && crate::keychain_bio::file_item_exists(LEGACY_SERVICE, LEGACY_ACCOUNT_SECRET))
 }
 
 // ============================================================================
@@ -138,17 +168,26 @@ pub fn keychain_set_marketdata_key(key: String) -> Result<(), String> {
     if key.trim().is_empty() {
         return Err("keychain error: refusing to store an empty market-data key".to_string());
     }
-    let entry = marketdata_entry()?;
-    entry
-        .set_password(&key)
-        .map_err(|e| format!("keychain error: {e}"))
+    // Trusted-app ACL write — see keychain_set_credentials for why.
+    crate::keychain_bio::acl_set(MARKETDATA_ACCOUNT, &key)
 }
 
 #[tauri::command]
 pub fn keychain_get_marketdata_key() -> Result<Option<String>, String> {
+    // Existence first (no prompt), then the Touch ID gate, then the read.
+    if !crate::keychain_bio::file_item_exists(SERVICE, MARKETDATA_ACCOUNT) {
+        return Ok(None);
+    }
+    crate::keychain_bio::ensure_gate()?;
     let entry = marketdata_entry()?;
     match entry.get_password() {
-        Ok(key) => Ok(Some(key)),
+        Ok(key) => {
+            // ON-READ MIGRATION — see keychain_get_credentials.
+            if !MIGRATED_MD.swap(true, Ordering::AcqRel) {
+                let _ = crate::keychain_bio::acl_set(MARKETDATA_ACCOUNT, &key); // best-effort
+            }
+            Ok(Some(key))
+        }
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => Err(format!("keychain error: {e}")),
     }
@@ -166,10 +205,6 @@ pub fn keychain_delete_marketdata_key() -> Result<(), String> {
 
 #[tauri::command]
 pub fn keychain_has_marketdata_key() -> Result<bool, String> {
-    let entry = marketdata_entry()?;
-    match entry.get_password() {
-        Ok(_) => Ok(true),
-        Err(keyring::Error::NoEntry) => Ok(false),
-        Err(e) => Err(format!("keychain error: {e}")),
-    }
+    // PROMPT-FREE seat-check (see keychain_has_credentials).
+    Ok(crate::keychain_bio::file_item_exists(SERVICE, MARKETDATA_ACCOUNT))
 }
