@@ -404,24 +404,21 @@ function extractCursor(nextPagePath: unknown): string | null {
  * it round-trips). `limit` is clamped to [1, HISTORY_PAGE_LIMIT].
  */
 function historyQuery(cursor: string | null | undefined, limit: number | undefined): string {
-  const params = new URLSearchParams();
   const lim = Math.max(1, Math.min(HISTORY_PAGE_LIMIT, Math.trunc(limit ?? HISTORY_PAGE_LIMIT)));
   const token = typeof cursor === "string" ? cursor.trim() : "";
-  if (token.length > 0) {
-    if (token.includes("=")) {
-      // Full-query token (the current extractCursor form, possibly multi-param —
-      // e.g. transactions paginate with cursor + time): merge EVERY param back.
-      // Tolerates a token that is itself a path?query by keeping the query part.
-      const qIdx = token.indexOf("?");
-      const query = qIdx >= 0 ? token.slice(qIdx + 1) : token;
-      new URLSearchParams(query).forEach((v, k) => params.set(k, v));
-    } else {
-      // Legacy bare-cursor token (persisted by older builds) — best effort.
-      params.set("cursor", token);
-    }
+  if (token.length === 0) return `limit=${lim}`;
+  if (token.includes("=")) {
+    // Full-query token: replay the server's own nextPagePath query BYTE-FOR-BYTE.
+    // Re-encoding through URLSearchParams percent-escapes the `time` param's
+    // colons (time=…T01%3A21%3A07…), which the API 404s on (observed live at
+    // transactions page 3). The server told us exactly what to request next —
+    // the faithful client repeats it verbatim, only appending limit if absent.
+    const qIdx = token.indexOf("?");
+    const query = qIdx >= 0 ? token.slice(qIdx + 1) : token;
+    return /(^|&)limit=/.test(query) ? query : `${query}&limit=${lim}`;
   }
-  params.set("limit", String(lim)); // ours wins — clamped to the API max
-  return params.toString();
+  // Legacy bare-cursor token (persisted by older builds) — best effort.
+  return `limit=${lim}&cursor=${encodeURIComponent(token)}`;
 }
 
 /* ====================== HISTORY: NORMALIZERS ====================== */
@@ -591,7 +588,9 @@ async function fetchHistoryPage<T>(
   const res = await request(`${endpoint}?${query}`, creds, env, {
     minIntervalMs: HISTORY_MIN_REQUEST_INTERVAL_MS,
   });
-  if (!res.ok) throw new Error(`trading212: ${endpoint} failed (${res.status})`);
+  // The query carries only pagination state (cursor/time/limit — no secrets);
+  // including it makes a paging failure diagnosable from the persisted error.
+  if (!res.ok) throw new Error(`trading212: ${endpoint}?${query} failed (${res.status})`);
 
   const body: unknown = await res.json();
   // Current envelope: { items: [...], nextPagePath: string | null }.

@@ -459,24 +459,20 @@ describe("historyQuery", () => {
     expect(historyQuery(null, 999)).toBe(`limit=${HISTORY_PAGE_LIMIT}`);
     expect(historyQuery(null, 20)).toBe("limit=20");
   });
-  it("merges a full-query token back into the request (multi-param pagination)", () => {
-    const q = historyQuery("cursor=123&time=2026-06-07T01:21:07.902Z&limit=50", 50);
-    const params = new URLSearchParams(q);
-    expect(params.get("cursor")).toBe("123");
-    expect(params.get("time")).toBe("2026-06-07T01:21:07.902Z");
-    expect(params.get("limit")).toBe("50"); // ours wins, clamped
+  it("replays a full-query token BYTE-FOR-BYTE (no re-encoding — the API 404s on %3A times)", () => {
+    // The observed live failure: URLSearchParams re-encoding turned the time
+    // param's colons into %3A and /history/transactions returned 404 at page 3.
+    const token = "cursor=123&time=2026-06-07T01:21:07.902Z&limit=50";
+    expect(historyQuery(token, 50)).toBe(token); // verbatim, colons intact
   });
-  it("tolerates a token that is a path?query (keeps the query part)", () => {
-    const q = historyQuery("/orders?cursor=A&time=T1", 50);
-    const params = new URLSearchParams(q);
-    expect(params.get("cursor")).toBe("A");
-    expect(params.get("time")).toBe("T1");
+  it("appends limit only when the token lacks one", () => {
+    expect(historyQuery("cursor=123&time=T1", 50)).toBe("cursor=123&time=T1&limit=50");
+  });
+  it("tolerates a token that is a path?query (keeps the query part verbatim)", () => {
+    expect(historyQuery("/orders?cursor=A&time=T1", 50)).toBe("cursor=A&time=T1&limit=50");
   });
   it("treats a LEGACY bare token (persisted by older builds) as the cursor value", () => {
-    const q = historyQuery("ABC123", 50);
-    const params = new URLSearchParams(q);
-    expect(params.get("cursor")).toBe("ABC123");
-    expect(params.get("limit")).toBe("50");
+    expect(historyQuery("ABC123", 50)).toBe("limit=50&cursor=ABC123");
   });
 });
 
