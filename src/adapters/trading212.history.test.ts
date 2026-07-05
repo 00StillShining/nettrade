@@ -566,7 +566,9 @@ describe("fetchOrderHistoryPage — envelope + cursor round-trip", () => {
     // Attach the rejection expectation BEFORE flushing timers so the rejection
     // is never momentarily unhandled. The error string carries only the failure
     // kind + status — no key material.
-    const assertion = expect(p).rejects.toThrow(/orders failed \(500\)/);
+    // the message now includes the QUERY (pagination state only — no secrets)
+    // so paging failures self-diagnose from the persisted error.
+    const assertion = expect(p).rejects.toThrow(/orders\?limit=50 failed \(500\)/);
     await vi.runAllTimersAsync();
     await assertion;
   });
