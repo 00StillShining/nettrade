@@ -296,11 +296,54 @@
   width: 0%;
   background: #2e2c29;
 }
+/* Boot label — the WORDMARK (treatment C: "act·ual·ity", Space Mono, ink,
+   red underline under "ual"). Shows as the app loads. Tasteful + on-brand;
+   the underline is a static border (no filter/blend). */
 #animus-bootlab {
   margin-top: 14px;
   font-size: 15px;
   letter-spacing: 0.5em;
   color: var(--ink);
+}
+#animus-bootlab.wm-boot {
+  font-family: "Space Mono", monospace;
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  line-height: 0.9;
+}
+#animus-bootlab.wm-boot .u {
+  border-bottom: 4px solid var(--red);
+  padding-bottom: 2px;
+}
+
+/* Cog shortcut — top-right of the menu HUD. Muted at rest, red on hover/focus.
+   pointer-events:auto so it's clickable over the WebGL canvas; the rest of the
+   overlay stays pass-through. Only color/transform animate (law-abiding). */
+#animus-cog {
+  position: absolute;
+  top: 14px;
+  right: 22px;
+  z-index: 6;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mut);
+  pointer-events: auto;
+  cursor: pointer;
+  transition: color 0.16s ease-out, transform 0.35s ease-out;
+}
+#animus-cog:hover {
+  color: var(--red);
+  transform: rotate(35deg);
+}
+#animus-cog:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 3px;
+  color: var(--red);
 }
 
 /* white flash — rendered in App.tsx (survives navigation), so it is NOT scoped

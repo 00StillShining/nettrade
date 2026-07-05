@@ -1,0 +1,411 @@
+/* ════════════════════════════════════════════════════════════════
+   AnimusSettings.module.css — the approved Animus Settings mockup, ported.
+
+   A FAITHFUL translation of the <style> "SETTINGS SCREEN" block in
+   scratchpad/animus-design/index.html. The Animus world is the PALE VOID
+   (not the dark CRT), so this owns its own fixed pale-void root (mirroring
+   #animus-root in animus.css) and re-declares the same design tokens — this
+   component renders OUTSIDE #animus-root (its own route element), so it can't
+   inherit those CSS vars.
+
+   LAWS obeyed: animate only transform/opacity (no filter/blend/backdrop);
+   the ONE red family (--red-hi/--red/--red-deep); NO green — ever.
+   ════════════════════════════════════════════════════════════════ */
+
+.root {
+  --ink: #3b3a37;
+  --mut: #7a766f;
+  --faint: #a9a49b;
+  --red-hi: #d95a3b;
+  --red: #b23320;
+  --red-deep: #7c1e10;
+  --void: #f5f3ef;
+  --void-2: #efece5;
+  --disp: "DIN Alternate", "Bahnschrift", "Franklin Gothic Medium", "Arial Narrow", sans-serif;
+  --mono: "Space Mono", monospace;
+
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--disp);
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+.root *,
+.root *::before,
+.root *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* faint bone-wafer strata drifting in the far background (the Animus world hint) */
+.strataBg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background:
+    repeating-linear-gradient(122deg, transparent 0 46px, rgba(120, 116, 110, 0.05) 46px 47px),
+    radial-gradient(120% 90% at 30% 20%, #fbfaf7 0%, var(--void) 55%, #eae6dd 100%);
+}
+
+/* ─────────── the section frame ─────────── */
+.hint {
+  position: absolute;
+  top: 16px;
+  left: 24px;
+  font-size: 10.5px;
+  letter-spacing: 0.3em;
+  color: rgba(122, 118, 111, 0.85);
+  text-transform: uppercase;
+  z-index: 5;
+}
+.wnd {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  color: var(--faint);
+  text-transform: uppercase;
+  z-index: 5;
+  font-family: var(--mono);
+}
+
+/* ─────────── red strata pillar (the signature Animus tower) ─────────── */
+.pillarStage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 38%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1400px;
+  z-index: 2;
+}
+.pillar {
+  transform: rotateX(6deg) rotateY(-22deg);
+  transform-style: preserve-3d;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.waf {
+  width: 300px;
+  height: 20px;
+  position: relative;
+  background: linear-gradient(180deg, var(--red-hi) 0%, var(--red) 46%, var(--red-deep) 100%);
+  box-shadow: 0 0 30px rgba(200, 60, 35, 0.28), 0 1px 0 rgba(0, 0, 0, 0.22);
+}
+.waf::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 7px;
+  background: linear-gradient(180deg, var(--red-deep), #5c1409);
+  transform: skewX(-46deg);
+  transform-origin: left top;
+  opacity: 0.9;
+}
+.waf:nth-child(odd) {
+  width: 288px;
+}
+.wafSel {
+  box-shadow: 0 0 40px rgba(217, 90, 59, 0.6), 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+/* the SETTINGS red chip pinned to the pillar, exactly like MARKETS on the menu */
+.pillarTag {
+  position: absolute;
+  right: 12%;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 16px 5px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f6f4f0;
+  background: linear-gradient(180deg, var(--red-hi) 0%, var(--red) 46%, var(--red-deep) 100%);
+  box-shadow: 0 0 22px rgba(200, 60, 35, 0.5), 0 1px 0 rgba(0, 0, 0, 0.2);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+}
+.pillarTag .cog {
+  margin-right: 9px;
+}
+.dia {
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  flex: none;
+  display: inline-block;
+  background: linear-gradient(135deg, var(--red-hi), var(--red-deep));
+  box-shadow: 0 0 10px rgba(200, 60, 35, 0.55);
+}
+
+/* ─────────── the settings panel (right of the pillar) ─────────── */
+.panel {
+  position: absolute;
+  left: 40%;
+  right: 5%;
+  top: 14%;
+  bottom: 78px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  /* long panels stay usable on short viewports — scroll INSIDE the panel,
+     never the pale-void body (SCREEN_PATTERNS internal-scroll law). */
+  overflow-y: auto;
+}
+.panelHead {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+.panelHead h1 {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+.panelHead .sub {
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  color: var(--mut);
+  text-transform: uppercase;
+}
+.rule {
+  height: 1px;
+  background: rgba(60, 55, 45, 0.22);
+  margin: 14px 0 4px;
+  flex: none;
+}
+
+.grp {
+  padding: 15px 0;
+  border-bottom: 1px solid rgba(60, 55, 45, 0.13);
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex: none;
+}
+.grp:last-child {
+  border-bottom: 0;
+}
+.grp .lab {
+  width: 186px;
+  flex: none;
+}
+.grp .lab .t {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  text-transform: uppercase;
+}
+.grp .lab .d {
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--mut);
+  margin-top: 3px;
+  line-height: 1.35;
+}
+.grp .ctl {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* the keyboard-focused control GROUP gets a faint red rail on its left edge */
+.grpFocus {
+  box-shadow: inset 3px 0 0 -1px var(--red);
+}
+
+/* animus chip controls */
+.chip {
+  padding: 4px 15px 5px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.09);
+  cursor: pointer;
+  border: 0;
+  font-family: var(--disp);
+  transition: transform 0.12s ease-out;
+}
+.chip:hover {
+  transform: translateY(-1px);
+}
+.chip:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.chip:disabled:hover {
+  transform: none;
+}
+.chip.on {
+  color: #f6f4f0;
+  background: linear-gradient(180deg, var(--red-hi) 0%, var(--red) 46%, var(--red-deep) 100%);
+  box-shadow: 0 0 20px rgba(200, 60, 35, 0.42), 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+.chip.dim {
+  color: var(--mut);
+  font-size: 12px;
+}
+.chip:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  padding: 6px 12px;
+  min-width: 230px;
+}
+.field .val {
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+}
+.field .val .rev {
+  color: var(--faint);
+}
+/* the actual editable input — transparent so it sits in the same slot chrome */
+.keyInput {
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  outline: none;
+  width: 100%;
+  min-width: 190px;
+  /* the .root sets user-select:none for the diegetic feel; re-enable text
+     selection INSIDE the key field (WKWebView blocks drag-select otherwise). */
+  -webkit-user-select: text;
+  user-select: text;
+}
+.keyInput::placeholder {
+  color: var(--faint);
+  letter-spacing: 0.06em;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mut);
+}
+.status .dot {
+  width: 9px;
+  height: 9px;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, var(--red-hi), var(--red-deep));
+  box-shadow: 0 0 9px rgba(200, 60, 35, 0.5);
+  flex: none;
+}
+.status.stored {
+  color: var(--ink);
+}
+/* muted dot for the honest "pending / not verified" states — no red claim */
+.status.pending .dot {
+  background: rgba(122, 118, 111, 0.55);
+  box-shadow: none;
+}
+.note {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  margin-top: 3px;
+  font-style: italic;
+}
+
+/* bottom bar — the Animus breadcrumb + key legend */
+.bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 44px;
+  z-index: 4;
+  background: rgba(255, 255, 255, 0.58);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 22px;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: var(--ink);
+  text-transform: uppercase;
+}
+.bar .sp {
+  flex: 1;
+}
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.crumb:hover span:last-child {
+  color: var(--red);
+}
+.crumb:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 3px;
+}
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  white-space: nowrap;
+}
+.legend span {
+  display: flex;
+  align-items: center;
+}
+.key {
+  display: inline-block;
+  min-width: 22px;
+  text-align: center;
+  padding: 2px 7px 3px;
+  margin-right: 6px;
+  background: #43403b;
+  color: #f2f0ec;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  border-radius: 2px;
+}

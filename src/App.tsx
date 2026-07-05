@@ -1,10 +1,8 @@
 import "./index.css";
 import "./theme/tokens.css";
-import { HashRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import Frame from "./shell/Frame";
-import BakedCrt from "./shell/BakedCrt";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import Animus, { AnimusFlash } from "./animus/Animus";
-import Settings from "./screens/settings/Settings";
+import AnimusSettings from "./screens/settings/AnimusSettings";
 import Terminal from "./terminal/Terminal";
 
 /**
@@ -17,20 +15,20 @@ import Terminal from "./terminal/Terminal";
  * navigating between terminal screens changes only the param, so <Terminal/>
  * NEVER remounts and the desktop chrome/engine clock persist.
  *
- * The old Frame+Chrome data screens (src/screens/*) are UNROUTED here but
- * their files remain in place (cleanup is a later stage). Only Settings keeps
- * the legacy Frame + BakedCrt treatment; the static "/settings" route is
- * matched by the router ahead of the ":screenId" param automatically.
+ * Settings now lives in the ANIMUS WORLD too: "/settings" renders
+ * <AnimusSettings/> (src/screens/settings/AnimusSettings.tsx) directly — its
+ * own fixed pale-void root, NO Frame and NO BakedCrt, exactly like the "/"
+ * Animus route. The pale void is not a dark CRT screen, so the baked tube is
+ * gone here; BakedCrt is no longer rendered by ANY route (the terminal carries
+ * its own overlay stack). Its file remains in place, just unused.
  *
- * BakedCrt renders ONLY on /settings now: the terminal carries its OWN CRT
- * overlay stack (scanlines/vignette/bezel/roll inside the .t77 root), and the
- * Animus's overexposed white void was never allowed a dark tube. Stacking the
- * legacy baked curve over the terminal would double-expose the glass.
+ * The old Frame+Chrome data screens (src/screens/*) plus the legacy cream
+ * Settings.tsx are UNROUTED here but their files remain (cleanup is a later
+ * stage). The static "/settings" route is matched by the router ahead of the
+ * ":screenId" param automatically.
  */
 
 function Shell() {
-  const onSettings = useLocation().pathname === "/settings";
-
   return (
     <>
       <Routes>
@@ -38,8 +36,9 @@ function Shell() {
             viewport; no Frame, no CRT. */}
         <Route path="/" element={<Animus />} />
 
-        {/* Settings — the one legacy data screen kept (Frame + Chrome inside). */}
-        <Route path="/settings" element={<Frame><Settings /></Frame>} />
+        {/* Settings — the Animus pale-void configuration screen. Its own fixed
+            pale-void root; no Frame, no CRT (same world as "/"). */}
+        <Route path="/settings" element={<AnimusSettings />} />
 
         {/* The terminal — every other top-level segment is a screen id;
             Terminal validates it and bounces unknowns to /dashboard. */}
@@ -51,12 +50,8 @@ function Shell() {
       {/* White dive flash — hoisted here so it OUTLIVES the Animus during the
           route swap (Animus unmounts at the flash's cover point). ./flash.ts
           drives its opacity; the element is always present so the cover works
-          whether we're on "/" or over a mounted screen. */}
+          whether we're on "/", over Settings, or over a mounted screen. */}
       <AnimusFlash />
-
-      {/* Baked CRT ONLY over the legacy Settings screen — the terminal brings
-          its own tube, the Animus keeps its void. */}
-      {onSettings && <BakedCrt />}
     </>
   );
 }

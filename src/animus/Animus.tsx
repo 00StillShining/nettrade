@@ -52,6 +52,9 @@ export default function Animus() {
   // always calls the live router fn.
   const navRef = useRef(navigate);
   navRef.current = navigate;
+  // the WebGL effect installs its guarded dive here so the cog (React JSX, outside
+  // the effect closure) can route through the same BUSY-locked path as a menu leaf.
+  const loadMemoryRef = useRef<((route: string) => void) | null>(null);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -636,9 +639,13 @@ export default function Animus() {
     // swap and fades over the mounted screen. We hand navigation to ./flash.ts's
     // triggerFlash so the #flash element (in App.tsx) survives Animus unmounting.
     function loadMemory(route: string) {
+      if (state === "BUSY") return; // already diving — ignore a second trigger (race guard)
       state = "BUSY"; SFX.thunk(); SFX.whoosh();
       triggerFlash((r) => navRef.current(r), route);
     }
+    // expose the guarded dive to the React JSX (the cog) so it goes through the
+    // SAME state-machine path as a menu leaf (BUSY lock + SFX), not a raw flash.
+    loadMemoryRef.current = loadMemory;
     function finishBoot() {
       if (bootDone) return; bootDone = true;
       $("boot").classList.add("off");
@@ -976,10 +983,47 @@ export default function Animus() {
         <div id="animus-legend" />
       </div>
 
-      <div id="animus-boot"><div id="animus-pbar"><i /></div><div id="animus-bootlab">L O A D I N G</div></div>
+      <div id="animus-boot"><div id="animus-pbar"><i /></div><div id="animus-bootlab" className="wm-boot">act<span className="u">ual</span>ity</div></div>
       <div id="animus-toast" />
       <div id="animus-dbg" />
       <div id="animus-hint">ACTUALITY — ANIMUS INTERFACE</div>
+
+      {/* Cog shortcut — top-right of the menu HUD. A one-click jump straight to
+          Settings (also reachable from the SYSTEM tower's first leaf). Dives
+          under the SAME white flash the menu leaves use (triggerFlash → "/
+          settings"). pointer-events:auto + role=button + Enter/Space so it's
+          both clickable and keyboard-operable. Lives in the DOM overlay layer
+          (a sibling of #animus-hint), never inside the WebGL canvas. */}
+      <div
+        id="animus-cog"
+        role="button"
+        tabIndex={0}
+        aria-label="Settings"
+        title="Settings"
+        onClick={() => loadMemoryRef.current?.("/settings")}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation(); // don't let the native key ALSO reach the Animus window keydown → confirm() → a second dive
+            loadMemoryRef.current?.("/settings");
+          }
+        }}
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="3.2" />
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1" />
+        </svg>
+      </div>
     </div>
   );
 }
