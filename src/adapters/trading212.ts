@@ -54,6 +54,15 @@ const BASE_URLS: Record<Environment, string> = {
 const MIN_REQUEST_INTERVAL_MS = 1200;
 const MAX_RETRIES = 4;
 
+// The history endpoints (orders / dividends / transactions) are on a FAR
+// stricter budget than positions — roughly 6 requests/min — so a history page
+// must never fire closer than 10s after ANY prior request through the shared
+// queue. We pass this as the per-call minimum interval; the single global queue
+// + 429 backoff below are otherwise untouched.
+const HISTORY_MIN_REQUEST_INTERVAL_MS = 10_000;
+/** Max page size the history endpoints accept, also the default we request. */
+const HISTORY_PAGE_LIMIT = 50;
+
 /* ====================== AUTH ====================== */
 
 /** Builds the HTTP Basic auth header value. Never log the return value. */
@@ -73,33 +82,53 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function paceRequest(): Promise<void> {
+// `minIntervalMs` lets a stricter caller (the history endpoints) hold a wider
+// gap after ANY prior request — the gap enforced is the requested minimum, so a
+// history page paces >=10s behind whatever ran before it while ordinary calls
+// keep the 1.2s cadence.
+async function paceRequest(minIntervalMs: number): Promise<void> {
   const now = Date.now();
-  const wait = lastRequestAt + MIN_REQUEST_INTERVAL_MS - now;
+  const wait = lastRequestAt + minIntervalMs - now;
   if (wait > 0) await sleep(wait);
   lastRequestAt = Date.now();
 }
 
+/** Optional per-call tuning for {@link request}. */
+export interface RequestOpts {
+  /**
+   * Minimum ms this call must sit behind the previous request in the shared
+   * queue. Defaults to {@link MIN_REQUEST_INTERVAL_MS} (1200). The strict
+   * history endpoints pass {@link HISTORY_MIN_REQUEST_INTERVAL_MS} (10_000).
+   */
+  minIntervalMs?: number;
+}
+
 /**
- * Shared rate-limited request helper. Paces calls to >=1200ms apart and
- * retries on HTTP 429 with exponential backoff (honouring Retry-After when
- * present), capped at MAX_RETRIES attempts.
+ * Shared rate-limited request helper. Paces calls to >=1200ms apart (or wider
+ * via `opts.minIntervalMs`) and retries on HTTP 429 with exponential backoff
+ * (honouring Retry-After when present), capped at MAX_RETRIES attempts.
  *
  * Never logs `creds` or the resolved Authorization header.
  */
-export async function request(path: string, creds: Credentials, env: Environment): Promise<Response> {
+export async function request(
+  path: string,
+  creds: Credentials,
+  env: Environment,
+  opts?: RequestOpts,
+): Promise<Response> {
   const url = `${BASE_URLS[env]}${path}`;
   const headers = {
     Authorization: authHeader(creds),
     Accept: "application/json",
   };
+  const minIntervalMs = opts?.minIntervalMs ?? MIN_REQUEST_INTERVAL_MS;
 
   // Serialize all callers through a single queue so the 1 req/s pacing holds
   // even when multiple requests are kicked off concurrently.
   const run = async (): Promise<Response> => {
     let attempt = 0;
     for (;;) {
-      await paceRequest();
+      await paceRequest(minIntervalMs);
       const res = await httpFetch(url, { method: "GET", headers });
       if (res.status !== 429) return res;
       attempt += 1;
@@ -227,6 +256,359 @@ export async function fetchAccountCash(creds: Credentials, env: Environment): Pr
     raw: r,
   };
 }
+
+/* ====================== HISTORY: TYPES ====================== */
+
+/**
+ * One executed (or attempted) order fill from /equity/history/orders.
+ * `fillPriceMinor` is INSTRUMENT-currency minor units (same convention as
+ * Position.avgPriceMinor); `filledValueMinor` and `feeMinor` are ACCOUNT-currency
+ * minor units. `status` is passed through verbatim so downstream can filter to
+ * executed rows without us silently dropping the non-filled ones here.
+ */
+export interface HistoryOrderFill {
+  id: string;
+  dateISO: string;
+  ticker: string;
+  side: "buy" | "sell";
+  quantity: number; // abs share count (fractional allowed) — NOT money
+  fillPriceMinor: number; // instrument ccy
+  filledValueMinor: number; // account ccy, abs
+  feeMinor: number; // account ccy, positive
+  status: string;
+  raw: unknown;
+}
+
+/** One paid dividend from /history/dividends. Money in ACCOUNT-currency minor units. */
+export interface HistoryDividend {
+  id: string;
+  dateISO: string;
+  ticker: string;
+  amountMinor: number; // account ccy
+  quantity: number | null; // shares that earned the dividend, if provided
+  grossPerShareMinor: number | null; // account ccy per-share, if provided
+  type: string | null;
+  raw: unknown;
+}
+
+/** One cash movement from /history/transactions. `amountMinor` is ABS; direction lives in `kind`. */
+export interface HistoryTransaction {
+  id: string;
+  dateISO: string;
+  kind: "deposit" | "withdrawal" | "interest" | "fee" | "other";
+  amountMinor: number; // account ccy, ABS
+  reference: string | null;
+  raw: unknown;
+}
+
+/** One page of a paginated history feed. `nextCursor` is an OPAQUE token, or null at the end.
+ *  `rawCount` = items on the page BEFORE normalization: a page where every raw row failed to
+ *  parse yields items=[] with rawCount>0 — the sync must FOLLOW the cursor there, not stop
+ *  (stopping on the normalized count would silently truncate the back-fill). */
+export interface HistoryPage<T> {
+  items: T[];
+  nextCursor: string | null;
+  rawCount: number;
+}
+
+/* ====================== HISTORY: DEFENSIVE FIELD HELPERS ====================== */
+
+/** First finite number among the candidates, else undefined. Ignores non-numbers. */
+function firstNum(...vals: unknown[]): number | undefined {
+  for (const v of vals) {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+  return undefined;
+}
+
+/** First non-empty string among the candidates, else undefined. */
+function firstStr(...vals: unknown[]): string | undefined {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim().length > 0) return v;
+  }
+  return undefined;
+}
+
+/**
+ * Pass a date string through iff it parses; else null. We keep the SOURCE string
+ * verbatim (never reformat) so we never fabricate precision the API didn't give.
+ */
+function passDateISO(...vals: unknown[]): string | null {
+  const s = firstStr(...vals);
+  if (s === undefined) return null;
+  return Number.isNaN(Date.parse(s)) ? null : s;
+}
+
+/**
+ * Sum a fees/taxes array into positive minor units. Each entry may carry the
+ * charge under `quantity` (T212's shape for fee legs) or `amount`; other shapes
+ * are tolerated by trying both. Non-array / empty -> 0.
+ */
+function sumFeesMinor(arr: unknown): number {
+  if (!Array.isArray(arr)) return 0;
+  let totalMinor = 0;
+  for (const entry of arr) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as { quantity?: unknown; amount?: unknown };
+    const v = firstNum(e.quantity, e.amount);
+    if (v === undefined) continue;
+    totalMinor += Math.abs(toMinor(v));
+  }
+  return totalMinor;
+}
+
+/* ====================== HISTORY: CURSOR EXTRACTION ====================== */
+
+/**
+ * Turn the envelope's `nextPagePath` into the OPAQUE cursor token we round-trip.
+ * The API sometimes returns a full path/URL with a `cursor` query param and
+ * sometimes a bare token; we accept BOTH — if a `cursor` param is present we
+ * lift its value, otherwise we treat the whole string as the token. A blank or
+ * missing path means "no more pages" -> null.
+ */
+function extractCursor(nextPagePath: unknown): string | null {
+  if (typeof nextPagePath !== "string") return null;
+  const raw = nextPagePath.trim();
+  if (raw.length === 0) return null;
+  // Look for a `cursor=` query param without needing a valid absolute URL base.
+  const qIdx = raw.indexOf("?");
+  const query = qIdx >= 0 ? raw.slice(qIdx + 1) : raw;
+  const params = new URLSearchParams(query);
+  const cursor = params.get("cursor");
+  if (cursor !== null && cursor.trim().length > 0) return cursor;
+  // No cursor param — the whole path IS the opaque token.
+  return raw;
+}
+
+/**
+ * Build the `?limit=&cursor=` query string for a history call. `cursor` is fed
+ * back verbatim as an opaque token (it may itself be a full path — that's fine,
+ * it round-trips). `limit` is clamped to [1, HISTORY_PAGE_LIMIT].
+ */
+function historyQuery(cursor: string | null | undefined, limit: number | undefined): string {
+  const params = new URLSearchParams();
+  const lim = Math.max(1, Math.min(HISTORY_PAGE_LIMIT, Math.trunc(limit ?? HISTORY_PAGE_LIMIT)));
+  params.set("limit", String(lim));
+  if (typeof cursor === "string" && cursor.trim().length > 0) params.set("cursor", cursor);
+  return params.toString();
+}
+
+/* ====================== HISTORY: NORMALIZERS ====================== */
+
+/**
+ * Normalize one raw order item. Returns null (skip) only when the row is truly
+ * unusable — no ticker, or an unparseable date. Every other row is returned WITH
+ * its status so downstream can decide what "executed" means; we don't drop
+ * non-filled rows here.
+ *
+ * SIDE is taken from an explicit side/direction/type field when it names BUY or
+ * SELL, else inferred from the sign of the (filled/ordered) quantity — a
+ * negative quantity means a sell. `quantity` is returned as an absolute value.
+ */
+function normalizeOrderFill(raw: unknown): HistoryOrderFill | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+
+  const instrument = (r.instrument && typeof r.instrument === "object" ? r.instrument : undefined) as
+    | { ticker?: unknown }
+    | undefined;
+  const ticker = firstStr(r.ticker, instrument?.ticker);
+  if (ticker === undefined) return null; // unidentifiable — skip
+
+  const dateISO = passDateISO(r.dateExecuted, r.dateModified, r.dateCreated);
+  if (dateISO === null) return null; // no trustworthy timestamp — skip
+
+  const rawQty = firstNum(r.filledQuantity, r.orderedQuantity, r.quantity);
+  const quantity = rawQty === undefined ? 0 : Math.abs(rawQty);
+
+  // Prefer a stable unique fill id; fall back to the order id DISAMBIGUATED with
+  // per-row content (date + qty) — an order can produce several fills, so a bare
+  // `ord:<orderId>` key would make sibling fills collide on the DB primary key
+  // and INSERT OR REPLACE would silently drop real executed volume.
+  const fillId = firstStr(r.fillId);
+  const orderId = firstStr(r.id);
+  const id = fillId ?? (orderId !== undefined ? `ord:${orderId}:${dateISO}:${quantity}` : undefined);
+  if (id === undefined) return null; // no id to key on — skip
+
+  // Explicit side wins; otherwise sign of quantity (negative => sell).
+  const sideField = firstStr(r.side, r.direction, r.type)?.toUpperCase() ?? "";
+  let side: "buy" | "sell";
+  if (sideField.includes("SELL")) side = "sell";
+  else if (sideField.includes("BUY")) side = "buy";
+  else side = rawQty !== undefined && rawQty < 0 ? "sell" : "buy";
+
+  const fillPrice = firstNum(r.fillPrice, r.price, r.averagePrice);
+  const filledValue = firstNum(r.filledValue, r.value);
+  const feeMinor = sumFeesMinor(r.taxes) + sumFeesMinor(r.fees);
+  const status = firstStr(r.status, r.fillResult) ?? "";
+
+  return {
+    id,
+    dateISO,
+    ticker,
+    side,
+    quantity,
+    fillPriceMinor: toMinor(fillPrice),
+    filledValueMinor: Math.abs(toMinor(filledValue)),
+    feeMinor,
+    status,
+    raw,
+  };
+}
+
+/** Normalize one raw dividend item. Skips only on missing ticker or unparseable date. */
+function normalizeDividend(raw: unknown): HistoryDividend | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+
+  const ticker = firstStr(r.ticker);
+  if (ticker === undefined) return null;
+
+  const dateISO = passDateISO(r.paidOn, r.date);
+  if (dateISO === null) return null;
+
+  const id = firstStr(r.reference, r.id);
+  if (id === undefined) return null;
+
+  const amount = firstNum(r.amount);
+  const quantity = firstNum(r.quantity);
+  const grossPerShare = firstNum(r.grossAmountPerShare);
+
+  return {
+    id,
+    dateISO,
+    ticker,
+    amountMinor: toMinor(amount),
+    quantity: quantity ?? null,
+    grossPerShareMinor: grossPerShare === undefined ? null : toMinor(grossPerShare),
+    type: firstStr(r.type) ?? null,
+    raw,
+  };
+}
+
+/** Maps a raw transaction `type` onto our coarse kind. Case-insensitive, substring-tolerant. */
+function txnKind(type: string | undefined): HistoryTransaction["kind"] {
+  const t = (type ?? "").toUpperCase();
+  if (t.includes("INTEREST")) return "interest"; // any *INTEREST* variant
+  if (t.includes("WITHDRAW")) return "withdrawal"; // WITHDRAW / WITHDRAWAL
+  if (t.includes("DEPOSIT") || t.includes("TOP_UP") || t.includes("TOPUP")) return "deposit";
+  if (t.includes("FEE")) return "fee";
+  return "other";
+}
+
+/** Normalize one raw transaction item. Amount is stored ABS; direction lives in `kind`. */
+function normalizeTransaction(raw: unknown): HistoryTransaction | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+
+  const dateISO = passDateISO(r.dateTime, r.date);
+  if (dateISO === null) return null;
+
+  const id = firstStr(r.reference, r.id);
+  if (id === undefined) return null;
+
+  const amount = firstNum(r.amount);
+
+  return {
+    id,
+    dateISO,
+    kind: txnKind(firstStr(r.type)),
+    amountMinor: Math.abs(toMinor(amount)),
+    reference: firstStr(r.reference) ?? null,
+    raw,
+  };
+}
+
+/* ====================== HISTORY: PAGE FETCHERS ====================== */
+
+/**
+ * Shared page-fetch core: hits a history endpoint on the STRICT 10s budget,
+ * normalizes each item defensively (skipping only truly-unusable rows), and
+ * extracts the opaque next-page cursor from the `{ items, nextPagePath }`
+ * envelope. Tolerates a bare array body (older shape) as items with no cursor.
+ */
+async function fetchHistoryPage<T>(
+  endpoint: string,
+  normalize: (raw: unknown) => T | null,
+  creds: Credentials,
+  env: Environment,
+  cursor: string | null | undefined,
+  limit: number | undefined,
+): Promise<HistoryPage<T>> {
+  const query = historyQuery(cursor, limit);
+  const res = await request(`${endpoint}?${query}`, creds, env, {
+    minIntervalMs: HISTORY_MIN_REQUEST_INTERVAL_MS,
+  });
+  if (!res.ok) throw new Error(`trading212: ${endpoint} failed (${res.status})`);
+
+  const body: unknown = await res.json();
+  // Current envelope: { items: [...], nextPagePath: string | null }.
+  // Older/defensive: a bare array with no pagination.
+  const rawItems = Array.isArray(body)
+    ? body
+    : body && typeof body === "object" && Array.isArray((body as { items?: unknown }).items)
+      ? ((body as { items: unknown[] }).items)
+      : [];
+  const nextPagePath =
+    body && typeof body === "object" && !Array.isArray(body)
+      ? (body as { nextPagePath?: unknown }).nextPagePath
+      : null;
+
+  const items: T[] = [];
+  for (const item of rawItems) {
+    const norm = normalize(item);
+    if (norm) items.push(norm); // unparseable rows are skipped, not thrown on
+  }
+  return { items, nextCursor: extractCursor(nextPagePath), rawCount: rawItems.length };
+}
+
+/** One page of executed/attempted order fills, newest-first per the API. Strict 10s pacing. */
+export async function fetchOrderHistoryPage(
+  creds: Credentials,
+  env: Environment,
+  cursor?: string | null,
+  limit?: number,
+): Promise<HistoryPage<HistoryOrderFill>> {
+  return fetchHistoryPage("/equity/history/orders", normalizeOrderFill, creds, env, cursor, limit);
+}
+
+/** One page of paid dividends. Strict 10s pacing. */
+export async function fetchDividendsPage(
+  creds: Credentials,
+  env: Environment,
+  cursor?: string | null,
+  limit?: number,
+): Promise<HistoryPage<HistoryDividend>> {
+  return fetchHistoryPage("/history/dividends", normalizeDividend, creds, env, cursor, limit);
+}
+
+/** One page of cash movements (deposits/withdrawals/interest/fees/…). Strict 10s pacing. */
+export async function fetchTransactionsPage(
+  creds: Credentials,
+  env: Environment,
+  cursor?: string | null,
+  limit?: number,
+): Promise<HistoryPage<HistoryTransaction>> {
+  return fetchHistoryPage("/history/transactions", normalizeTransaction, creds, env, cursor, limit);
+}
+
+/* ====================== HISTORY: TEST SURFACE ====================== */
+
+// Key-free surface for unit tests of the pure history logic (normalizers,
+// cursor extraction, query building, fee summation). NOT part of the public
+// API — do not import in app code. Exposes no secret and touches no network.
+export const __historyTest = {
+  normalizeOrderFill,
+  normalizeDividend,
+  normalizeTransaction,
+  txnKind,
+  extractCursor,
+  historyQuery,
+  sumFeesMinor,
+  toMinor,
+  HISTORY_MIN_REQUEST_INTERVAL_MS,
+  HISTORY_PAGE_LIMIT,
+};
 
 /**
  * Single lightweight authed GET used to validate credentials without doing

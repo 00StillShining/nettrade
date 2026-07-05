@@ -8,6 +8,18 @@
    descriptive stats (fills/BP/notes/tagged); win-rate / expectancy / PF / R
    stay em-dash placeholders (no closed round-trips this session).
 
+   LIVE UPGRADE (worker C): in a live (non-mock) build the diary gains a
+   BROKER HISTORY section ABOVE the session pages — the user's REAL executed
+   fills (TruthStore.fills, worker B) grouped by CALENDAR DAY, newest day
+   first, each day a read-only page listing its fills (side/sym/qty@price) and
+   any dividends paid that day (TruthStore.dividends) as their own line items.
+   These pages are HISTORICAL RECORD, not writable rehearsal notes: they carry
+   NO textarea, NO tags, NO lifecycle pill — so the tick-caret protection below
+   simply never applies to them (nothing to disturb). The SESSION pages (each
+   State.ordersLog fill, writable) stay exactly as now, honestly labelled
+   "SESSION" below the "BROKER HISTORY" band. Under VITE_MOCK the whole live
+   path is inert and the diary is byte-for-byte the sample+session original.
+
    THE CRITICAL PORT RULE — the 1–2s tick MUST NOT re-render or rebuild the
    feed. If it did, it would tear down the note <textarea> and destroy the
    caret + any unsaved typed text. So:
@@ -30,7 +42,7 @@
    ========================================================================= */
 
 import { useEffect, useReducer, useRef } from "react";
-import { arrow, glClass, fmtUSD } from "../engine/dataEngine";
+import { arrow, glClass, fmtUSD, fmtMoney, fmtNum } from "../engine/dataEngine";
 import { DataEngine } from "../engine/dataEngine";
 import {
   State, stateSubscribe,
@@ -41,6 +53,42 @@ import {
 import { setTickText } from "../components/dom";
 import { registerKeyExtra, gotoScreen } from "../bus";
 import Roster from "../components/Roster";
+// LIVE broker history (worker B — may tsc-drift until truthStore.ts lands; keep the usage).
+import { TruthStore, startHistorySync, type FillRow } from "../engine/truthStore";
+import type { HistoryDividend } from "../../adapters/trading212";
+
+// VITE_MOCK builds must be a NO-OP for the whole live path (design builds stay sample+session).
+const IS_MOCK = import.meta.env.VITE_MOCK === "1";
+
+/* ================= BROKER-HISTORY DAY GROUPING (live build only) =================
+   Fold the real executed fills + dividends into one card per CALENDAR DAY, newest
+   day first, fills/dividends within a day newest-first. Pure derivation over honest
+   RECORDED data — nothing invented, nothing interpolated. */
+interface BrokerDay { day: string; fills: FillRow[]; dividends: HistoryDividend[] }
+function groupBrokerDays(fills: FillRow[], dividends: HistoryDividend[]): BrokerDay[] {
+  const map = new Map<string, BrokerDay>();
+  const dayOf = (iso: string): string => (iso || "").slice(0, 10); // YYYY-MM-DD
+  const get = (iso: string): BrokerDay => {
+    const d = dayOf(iso);
+    let g = map.get(d);
+    if (!g) { g = { day: d, fills: [], dividends: [] }; map.set(d, g); }
+    return g;
+  };
+  // fills + dividends arrive newest-first (worker B / worker A contract); preserve that
+  // order inside each day by pushing in arrival order.
+  for (const f of fills) get(f.dateISO).fills.push(f);
+  for (const dv of dividends) get(dv.dateISO).dividends.push(dv);
+  // newest calendar day first (string compare on YYYY-MM-DD is chronological)
+  return Array.from(map.values()).sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
+}
+// a short, human day label from YYYY-MM-DD (e.g. "JUL 4 2026"), locale-formatted.
+function fmtDayLabel(day: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || "");
+  if (!m) return day || "—";
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  if (isNaN(d.getTime())) return day;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase();
+}
 
 export default function Journal() {
   const [, force] = useReducer((n: number) => n + 1, 0);
@@ -94,6 +142,11 @@ export default function Journal() {
   /* ---------------- wiring: feed re-renders on state; tick patches ONLY the sidebar ---------------- */
   useEffect(() => {
     const unsubState = stateSubscribe(force); // new fill / tag toggle / lifecycle / note blur
+    // BROKER HISTORY sync (live build): a completed/errored sync re-renders the feed to reveal the
+    // real pages. SAFE: the sync notify fires on the history-fetch clock, never the 1–2s price tick,
+    // and the broker cards carry no textarea — so no in-progress note caret can ever be torn down.
+    const unsubTruth = TruthStore.subscribe(force);
+    startHistorySync(); // idempotent kick; no-op under VITE_MOCK or when no creds
     const unsubTick = DataEngine.subscribe(() => {
       // NON-REPAINTING tick: patch ONLY the sidebar numerals, and skip even that while a note
       // textarea is focused (setTickText on an unfocused span can't disturb the caret). The feed
@@ -124,7 +177,7 @@ export default function Journal() {
       }
       return false;
     });
-    return () => { unsubState(); unsubTick(); unsubKeys(); };
+    return () => { unsubState(); unsubTruth(); unsubTick(); unsubKeys(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -135,26 +188,100 @@ export default function Journal() {
 
   // -------- feed model: newest-first over the active store (real fills win; else SAMPLE seeds) --------
   const cards = journalActiveCards();
-  const feedNote = cards.length
+  const view = cards.slice().reverse();
+
+  // -------- BROKER HISTORY model (live build only): real fills + dividends, grouped by day --------
+  const ccy = TruthStore.ccy || State.accountCcy || "USD";
+  const brokerFills = IS_MOCK ? [] : (TruthStore.fills || []);
+  const brokerDivs = IS_MOCK ? [] : (TruthStore.dividends || []);
+  const hasBroker = brokerFills.length > 0 || brokerDivs.length > 0;
+  const brokerDays = hasBroker ? groupBrokerDays(brokerFills, brokerDivs) : [];
+  const brokerSyncing = !IS_MOCK && TruthStore.sync === "syncing" && !hasBroker;
+  const brokerErr = !IS_MOCK && TruthStore.sync === "error" && !hasBroker;
+
+  // feed count note: session pages, plus a broker-day count when the live history is present.
+  const sessNote = cards.length
     ? (State.ordersLog.length ? cards.length + (cards.length === 1 ? " PAGE" : " PAGES") : "SAMPLE PAGES · CLEAR ON FIRST FILL")
     : "—";
-  const view = cards.slice().reverse();
+  const feedNote = hasBroker
+    ? brokerDays.length + (brokerDays.length === 1 ? " BROKER DAY · " : " BROKER DAYS · ") + sessNote
+    : sessNote;
 
   return (
     <section id="journal" className="appscreen active">
       <div className="screenbody">
         {/* HERO: the paper feed — every session fill becomes a dated, writable page */}
         <div className="card jn-feedcard">
-          <span className="plabel">JOURNAL // PAGES · SESSION</span>
+          <span className="plabel">JOURNAL // PAGES · {hasBroker ? "BROKER + SESSION" : "SESSION"}</span>
           <div className="jn-feedhead">
             <span className="chip teal">DIARY</span>
             <span className="jn-feednote">{feedNote}</span>
           </div>
           <div className="jn-feedscroll" ref={feedRef}>
+            {/* ---- BROKER HISTORY band (live build): real fills + dividends by calendar day ---- */}
+            {hasBroker && (
+              <>
+                <div className="jn-bandhead">
+                  <span className="jn-band-lbl">BROKER HISTORY</span>
+                  <span className="jn-band-sub mono">RECORDED · TRADING 212 · {ccy}</span>
+                </div>
+                {brokerDays.map((g) => (
+                  <div className="jn-card jn-broker" key={"bkr-" + g.day}>
+                    <div className="jn-cardhead jn-brokerhead">
+                      <span className="jn-daydate">{fmtDayLabel(g.day)}</span>
+                      <span className="jn-daycount mono">
+                        {g.fills.length ? g.fills.length + (g.fills.length === 1 ? " FILL" : " FILLS") : ""}
+                        {g.fills.length && g.dividends.length ? " · " : ""}
+                        {g.dividends.length ? g.dividends.length + (g.dividends.length === 1 ? " DIV" : " DIVS") : ""}
+                      </span>
+                    </div>
+                    <div className="jn-brokerlines">
+                      {/* each fill: side/sym/qty@price — side is a coloured WORD (market direction, not colour alone) */}
+                      {g.fills.map((f) => {
+                        const buy = f.side === "buy";
+                        const cls = buy ? "gain" : "loss";
+                        return (
+                          <div className="jn-bkrline" key={"f-" + f.id}>
+                            <span className={"jn-bkrside " + cls}>{arrow(buy ? 1 : -1)} {f.side.toUpperCase()}</span>
+                            <span className="jn-bkrqty mono">{f.quantity}</span>
+                            <span className="jn-bkrsym">{f.sym}</span>
+                            <span className="jn-at">@</span>
+                            {/* instrument-ccy price — bare number, never the account symbol */}
+                            <span className="jn-bkrprice mono">{fmtNum(f.fillPriceMinor / 100)}</span>
+                            <span className="jn-bkrval mono">{fmtMoney(f.filledValueMinor / 100, ccy)}</span>
+                          </div>
+                        );
+                      })}
+                      {/* each dividend: its own honest line item — a cash inflow, so a gain-tinted amount */}
+                      {g.dividends.map((dv) => (
+                        <div className="jn-bkrline jn-bkrdiv" key={"d-" + dv.id}>
+                          <span className="jn-bkrside gain">◆ DIV</span>
+                          <span className="jn-bkrsym">{dv.ticker}</span>
+                          <span className="jn-bkrprice mono gain">+{fmtMoney(dv.amountMinor / 100, ccy)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {/* honest band divider before the writable session pages */}
+                <div className="jn-banddiv"><span className="jn-band-lbl">SESSION</span></div>
+              </>
+            )}
+            {/* ---- SYNC / ERROR note (live build, broker history still loading/failed) ---- */}
+            {brokerSyncing && (
+              <div className="orders-empty">SYNCING BROKER HISTORY…</div>
+            )}
+            {brokerErr && (
+              <div className="orders-empty">BROKER HISTORY UNAVAILABLE — SYNC FAILED. THE SESSION PAGES BELOW ARE UNAFFECTED.</div>
+            )}
+
+            {/* ---- SESSION pages (writable, exactly as before) ---- */}
             {view.length === 0 ? (
-              <div className="orders-empty">
-                NO ENTRIES THIS SESSION — STAGE AND CONFIRM FROM <b>POSITIONS.dat</b>, OR JOT A FREE NOTE
-              </div>
+              !hasBroker && !brokerSyncing && !brokerErr && (
+                <div className="orders-empty">
+                  NO ENTRIES THIS SESSION — STAGE AND CONFIRM FROM <b>POSITIONS.dat</b>, OR JOT A FREE NOTE
+                </div>
+              )
             ) : (
               view.map((c) => {
                 const idx = cards.indexOf(c); // stable index into the store

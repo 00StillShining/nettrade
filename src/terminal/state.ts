@@ -85,7 +85,10 @@ export const State = {
   accountCcy: "USD",             // account currency (from T212 when live; £/€/$ display)
   // T212's own reported account figures when live (most accurate headline) —
   // null in the mock world, so the masthead falls back to computeEquity().
-  liveAccount: null as { totalMinor: number; freeMinor: number; pplMinor: number; ccy: string | null } | null,
+  // pplMinor = the masthead's TOTAL RETURN (unrealised + realised); unrealMinor =
+  // the PURE unrealised figure — the truth engine needs it separately, else
+  // realised would be double-counted (computeTruth adds its own fills-replay realised).
+  liveAccount: null as { totalMinor: number; freeMinor: number; pplMinor: number; unrealMinor: number; ccy: string | null } | null,
   positions: {                   // sym -> {qty, avgCost} — the seeded starter book (seed-77 world)
     "NVDA": { qty: 120, avgCost: 98.20 },
     "AAPL": { qty: 60, avgCost: 189.40 },

@@ -36,9 +36,9 @@
        hover scrubbing never forces a React render.
    ========================================================================= */
 
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, type ReactElement } from "react";
 import {
-  DataEngine, UNIVERSE, RANGES, clamp, lerp, fmtUSD, fmtNum, type Range,
+  DataEngine, UNIVERSE, RANGES, clamp, lerp, fmtUSD, fmtNum, fmtMoney, type Range,
 } from "../engine/dataEngine";
 import { THRESHOLDS } from "../engine/signals";
 import { lttb } from "../engine/indicators";
@@ -51,6 +51,21 @@ import { fitCanvas } from "../components/canvas";
 import { setTickText } from "../components/dom";
 import { registerRedraw, gotoScreen } from "../bus";
 import Roster from "../components/Roster";
+// LIVE Performance-Truth deck (worker B — may tsc-drift until truthStore.ts lands; keep the usage).
+import { TruthStore, startHistorySync } from "../engine/truthStore";
+import type { TimeSeriesPoint } from "../../engine/types";
+
+// VITE_MOCK builds must be a NO-OP for the whole live path (design builds stay SIMULATED candles).
+const IS_MOCK = import.meta.env.VITE_MOCK === "1";
+
+/* The TRUTH DECK is active only in a live build, on the PORTFOLIO source, when the
+   history sync has produced a real PerformanceTruth. Everything else (ROSTER, TYPED,
+   the mock build) keeps the SIMULATED candle deck untouched. This one predicate gates
+   the head chrome, the chart-area swap, the rail hide, AND the candle tick/repaint so
+   the two worlds never fight over the same canvases. */
+function truthDeckActive(): boolean {
+  return !IS_MOCK && Perf.source === "PORTFOLIO" && !!TruthStore.truth;
+}
 
 /* ================= PURE CANVAS GEOMETRY (prototype helpers, verbatim) ================= */
 
@@ -156,12 +171,14 @@ function perfTriangle(ctx: CanvasRenderingContext2D, x: number, y: number, s: nu
 export default function Performance() {
   const [, force] = useReducer((n: number) => n + 1, 0);
 
-  // ---- refs: the canvas layers + the two imperative text surfaces ----
+  // ---- refs: the candle canvas layers + the two imperative text surfaces ----
   const baseRef = useRef<HTMLCanvasElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
   const panesRef = useRef<HTMLDivElement | null>(null);
   const legendRef = useRef<HTMLDivElement | null>(null);
   const lastRef = useRef<HTMLSpanElement | null>(null);
+  // ---- ref: the TRUTH DECK canvas (net-deposits step + recorded value line) ----
+  const truthCvRef = useRef<HTMLCanvasElement | null>(null);
 
   /* ================= DRAW BASE (candles + volume + overlays + signal marks) =================
      The "static-ish" layer — redrawn on tick/toggle/resize but NOT on pointer
@@ -384,10 +401,114 @@ export default function Performance() {
 
   function drawAll(): void { drawBase(); drawPanes(); drawOverlay(); }
 
+  /* ================= TRUTH DECK CHART (net-deposits step + RECORDED value line) =================
+     CHART_CRAFT law, in the terminal's own cream/ink palette:
+       • canvas-2D only, data-derived time + value domains, honest un-truncated value axis.
+       • the DEPOSITS line is the FULL history (a step function — deposits are discrete events);
+         the VALUE line is snapshots ONLY and simply STARTS at the first snapshot. There is NO
+         interpolation before it — the honest-data law the whole app exists to enforce. The
+         pre-value stretch shows the deposits step alone.
+       • glow/emphasis is drawn IN-CANVAS (an ink-offset stamp underlay + a soft multi-pass on the
+         value line), NEVER a CSS filter (that class of filter bricked v1 in WKWebView).
+       • degrade gracefully: with <2 recorded value points, draw the deposits line + the single
+         value dot (if any) and let the caption say value recording just began.
+     x maps time linearly over [t0, t1] = the min/max epoch across BOTH series; y is value. */
+  function drawTruth(): void {
+    const cv = truthCvRef.current; if (!cv) return;
+    const { ctx, w, h } = fitCanvas(cv); ctx.clearRect(0, 0, w, h);
+    const series = TruthStore.series; if (!series) return;
+    const dep = series.netDeposits || [];
+    const val = series.value || [];
+    if (!dep.length && !val.length) return;
+
+    const epoch = (p: TimeSeriesPoint): number => { const t = Date.parse(p.atISO); return isFinite(t) ? t : 0; };
+    // shared TIME domain across both series (honest: the value line lives inside the same axis).
+    let t0 = Infinity, t1 = -Infinity;
+    for (const p of dep) { const t = epoch(p); if (t < t0) t0 = t; if (t > t1) t1 = t; }
+    for (const p of val) { const t = epoch(p); if (t < t0) t0 = t; if (t > t1) t1 = t; }
+    if (!isFinite(t0) || !isFinite(t1)) return;
+    const tSpan = (t1 - t0) || 1;
+    // shared VALUE domain (minor units) — data-derived, includes 0 so the deposits baseline reads true.
+    let vMin = Infinity, vMax = -Infinity;
+    const eat = (m: number): void => { if (m < vMin) vMin = m; if (m > vMax) vMax = m; };
+    for (const p of dep) eat(p.valueMinor);
+    for (const p of val) eat(p.valueMinor);
+    if (!isFinite(vMin)) { vMin = 0; vMax = 1; }
+    vMin = Math.min(vMin, 0); // truthful baseline: never truncate the "money in" floor above zero
+    const vRng = (vMax - vMin) || 1;
+
+    const padL = 8, padR = 8, padTop = 10, padBot = 18;
+    const xOf = (t: number): number => padL + ((t - t0) / tSpan) * (w - padL - padR);
+    const yOf = (m: number): number => padTop + (1 - (m - vMin) / vRng) * (h - padTop - padBot);
+    const ccy = TruthStore.ccy || State.accountCcy || "USD";
+
+    // ---- gridlines + value axis labels (teal dotted, mono — matches the candle deck) ----
+    ctx.strokeStyle = "rgba(93,139,128,.24)"; ctx.lineWidth = 1; ctx.setLineDash([2, 4]);
+    ctx.font = '10px "IBM Plex Mono", monospace'; ctx.fillStyle = "rgba(93,139,128,.85)";
+    for (let g = 0; g <= 4; g++) {
+      const y = padTop + (g / 4) * (h - padTop - padBot);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+      const v = vMax - (g / 4) * vRng;
+      ctx.setLineDash([]);
+      ctx.fillText(fmtMoney(v / 100, ccy, 0), padL + 2, y - 2);
+      ctx.setLineDash([2, 4]);
+    }
+    ctx.setLineDash([]);
+
+    // ---- DEPOSITS step line (full history) — the "money you put in" baseline ----
+    // a step: hold each level to the next event's x, then jump. Deposits are discrete, not a curve.
+    if (dep.length) {
+      const stepPts: [number, number][] = [];
+      for (let i = 0; i < dep.length; i++) {
+        const x = xOf(epoch(dep[i])), y = yOf(dep[i].valueMinor);
+        if (i > 0) stepPts.push([x, stepPts[stepPts.length - 1][1]]); // horizontal hold to this x
+        stepPts.push([x, y]);                                          // then the vertical jump
+      }
+      // extend the final level to the right edge (deposits persist until the next event)
+      if (stepPts.length) stepPts.push([w - padR, stepPts[stepPts.length - 1][1]]);
+      // ink-offset stamp underlay (the CHART_CRAFT anti-slop idiom), then the teal step on top
+      ctx.lineJoin = "round"; ctx.lineCap = "round";
+      ctx.beginPath(); stepPts.forEach((p, i) => i ? ctx.lineTo(p[0] + 1.5, p[1] + 1.5) : ctx.moveTo(p[0] + 1.5, p[1] + 1.5));
+      ctx.strokeStyle = "rgba(35,32,26,.5)"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); stepPts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+      ctx.strokeStyle = "#5D8B80"; ctx.lineWidth = 1.6; ctx.setLineDash([5, 3]); ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // ---- RECORDED value line (snapshots ONLY) — starts at the first snapshot, no interpolation before ----
+    if (val.length >= 2) {
+      const vp: [number, number][] = val.map((p) => [xOf(epoch(p)), yOf(p.valueMinor)]);
+      // in-canvas soft glow: two decreasing-alpha wide passes + the core (no CSS filter — WKWebView-safe)
+      const passes = [{ w: 6, a: 0.10 }, { w: 3.4, a: 0.20 }, { w: 1.9, a: 1 }];
+      for (const pass of passes) {
+        ctx.beginPath(); vp.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+        ctx.strokeStyle = "#D9942B"; ctx.globalAlpha = pass.a; ctx.lineWidth = pass.w;
+        ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      // recorded snapshot dots (honest: these are the ONLY true value points)
+      ctx.fillStyle = "#D9942B";
+      for (const [x, y] of vp) { ctx.beginPath(); ctx.arc(x, y, 2.2, 0, 7); ctx.fill(); }
+    } else if (val.length === 1) {
+      // graceful degrade: exactly one recorded point — draw it as a dot, no line to fabricate.
+      const x = xOf(epoch(val[0])), y = yOf(val[0].valueMinor);
+      ctx.fillStyle = "#D9942B"; ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fill();
+    }
+
+    // ---- "VALUE RECORDED FROM" marker: a faint vertical tick at the first snapshot's x ----
+    if (val.length) {
+      const x0 = xOf(epoch(val[0]));
+      ctx.strokeStyle = "rgba(217,148,43,.45)"; ctx.setLineDash([2, 3]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x0, padTop); ctx.lineTo(x0, h - padBot); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+
   /* ================= TICK (prototype perfTick — extend ONLY the live-forming candle) =================
      Never adds/moves a closed bar: the last bar's C/H/L walk while O stays —
      the non-repainting law holds because closedN already excludes this bar. */
   function perfTick(): void {
+    // TRUTH DECK has no candles — it redraws only on a history sync, never on the 1–2s price walk.
+    // Skip the candle tick entirely so the two worlds never fight over the same canvases.
+    if (truthDeckActive()) return;
     if (!Perf.bars.length) return; // (the prototype also gated on State.screen; here unmount unsubscribes)
     const last = Perf.bars[Perf.bars.length - 1];
     let px: number;
@@ -424,17 +545,24 @@ export default function Performance() {
   useEffect(() => {
     const u1 = stateSubscribe(force);          // toggles / rail / source / range / roster-select reloads
     const u2 = DataEngine.subscribe(perfTick); // 1–2s walk: extend live candle, patch numerals, redraw
-    const u3 = registerRedraw(drawAll);        // shell calls on resize + power-off swap/settle
-    // prototype renderPerf: first entry loads the series; returning to the screen
-    // keeps the bars (and the operator's toggle set) exactly where they were left.
+    // shell resize / power-off redraw: in truth mode repaint the truth chart, else the candle deck.
+    const u3 = registerRedraw(() => { if (truthDeckActive()) drawTruth(); else drawAll(); });
+    // TRUTH DECK sync (live build): a completed sync re-renders the deck via force() so the dossier +
+    // chart reveal. No-op / inert under VITE_MOCK (truthDeckActive() is false there).
+    const u4 = TruthStore.subscribe(force);
+    startHistorySync();                        // idempotent kick; no-op under VITE_MOCK or when no creds
+    // prototype renderPerf: first entry loads the candle series; returning keeps bars + toggles put.
+    // (The truth deck needs no bars — it reads TruthStore.series directly.)
     if (!Perf.bars.length) perfLoadSeries();
-    return () => { u1(); u2(); u3(); };
+    return () => { u1(); u2(); u3(); u4(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // after EVERY render (mount + each state-driven re-render): full repaint —
   // the prototype's perfSyncPanes()+perfDrawAll() tail of every mutation path.
+  // Branch on the deck: the truth chart is a distinct canvas from the candle layers.
   useEffect(() => {
+    if (truthDeckActive()) { drawTruth(); return; }
     drawAll();
     if (Perf.bars.length) {
       const last = Perf.bars[Perf.bars.length - 1];
@@ -442,11 +570,44 @@ export default function Performance() {
     }
   });
 
+  /* ================= TRUTH DECK render model (live build, PORTFOLIO source) ================= */
+  const truthMode = truthDeckActive();
+  const truth = truthMode ? TruthStore.truth! : null;
+  const tCcy = TruthStore.ccy || State.accountCcy || "USD";
+  // head chrome for the truth deck: it IS live data — PORTFOLIO / Performance-Truth / LIVE tag.
+  const whoSym = truthMode ? "PORTFOLIO" : Perf.symLabel;
+  const whoNm = truthMode ? "Performance-Truth" : Perf.nmLabel;
+  const whoTag = truthMode ? "LIVE" : Perf.tag;
+  // the honest "value recording started" date for the chart caption (null = no snapshot yet).
+  const firstSnapDate = (() => {
+    const iso = TruthStore.firstSnapshotISO || (TruthStore.series?.value?.[0]?.atISO ?? null);
+    return iso ? iso.slice(0, 10) : null;
+  })();
+  const valuePts = TruthStore.series?.value?.length ?? 0;
+
+  /* one truth-split dossier row: LABEL ↔ signed money figure. `signed` figures carry
+     sign + ▲/▼ + gain/loss colour (a real gain/loss number, legitimately coloured);
+     `flat` figures (contributions, fees, dividends, interest) are neutral ink — a
+     magnitude with no gain/loss meaning of its own. `hero` gets the big TOTAL GAIN look. */
+  function truthRow(label: string, minor: number, opts?: { signed?: boolean; hero?: boolean; sub?: string }): ReactElement {
+    const signed = !!opts?.signed;
+    const cls = signed ? (minor >= 0 ? "gain" : "loss") : "";
+    const body = signed
+      ? (minor >= 0 ? "▲ " : "▼ ") + fmtMoney(Math.abs(minor) / 100, tCcy)
+      : fmtMoney(minor / 100, tCcy);
+    return (
+      <div className={"truth-row" + (opts?.hero ? " hero" : "")} key={label}>
+        <span className="truth-k">{label}{opts?.sub && <span className="truth-sub">{opts.sub}</span>}</span>
+        <span className={"truth-v mono " + cls}>{body}</span>
+      </div>
+    );
+  }
+
   return (
     <section id="perf" className="appscreen active">
       <div className="screenbody perf-body">
-        <div className="card perf-main">
-          <span className="plabel">PERFORMANCE // ANALYSIS DECK</span>
+        <div className={"card perf-main" + (truthMode ? " perf-truthmode" : "")}>
+          <span className="plabel">PERFORMANCE // {truthMode ? "TRUTH DECK" : "ANALYSIS DECK"}</span>
           <div className="perf-head">
             <div className="perf-src">
               <span className="chip teal" style={{ marginRight: 2 }}>SOURCE</span>
@@ -470,19 +631,75 @@ export default function Performance() {
               </div>
             </div>
             <div className="perf-who">
-              <span className="sym" id="perfSym">{Perf.symLabel}</span>
-              <span className="nm" id="perfNm">{Perf.nmLabel}</span>
-              <span className={"perf-tag " + (Perf.tag === "SIMULATED" ? "sim" : Perf.tag === "LIVE" ? "live" : "mock")} id="perfTag">{Perf.tag}</span>
-              {/* empty at mount; the tick patcher owns the text (dataset.val discipline) */}
-              <span className="last mono" id="perfLast" ref={lastRef} />
+              <span className="sym" id="perfSym">{whoSym}</span>
+              <span className="nm" id="perfNm">{whoNm}</span>
+              <span className={"perf-tag " + (whoTag === "SIMULATED" ? "sim" : whoTag === "LIVE" ? "live" : "mock")} id="perfTag">{whoTag}</span>
+              {/* candle-tick numeral surface — meaningless on the truth deck (no live-forming candle) */}
+              {!truthMode && <span className="last mono" id="perfLast" ref={lastRef} />}
             </div>
-            <div className="rangetog" id="perfRangeTog">
-              {RANGES.map((r: Range) => (
-                <button key={r} className={r === Perf.range ? "on" : ""} onClick={() => setRange(r)}>{r}</button>
-              ))}
-            </div>
+            {/* range toggle is meaningless on the truth deck — it shows FULL history, always */}
+            {!truthMode && (
+              <div className="rangetog" id="perfRangeTog">
+                {RANGES.map((r: Range) => (
+                  <button key={r} className={r === Perf.range ? "on" : ""} onClick={() => setRange(r)}>{r}</button>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="perf-stage">
+          <div className={"perf-stage" + (truthMode ? " perf-truthstage" : "")}>
+            {/* ===================== TRUTH DECK (live build, PORTFOLIO source) ===================== */}
+            {truthMode && truth && (
+              <>
+                {/* HERO + SUPPORTING: the truth-split dossier — every figure from TruthStore.truth */}
+                <div className="truth-dossier">
+                  <div className="truth-splitgrid">
+                    {truthRow("NET CONTRIBUTIONS", truth.netContributionsMinor, { sub: "deposits − withdrawals" })}
+                    {/* the engine's documented v1 limitation (engine/types.ts): realised is
+                        computed in each trade's own instrument-ccy terms — the truth deck
+                        must surface that caveat, not silently stamp the account symbol. */}
+                    {truthRow("REALISED P/L", truth.realisedPlMinor, { signed: true, sub: "instr-ccy terms · exact for single-ccy accounts" })}
+                    {truthRow("UNREALISED P/L", truth.unrealisedPlMinor, { signed: true })}
+                    {truthRow("DIVIDENDS", truth.dividendsMinor)}
+                    {truthRow("FEES", truth.feesMinor)}
+                    {truthRow("INTEREST", truth.interestMinor)}
+                  </div>
+                  {/* THE ONE HERO: TOTAL GAIN — the honest "what you actually made" + return % */}
+                  <div className="truth-herowrap">
+                    {truthRow("TOTAL GAIN", truth.totalGainMinor, { signed: true, hero: true })}
+                    <div className="truth-return">
+                      <span className="truth-k">RETURN</span>
+                      <span className={"truth-v mono " + (truth.totalReturnPct == null ? "" : truth.totalReturnPct >= 0 ? "gain" : "loss")}>
+                        {truth.totalReturnPct == null
+                          ? "—"
+                          : (truth.totalReturnPct >= 0 ? "▲ +" : "▼ ") + Math.abs(truth.totalReturnPct).toFixed(2) + "%"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* THE CHART: net-deposits step (full history) + RECORDED value line (snapshots only) */}
+                <div className="truth-chartcol">
+                  <div className="truth-legend mono">
+                    <span className="tl-item"><span className="tl-sw" style={{ background: "#5D8B80" }} />NET DEPOSITS · FULL HISTORY</span>
+                    <span className="tl-item"><span className="tl-sw" style={{ background: "#D9942B" }} />VALUE · RECORDED SNAPSHOTS</span>
+                  </div>
+                  <div className="perf-well truth-well">
+                    <canvas id="perfTruth" ref={truthCvRef} />
+                  </div>
+                  <div className="truth-caption mono">
+                    {firstSnapDate
+                      ? (valuePts >= 2
+                          ? `VALUE RECORDED FROM ${firstSnapDate} — deposits & realised are full history. No value is drawn before the first snapshot.`
+                          : `FIRST VALUE POINT RECORDED ${firstSnapDate} — the value line begins once a second snapshot is recorded. Deposits shown in full.`)
+                      : "NO VALUE SNAPSHOT RECORDED YET — deposits & realised shown in full; the value line begins at the first recorded snapshot."}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ===================== CANDLE DECK (ROSTER / TYPED / mock — unchanged) ===================== */}
+            {!truthMode && (
+            <>
             <div className="perf-canvaswrap">
               <div className="perf-chartcol">
                 <div
@@ -530,6 +747,8 @@ export default function Performance() {
                 ))}
               </div>
             </div>
+            </>
+            )}
           </div>
         </div>
         <div className="perf-roster-wrap"><Roster /></div>
@@ -537,8 +756,9 @@ export default function Performance() {
 
       <div className="hintbar screen-hints">
         <span className="h"><kbd>Q</kbd><kbd>E</kbd><span className="t">CYCLE APPS</span></span>
-        <span className="h"><kbd>I</kbd><span className="t">RAIL</span></span>
-        <span className="h"><kbd>1</kbd>…<kbd>9</kbd><span className="t">TOGGLE</span></span>
+        {/* rail + number toggles are candle-deck verbs — hidden on the truth deck */}
+        {!truthMode && <span className="h"><kbd>I</kbd><span className="t">RAIL</span></span>}
+        {!truthMode && <span className="h"><kbd>1</kbd>…<kbd>9</kbd><span className="t">TOGGLE</span></span>}
         <span className="h"><kbd>◀</kbd><kbd>▶</kbd><span className="t">ROSTER</span></span>
       </div>
       <div className="escback" data-esc onClick={() => gotoScreen("dash")}><kbd>ESC</kbd><span>BACK</span></div>

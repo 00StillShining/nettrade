@@ -872,6 +872,29 @@
 
 .t77 .orders-roster-wrap{ margin-top:14px; }
 
+/* ---- LIVE broker ledger (worker C): real executed fills become the hero; the DRY-RUN
+   session log drops below a hard divider. Honest separation, both visible. ---- */
+/* RECORDED provenance chip next to the count — quiet mono, never a market colour */
+.t77 .ord-recorded{ font-family:var(--f-mono); font-size:10px; letter-spacing:.08em; color:var(--teal);
+  text-transform:uppercase; margin-left:auto; }
+
+/* STATUS column: the broker's own executed/filled word — quiet ink, left-aligned */
+.t77 table.ledger td.ord-status{ font-family:var(--f-mono); font-size:11px; letter-spacing:.05em;
+  color:var(--ink-soft); text-transform:uppercase; }
+
+/* when both ledgers show, the live one owns the scroll and the session block is content-sized
+   below the divider (it is a short rehearsal log, not the main record). */
+.t77 .orders-scroll-live{ flex:1 1 auto; min-height:0; }
+.t77 .orders-scroll-session{ flex:0 0 auto; max-height:30vh; }
+.t77 .orders-session-block{ flex:0 0 auto; display:flex; flex-direction:column; min-height:0; margin-top:4px; }
+
+/* the DRY-RUN divider — an ink rule with an overlapping label, unmistakably separating
+   real broker history from the read-only session fiction. */
+.t77 .orders-divider{ position:relative; margin:14px 0 8px; border-top:2px solid var(--ink); }
+.t77 .orders-divider-lbl{ position:absolute; top:-9px; left:10px; background:var(--paper);
+  padding:0 8px; font-family:var(--f-mono); font-size:10px; font-weight:600; letter-spacing:.08em;
+  color:var(--ink-soft); text-transform:uppercase; }
+
 
 /* ============================ PERFORMANCE (UPGRADE 4) ============================= */
 .t77 #perf .screenbody{ display:flex; flex-direction:column; min-height:0; }
@@ -1339,9 +1362,90 @@
 
 .t77 .perf-roster-wrap{ margin-top:14px; }
 
+/* ============================ PERFORMANCE-TRUTH DECK (worker C, live build) ============================
+   When source=PORTFOLIO and a real PerformanceTruth exists, the candle deck is REPLACED by the truth
+   split dossier (left, the answer) + the honest deposits/value chart (right). One clear HERO: TOTAL GAIN.
+   §1 palette: gain/loss (sign + ▲/▼ + colour) touches only the genuinely-signed figures (realised,
+   unrealised, total gain, return %); contributions/dividends/fees/interest are neutral ink magnitudes. */
+.t77 .perf-truthstage{ display:flex; gap:16px; align-items:stretch; }
+
+/* LEFT: the split dossier — a fixed-width column of LABEL ↔ figure rows on cream paper */
+.t77 .truth-dossier{ flex:0 0 340px; display:flex; flex-direction:column; min-height:0; }
+
+.t77 .truth-splitgrid{ display:flex; flex-direction:column; gap:0; }
+
+.t77 .truth-row{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+  padding:9px 2px; border-bottom:1px solid rgba(35,32,26,.16); }
+
+.t77 .truth-row .truth-k{ font-family:var(--f-mono); font-size:11px; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--ink-soft); display:flex; flex-direction:column; gap:1px; }
+
+.t77 .truth-row .truth-sub{ font-family:var(--f-prose); font-size:10px; font-style:italic;
+  letter-spacing:0; text-transform:none; color:var(--ink-soft); opacity:.8; }
+
+.t77 .truth-row .truth-v{ font-family:var(--f-mono); font-weight:600; font-size:15px; color:var(--ink);
+  font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+.t77 .truth-row .truth-v.gain{ color:var(--gain); }
+.t77 .truth-row .truth-v.loss{ color:var(--loss); }
+
+/* THE HERO: TOTAL GAIN — bordered ink block, biggest figure on the screen, unmissable */
+.t77 .truth-herowrap{ margin-top:12px; border:2px solid var(--ink); background:var(--paper-dark);
+  box-shadow:0 3px 0 var(--ink-soft); padding:2px 12px 10px; }
+
+.t77 .truth-row.hero{ border-bottom:1.5px solid rgba(35,32,26,.28); padding:12px 0 10px; }
+
+.t77 .truth-row.hero .truth-k{ font-family:var(--f-cond); font-weight:800; font-size:13px; letter-spacing:.12em; color:var(--ink); }
+
+.t77 .truth-row.hero .truth-v{ font-size:28px; font-weight:700; letter-spacing:.01em; }
+
+.t77 .truth-return{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:9px 0 2px; }
+
+.t77 .truth-return .truth-k{ font-family:var(--f-mono); font-size:11px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--ink-soft); }
+
+.t77 .truth-return .truth-v{ font-family:var(--f-mono); font-weight:700; font-size:18px; color:var(--ink);
+  font-variant-numeric:tabular-nums; }
+
+.t77 .truth-return .truth-v.gain{ color:var(--gain); }
+.t77 .truth-return .truth-v.loss{ color:var(--loss); }
+
+/* RIGHT: the honest chart column — legend, dark canvas well, honest caption */
+.t77 .truth-chartcol{ flex:1 1 auto; display:flex; flex-direction:column; min-height:0; min-width:0; gap:6px; }
+
+.t77 .truth-legend{ flex:0 0 auto; display:flex; gap:16px; flex-wrap:wrap; font-family:var(--f-mono);
+  font-size:10px; letter-spacing:.05em; color:#9CB4A9; text-transform:uppercase; }
+
+.t77 .truth-legend .tl-item{ display:inline-flex; align-items:center; gap:6px; }
+
+.t77 .truth-legend .tl-sw{ width:14px; height:3px; flex:0 0 auto; }
+
+/* reuse the dark CRT well look; the canvas fills it (inset:0 like the candle base) */
+.t77 .truth-well{ flex:1 1 auto; min-height:0; }
+
+.t77 .truth-well canvas{ position:absolute; inset:0; width:100%; height:100%; }
+
+/* the honest-data caption — humanist body, states exactly when value recording began, never claims
+   an interpolated curve. Calm, quiet, always visible under the chart. */
+.t77 .truth-caption{ flex:0 0 auto; font-family:var(--f-prose); font-size:11px; line-height:1.5;
+  color:#9CB4A9; letter-spacing:.01em; }
+
 @media (max-width:1100px){
 
     .t77 .perf-rail{ flex-basis:132px; }
+
+    .t77 .truth-dossier{ flex-basis:280px; }
+
+}
+
+/* narrow / short: the dossier stacks above the chart so the hero answer still lands first */
+@media (max-width:900px){
+
+    .t77 .perf-truthstage{ flex-direction:column; }
+
+    .t77 .truth-dossier{ flex:0 0 auto; }
+
+    .t77 .truth-chartcol{ min-height:220px; }
 
 }
 
@@ -1651,6 +1755,43 @@
   color:var(--teal); border-left:2px solid var(--teal); padding:2px 0 2px 8px; }
 
 .t77 .jn-roster-wrap{ grid-area:roster; margin-top:2px; }
+
+/* ---- BROKER HISTORY (worker C, live build): real fills + dividends grouped by calendar day,
+   ABOVE the writable session pages. These are HISTORICAL RECORD — read-only, no textarea/tags/pill.
+   §1 palette: gain/loss touches only the side WORD + @price/dividend numerals; the day header,
+   band labels and provenance chrome stay ink/teal. ---- */
+/* band header separating the two provenances inside the feed scroll */
+.t77 .jn-bandhead{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; padding:2px 2px 0; }
+.t77 .jn-band-lbl{ font-family:var(--f-cond); font-weight:800; font-size:12px; letter-spacing:.12em;
+  color:var(--ink); text-transform:uppercase; }
+.t77 .jn-band-sub{ font-family:var(--f-mono); font-size:10px; letter-spacing:.06em; color:var(--teal);
+  text-transform:uppercase; }
+/* the ink rule between BROKER HISTORY and SESSION, with an overlapping label */
+.t77 .jn-banddiv{ position:relative; margin:6px 0 2px; border-top:2px solid var(--ink); }
+.t77 .jn-banddiv .jn-band-lbl{ position:absolute; top:-9px; left:8px; background:var(--paper);
+  padding:0 8px; font-size:11px; letter-spacing:.14em; color:var(--ink-soft); }
+
+/* a broker DAY card — same paper-card grammar as a session page, but solid (not dashed) and calm */
+.t77 .jn-broker{ padding:10px 12px 9px; }
+.t77 .jn-brokerhead{ display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+  border-bottom:1px solid rgba(35,32,26,.2); padding-bottom:6px; margin-bottom:6px; }
+.t77 .jn-daydate{ font-family:var(--f-cond); font-weight:800; font-size:14px; letter-spacing:.06em; color:var(--ink); }
+.t77 .jn-daycount{ font-family:var(--f-mono); font-size:10px; letter-spacing:.05em; color:var(--ink-soft); }
+
+.t77 .jn-brokerlines{ display:flex; flex-direction:column; gap:4px; }
+/* one fill / dividend line: identity left, figures pushed right, tabular */
+.t77 .jn-bkrline{ display:flex; align-items:baseline; gap:8px; font-family:var(--f-mono);
+  font-size:12px; color:var(--ink); font-variant-numeric:tabular-nums; }
+.t77 .jn-bkrside{ font-family:var(--f-cond); font-weight:800; letter-spacing:.06em; min-width:56px; }
+.t77 .jn-bkrside.gain{ color:var(--gain); }
+.t77 .jn-bkrside.loss{ color:var(--loss); }
+.t77 .jn-bkrqty{ color:var(--ink); font-weight:600; }
+.t77 .jn-bkrsym{ font-family:var(--f-cond); font-weight:800; font-size:13px; letter-spacing:.04em; color:var(--ink); }
+.t77 .jn-bkrprice{ color:var(--ink); font-weight:600; }
+.t77 .jn-bkrprice.gain{ color:var(--gain); }
+.t77 .jn-bkrval{ margin-left:auto; color:var(--ink-soft); }
+/* dividend line: a cash inflow — the diamond glyph + gain-tinted amount, honestly its own item */
+.t77 .jn-bkrdiv .jn-bkrsym{ color:var(--ink-soft); }
 
 /* empty state reuses .orders-empty look, fills the feed card */
 .t77 #journal .orders-empty{ margin:auto 0; }

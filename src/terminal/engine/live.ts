@@ -38,6 +38,7 @@ import {
 } from "./dataEngine";
 import { seedFromString } from "./prng";
 import { State, notifyState } from "../state";
+import { startHistorySync, recordSnapshot, loadTruth } from "./liveHistory";
 
 const IS_MOCK = import.meta.env.VITE_MOCK === "1";
 
@@ -123,9 +124,16 @@ let credsPromise: Promise<Credentials | null> | undefined;
 export function resetLiveCaches(): void {
   credsPromise = undefined;
   resetFmpKeyCache();
+  // A saved/cleared key means the next sync may be a DIFFERENT account — let the
+  // history back-fill re-kick on the following refresh (guard defined below).
+  historyKicked = false;
 }
 
-async function getCreds(): Promise<Credentials | null> {
+/** Read the T212 credentials from the Keychain, cached once per launch (see the
+ *  comment above `credsPromise`). Exported so liveHistory.ts can reuse the SAME
+ *  cached read path — there must be exactly ONE Keychain read discipline, never
+ *  a second prompt source. */
+export async function getCreds(): Promise<Credentials | null> {
   if (credsPromise) return credsPromise;
   credsPromise = (async () => {
     try {
@@ -163,6 +171,17 @@ async function getCreds(): Promise<Credentials | null> {
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 let inFlight = false;
+
+// phase 2c — the history back-fill is kicked at most ONCE per launch (the 5-min
+// poller must not re-paginate the rate-limited history every tick); a manual
+// refreshLive() forces a re-kick by clearing this flag. startHistorySync() is
+// itself idempotent (in-flight guarded), so this is belt-and-braces on top.
+let historyKicked = false;
+function kickHistoryOnce(): void {
+  if (historyKicked) return;
+  historyKicked = true;
+  void startHistorySync();
+}
 
 /** One live sync. Defensive throughout — any failure leaves the last-good/mock
  *  world intact and never blanks or crashes the app. */
@@ -209,14 +228,23 @@ async function refresh(): Promise<void> {
       State.positions = {};
       if (freeMinor) State.cash = freeMinor / 100;
       State.accountCcy = cashCcy || State.accountCcy;
+      // pplMinor = TOTAL RETURN for the masthead (an all-closed account still
+      // shows its realised result); unrealMinor = pure unrealised (cash.ppl).
       State.liveAccount = totalMinor
-        ? { totalMinor, freeMinor, pplMinor, ccy: cashCcy }
+        ? { totalMinor, freeMinor, pplMinor: pplMinor + resultMinor, unrealMinor: pplMinor, ccy: cashCcy }
         : null;
       DataEngine.provider = "LIVE";
       DataEngine.live = true;
       DataEngine.accountLive = true;
       DataEngine.notify();
       notifyState();
+      // phase 2c — connected with no open positions still has cash-event /
+      // dividend history worth syncing (deposits, interest, closed-position
+      // dividends). Kick the back-fill and record an honest value snapshot
+      // (recordSnapshot no-ops until history sync has completed once). loadTruth
+      // is CHAINED after the snapshot so the fresh point is in the series it reads.
+      kickHistoryOnce();
+      void recordSnapshot(totalMinor || freeMinor, cashCcy || State.accountCcy).then(() => loadTruth());
       return;
     }
 
@@ -271,7 +299,7 @@ async function refresh(): Promise<void> {
     if (freeMinor) State.cash = freeMinor / 100;
     State.accountCcy = acctCcy;
     // positions exist on this path, so we always have a real headline to show.
-    State.liveAccount = { totalMinor: acctTotalMinor, freeMinor, pplMinor: acctPplMinor, ccy: acctCcy };
+    State.liveAccount = { totalMinor: acctTotalMinor, freeMinor, pplMinor: acctPplMinor, unrealMinor, ccy: acctCcy };
     if (!syms.includes(State.selected)) State.selected = syms[0];
 
 
@@ -286,6 +314,11 @@ async function refresh(): Promise<void> {
     DataEngine.accountLive = true;
     DataEngine.notify();
     notifyState();
+
+    // phase 2c — kick the incremental history back-fill AFTER first paint so it
+    // never blocks the portfolio showing (the ~6/min history endpoints are slow).
+    // Idempotent + once-per-launch; a manual refreshLive() re-kicks it.
+    kickHistoryOnce();
 
     // --- FMP day-% enrichment (stocks only; optional) ---
     try {
@@ -327,6 +360,15 @@ async function refresh(): Promise<void> {
     DataEngine.accountLive = true;
     DataEngine.notify();
     notifyState();
+
+    // phase 2c — end of a successful refresh: record ONE honest value snapshot at
+    // the freshly-confirmed account total (minute-deduped; a no-op until the
+    // history back-fill has completed at least once, so net deposits are known
+    // and never invented), then re-run the pure Performance-Truth load so the
+    // History/Performance screens reflect the latest live mark.
+    // chained so the freshly-recorded snapshot is included in the series loadTruth
+    // publishes (concurrent voids left the newest value dot one refresh behind).
+    void recordSnapshot(acctTotalMinor, acctCcy).then(() => loadTruth());
   } finally {
     inFlight = false;
   }
@@ -345,7 +387,11 @@ export function stopLive(): void {
   if (timer) { clearInterval(timer); timer = null; }
 }
 
-/** Force an immediate live sync (e.g. after the user saves a key or hits refresh). */
+/** Force an immediate live sync (e.g. after the user saves a key or hits refresh).
+ *  Clears the once-per-launch history guard so a MANUAL refresh also re-kicks the
+ *  history back-fill/catch-up (startHistorySync is still in-flight-guarded, so a
+ *  re-kick while one is running is a no-op). */
 export function refreshLive(): void {
+  historyKicked = false;
   void refresh();
 }
