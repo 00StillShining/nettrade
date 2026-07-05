@@ -65,6 +65,11 @@ export interface VaultSlot {
   /** Live probe state + an honest one-line note (e.g. plan / reason). */
   probe: ProbeState;
   note: string;
+  /** Wall-clock ms of the last COMPLETED probe this session (any outcome —
+   *  verified or rejected), or null if never tested. Session-scoped ONLY:
+   *  deliberately NOT persisted (a stale "last tested" across launches would be
+   *  a lie about freshness). Drives the "last tested HH:MM" stamp (item 22a). */
+  lastTestedAt: number | null;
   /** True while a Keychain write is in flight. */
   saving: boolean;
   /** Write the typed key to the Keychain (real), then refresh seat state. */
@@ -257,6 +262,9 @@ function useSlot(cfg: SlotConfig): VaultSlot {
   const [committedTail, setCommittedTail] = useState<string | null>(null);
   const [probe, setProbe] = useState<ProbeState>("idle");
   const [note, setNote] = useState("");
+  // Session-scoped "last tested" wall-clock — set when a probe RESOLVES (any
+  // outcome), never persisted (item 22a). null until the first completed test.
+  const [lastTestedAt, setLastTestedAt] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const mounted = useRef(true);
 
@@ -308,6 +316,9 @@ function useSlot(cfg: SlotConfig): VaultSlot {
       setInput(""); // never keep the raw credential in component state after commit
       setInput2("");
       setProbe("idle"); // a new key invalidates the prior probe result
+      // the prior probe TIME belongs to the OLD key — clear it so we never stamp
+      // a fresh, untested key with a stale "last tested" (that would be a lie).
+      setLastTestedAt(null);
       setNote("Saved — press TEST to verify");
     } catch {
       // a denied Keychain prompt / write failure must NOT read as success
@@ -333,6 +344,7 @@ function useSlot(cfg: SlotConfig): VaultSlot {
       setInput("");
       setInput2("");
       setProbe("idle");
+      setLastTestedAt(null); // no key → no meaningful last-tested time
       setNote("");
     } catch {
       if (!mounted.current) return;
@@ -351,10 +363,15 @@ function useSlot(cfg: SlotConfig): VaultSlot {
       if (!mounted.current) return;
       setProbe(result.probe);
       setNote(result.note);
+      // Stamp the completion time for the "last tested HH:MM" readout — on ANY
+      // resolved outcome (verified OR rejected), since both are honest evidence
+      // the link was checked just now. Session-scoped; never persisted.
+      setLastTestedAt(Date.now());
     } catch {
       if (!mounted.current) return;
       setProbe("error");
       setNote("Probe failed unexpectedly");
+      setLastTestedAt(Date.now());
     }
   }, [cfg, trimmed]);
 
@@ -369,6 +386,7 @@ function useSlot(cfg: SlotConfig): VaultSlot {
     maskedTail: maskTail(committedTail),
     probe,
     note,
+    lastTestedAt,
     saving,
     save,
     clear,

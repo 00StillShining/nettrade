@@ -74,9 +74,22 @@ const REFRESH_CHIPS: RefreshChip[] = [
   { label: "5m", interval: 5 },
 ];
 
-/* Control groups, top→bottom, for ↑↓ keyboard focus. */
-const GROUP_IDS = ["t212", "marketdata", "connection", "security", "environment", "refresh", "datamode"] as const;
+/* Control groups, top→bottom, for ↑↓ keyboard focus. Item 22b MERGED the former
+   duplicate "datamode" group into "environment" — both toggled the SAME env
+   state, so two controls for one truth was a honesty/clarity bug. "environment"
+   is now the single Demo/Live control (carrying the read-only note). */
+const GROUP_IDS = ["t212", "marketdata", "connection", "security", "environment", "refresh"] as const;
 type GroupId = (typeof GROUP_IDS)[number];
+
+/* Format a session-scoped probe timestamp as a bare local HH:MM for the
+   "last tested" stamp (item 22a). Zero-padded, 24h, no seconds — the same terse
+   telemetry clock the rest of the station reads in. */
+function fmtTestedTime(ms: number): string {
+  const d = new Date(ms);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
 
 /* Map a slot's honest probe state to a status word + whether it's a "good" tone
    (drives the red vs. muted dot — red only when a claim is real). */
@@ -234,6 +247,12 @@ function CredentialSlot({
         <span className={`${s.status} ${good ? s.stored : s.pending}`}>
           <i className={s.dot} />
           {word}
+          {/* item 22a — the honest freshness stamp: when this session has probed
+              the slot, show WHEN. Session-scoped (null across launches), so a
+              stale time can never mislead about a link that was never re-tested. */}
+          {slot.lastTestedAt !== null && (
+            <span className={s.tested}>· tested {fmtTestedTime(slot.lastTestedAt)}</span>
+          )}
         </span>
       </div>
     </div>
@@ -303,7 +322,8 @@ function SettingsView({
             if (vault.touchId.enabled) void vault.touchId.disable();
             else void vault.touchId.enable();
           }
-        } else if (g === "environment" || g === "datamode") {
+        } else if (g === "environment") {
+          // single env toggle (item 22b: the old duplicate "datamode" group is gone)
           setEnv(env === "live" ? "demo" : "live");
         } else if (g === "refresh") {
           const order: SyncInterval[] = ["manual", 5];
@@ -449,11 +469,17 @@ function SettingsView({
           </div>
         </div>
 
-        {/* (4) ENVIRONMENT */}
+        {/* (4) ENVIRONMENT — the SINGLE env control (item 22b merged the former
+            duplicate "Data Mode" group in here; both toggled this same env, so
+            one honest control replaces two. Carries the read-only note the old
+            Data-Mode group used to hold.) */}
         <div className={grpCls("environment")}>
           <div className={s.lab}>
             <div className={s.t}>Environment</div>
-            <div className={s.d}>Which Trading 212 account the station reads.</div>
+            <div className={s.d}>
+              Which Trading 212 account the station reads — your Live account, or
+              the seeded demo model.
+            </div>
           </div>
           <div className={s.ctl}>
             <button
@@ -472,6 +498,9 @@ function SettingsView({
             >
               Live
             </button>
+            <span className={s.note}>
+              — read-only · the station never places trades or moves money
+            </span>
           </div>
         </div>
 
@@ -493,46 +522,30 @@ function SettingsView({
                   disabled={c.disabled}
                   style={c.disabled ? { opacity: 0.4, cursor: "default" } : undefined}
                   onClick={c.disabled ? undefined : () => setInterval(c.interval)}
+                  // item 22c: the WHY for the disabled chips is now VISIBLE microcopy
+                  // below (not a hover-only title). Enabled chips keep a short title.
                   title={
                     c.disabled
-                      ? "Sub-minute auto-refresh isn't offered — the 1 req/s limit can't keep it"
+                      ? undefined
                       : c.interval === "manual"
                         ? "Re-sync only when you ask (no auto-refresh)"
-                        : "Every 5 minutes while open (staged locally)"
+                        : "Every 5 minutes while open"
                   }
                 >
                   {c.label}
                 </button>
               );
             })}
-          </div>
-        </div>
-
-        {/* (6) DATA MODE — Live account vs the seeded demo model. */}
-        <div className={grpCls("datamode")}>
-          <div className={s.lab}>
-            <div className={s.t}>Data Mode</div>
-            <div className={s.d}>Live account, or the seeded demo model.</div>
-          </div>
-          <div className={s.ctl}>
-            <button
-              type="button"
-              className={`${s.chip} ${env === "live" ? s.on : ""}`}
-              aria-pressed={env === "live"}
-              onClick={() => setEnv("live")}
-            >
-              Live
-            </button>
-            <button
-              type="button"
-              className={`${s.chip} ${env === "demo" ? s.on : ""}`}
-              aria-pressed={env === "demo"}
-              onClick={() => setEnv("demo")}
-            >
-              Model
-            </button>
-            <span className={s.note}>
-              — read-only · the station never places trades or moves money
+            {/* item 22c — the sub-minute chips' reason, made VISIBLE (flexBasis
+                100% forces it onto its own line within the wrapping .ctl row). */}
+            <span className={s.note} style={{ flexBasis: "100%" }}>
+              sub-minute polling exceeds the broker's 1 req/s budget
+            </span>
+            {/* honest wiring note: the poller seats the interval at MOUNT (worker A
+                reads the pref then), so a change here lands on the next terminal
+                entry — not mid-session. Said plainly so the chip never lies. */}
+            <span className={s.note} style={{ flexBasis: "100%" }}>
+              takes effect on the next terminal entry
             </span>
           </div>
         </div>

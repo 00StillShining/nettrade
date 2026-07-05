@@ -271,8 +271,16 @@ export default function Journal() {
             {brokerSyncing && (
               <div className="orders-empty">SYNCING BROKER HISTORY…</div>
             )}
+            {/* cause-naming error line (item 13, Orders' pattern): the reason,
+                not just the fact — a 403 names its own fix. */}
             {brokerErr && (
-              <div className="orders-empty">BROKER HISTORY UNAVAILABLE — SYNC FAILED. THE SESSION PAGES BELOW ARE UNAFFECTED.</div>
+              <div className="orders-empty">
+                BROKER HISTORY UNAVAILABLE — SYNC FAILED
+                {TruthStore.syncError ? <>: <b>{TruthStore.syncError}</b></> : ""}.
+                {TruthStore.syncError && TruthStore.syncError.includes("(403)")
+                  ? " YOUR TRADING 212 KEY LIKELY LACKS THE HISTORY PERMISSIONS — REGENERATE IT WITH ORDERS/DIVIDENDS/TRANSACTIONS ENABLED."
+                  : " THE SESSION PAGES BELOW ARE UNAFFECTED."}
+              </div>
             )}
 
             {/* ---- SESSION pages (writable, exactly as before) ---- */}

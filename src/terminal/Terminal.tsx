@@ -35,7 +35,14 @@ import { flushSync } from "react-dom";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import "./terminal.css";
 import { DataEngine, isMarketOpen } from "./engine/dataEngine";
-import { startLive, stopLive } from "./engine/live";
+import { startLive, stopLive, refreshLive } from "./engine/live";
+import { recordSnapshot } from "./engine/liveHistory";
+import { TruthStore } from "./engine/truthStore";
+// SHARED CONTRACT (owner: worker C) — the persisted refresh-interval preference.
+// Consumed here to drive the live poller (item 17) instead of the old hardcoded
+// 5-minute constant. tsc will flag this import until prefs.ts lands; that drift
+// is expected per the wave-1 worker split.
+import { getSyncIntervalMs } from "./engine/prefs";
 import {
   State, notifyState, alertsSeedBook, evaluateWatchesNow,
   confirmStage, stageDelta, resetStage, toggleStrategy, moveRoster,
@@ -93,6 +100,12 @@ const GLYPHS: Record<string, string> = {
   journal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h11a2 2 0 012 2v14a2 2 0 01-2 2H5z"/><path d="M5 3v18"/><path d="M8 7h7M8 11h7"/><path d="M8 15l3 2 5-6"/></svg>',
 };
 
+// Under a design/mock build (VITE_MOCK=1) live.ts is a no-op and there is no real
+// account to sync — the taskbar sync chip is HIDDEN so the locked mock look stays
+// byte-for-byte (item 13: "hidden is safer"). Every sync-chip code path guards on
+// this so nothing new paints in the mock world.
+const IS_MOCK = import.meta.env.VITE_MOCK === "1";
+
 /* ================= AUDIO (optional, gated by vol toggle — verbatim) ================= */
 let audioCtx: AudioContext | null = null;
 function beep(kind: "off" | "on" | "tick"): void {
@@ -133,6 +146,7 @@ export default function Terminal() {
   const tbDiscRef = useRef<HTMLSpanElement | null>(null);
   const tbMktRef = useRef<HTMLSpanElement | null>(null);
   const tbVolRef = useRef<HTMLSpanElement | null>(null);
+  const tbSyncRef = useRef<HTMLSpanElement | null>(null); // item 13/14: live sync chip (LIVE builds only)
   const tbClockRef = useRef<HTMLSpanElement | null>(null);
 
   // shell-lifetime mutable state (the prototype's page-scoped lets)
@@ -287,6 +301,60 @@ export default function Terminal() {
     }
   }
 
+  /* ---------------- SYNC CHIP (items 13 + 14) ----------------
+     A persistent taskbar segment mirroring the live history/account sync from
+     TruthStore. LIVE builds only (hidden under VITE_MOCK — the mock world has no
+     real sync, and a chip would break the locked look). Imperatively patched from
+     BOTH the 1s clock (so "LIVE · HH:MM" freshness tracks) and the TruthStore
+     subscription (so a landing sync / error flips instantly). It is CLICKABLE and
+     mirrors the Shift+R chord — SYNC NOW (item 14). While a sync is in flight the
+     text reads SYNCING… driven purely by TruthStore.sync (no fake spinner state).
+
+     Tones reuse the taskbar's established grammar: teal = healthy/info,
+     orange (--orange) = a demand/attention state (SYNCING / PARTIAL / ERR). */
+  function updateSyncChip(): void {
+    const chip = tbSyncRef.current;
+    if (!chip) return; // hidden under mock — the span isn't rendered
+    let cls = "seg sync";
+    let html: string;
+    if (TruthStore.sync === "syncing") {
+      cls += " syncing";
+      html = "sync: <b>SYNCING…</b>";
+    } else if (TruthStore.sync === "error") {
+      cls += " err";
+      // parse a status code out of the honest syncError reason (e.g.
+      // "…/history/orders failed (403)") so the chip names WHY at a glance; fall
+      // back to a bare ERR when no code is present (network drop, parse failure).
+      const m = TruthStore.syncError ? TruthStore.syncError.match(/\b(\d{3})\b/) : null;
+      html = m ? `sync: <b>ERR (${m[1]})</b>` : "sync: <b>ERR</b>";
+    } else if (TruthStore.txnsPartial) {
+      // deep deposit history blocked (T212 pagination gap) — NET CONTRIBUTIONS is
+      // understated; amber so the user knows the truth deck is caveated.
+      cls += " partial";
+      html = "sync: <b>PARTIAL</b>";
+    } else if (TruthStore.syncedAtISO) {
+      // healthy: last successful landing, HH:MM local.
+      const t = new Date(TruthStore.syncedAtISO);
+      const hhmm = Number.isNaN(t.getTime())
+        ? "--:--"
+        : t.toTimeString().slice(0, 5);
+      html = `sync: <b>LIVE · ${hhmm}</b>`;
+    } else {
+      // no sync has landed yet this launch (idle) — honest "awaiting first sync".
+      html = "sync: <b>—</b>";
+    }
+    chip.className = cls;
+    chip.innerHTML = html;
+  }
+
+  /** SYNC NOW (item 14) — force an immediate account + history re-sync. The chip
+   *  flips to SYNCING… on its own the moment TruthStore.sync goes "syncing" (the
+   *  subscription repaints it); refreshLive() is a no-op under mock / no key. */
+  function syncNow(): void {
+    if (IS_MOCK) return;
+    refreshLive();
+  }
+
   /* ---------------- MOUNT: clock, keyboard, jitter, delegates ---------------- */
   useEffect(() => {
     setGotoScreenImpl(gotoScreen);
@@ -295,8 +363,12 @@ export default function Terminal() {
     // handshake (15s re-poll on success) live inside DataEngine.start().
     DataEngine.start();
     // LIVE ORCHESTRATOR (phase 2a): pull the user's real Trading 212 holdings +
-    // live prices into the engine every 5 min (no-op under VITE_MOCK / no key).
-    startLive(5 * 60 * 1000);
+    // live prices into the engine (no-op under VITE_MOCK / no key).
+    // ITEM 17 — the poll interval is now the persisted Settings preference, not a
+    // hardcoded 5 min. getSyncIntervalMs() returns 0 for MANUAL, which live.ts's
+    // startLive treats as ONE-SHOT (refresh on entry, no timer) — manual mode then
+    // relies on SYNC NOW (item 14) for every subsequent sync.
+    startLive(getSyncIntervalMs());
     const unsubTick = DataEngine.subscribe(() => {
       // Watches evaluate UNCONDITIONALLY so a TRIGGERED cross surfaces the orange
       // roster .flag star even while the user is on another screen (latching).
@@ -304,7 +376,14 @@ export default function Terminal() {
       updateTaskbar(); // feed banner tracks live/offline flips
     });
     updateTaskbar();
-    const clockIv = window.setInterval(updateTaskbar, 1000);
+    // ITEM 13 — the sync chip mirrors the history/account sync. Repaint it from
+    // BOTH the clock (below, for "LIVE · HH:MM" freshness) and a TruthStore
+    // subscription (here, so a landing sync / 403 / PARTIAL flips instantly).
+    updateSyncChip();
+    const unsubSync = TruthStore.subscribe(updateSyncChip);
+    // clock also patches the sync chip so the "LIVE · HH:MM" reading never goes
+    // stale between TruthStore notifications (which only fire on sync activity).
+    const clockIv = window.setInterval(() => { updateTaskbar(); updateSyncChip(); }, 1000);
 
     // window resize → re-fit every registered canvas (debounced, prototype cadence)
     let rz = 0;
@@ -317,7 +396,12 @@ export default function Terminal() {
       const wait = 9000 + Math.random() * 6000; // 9–15s
       shell.current.jitterTimer = setTimeout(() => {
         const scr = screenRef.current, fx = fxRef.current;
-        const idle = !shell.current.switching && scr && (!fx || fx.style.display === "none" || fx.style.display === "") && !scr.style.transform;
+        // ITEM 38 — pause when hidden: don't animate the phosphor jitter (a
+        // transform write + repaint) while the app is not visible. The timer chain
+        // is kept alive (scheduleJitter() below still re-arms) so the effect
+        // resumes cleanly on show; only the jitter BODY is skipped this cycle.
+        const hidden = typeof document !== "undefined" && document.hidden;
+        const idle = !hidden && !shell.current.switching && scr && (!fx || fx.style.display === "none" || fx.style.display === "") && !scr.style.transform;
         if (idle && scr) {
           const dx = (Math.random() < 0.5 ? -1 : 1) * (1 + Math.round(Math.random())); // ±1 or ±2px
           scr.style.transition = "transform 0s";
@@ -338,6 +422,24 @@ export default function Terminal() {
       if (k === "Shift" && e.location === 1) { rootRef.current?.classList.add("tips"); return; } // LSHIFT tooltips
       const ae = document.activeElement;
       const editing = !!ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA"); // TEXTAREA covers the JOURNAL note field
+      // ITEM 14 — SYNC NOW chord: Shift+R forces an immediate account + history
+      // re-sync. Handled in the SHELL, BEFORE runKeyExtras, so it never collides
+      // with the heavily-overloaded bare "r" (scanner sort / alerts reset / news
+      // re-wire) — the audit found no screen claims a Shift chord, and bare Shift
+      // (location 1) is the tooltip toggle above, not a chord. Gated on !editing so
+      // holding Shift to type an uppercase "R" in the journal note still types.
+      // EXACT chord only: Cmd/Ctrl/Alt+Shift+R (WebView hard-reload, future menu
+      // accelerators) must fall through untouched. Mock builds skip entirely —
+      // syncNow() no-ops there and swallowing the key would change the locked
+      // mock keyboard behaviour.
+      if (
+        !IS_MOCK &&
+        (e.key === "R" || e.key === "r") &&
+        e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey &&
+        !editing
+      ) {
+        syncNow(); e.preventDefault(); return;
+      }
       // screens claim DOM-touching keys first (A focus level input, N/W journal, tutorial gate…)
       if (runKeyExtras(e, editing)) return;
       // PERFORMANCE quick-toggles: number keys 1–9 flip the first nine indicators.
@@ -412,15 +514,42 @@ export default function Terminal() {
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("keyup", onKeyUp);
 
+    /* ---- ITEM 33 — snapshot on quit/hide ----
+       Snapshots otherwise only land on the poller, so a session shorter than the
+       interval records nothing. Capture ONE honest value point when the window is
+       hidden or about to close, at the live account's confirmed total. Only when a
+       real live account exists — recordSnapshot self-guards mock / gating (net
+       deposits not yet known) / non-positive values, so we just void it and never
+       await (a beforeunload handler must be fire-and-forget). It shares the
+       minute-key dedupe with the poller, so a snapshot on hide immediately after a
+       poll collapses to one row.
+       NOTE: the beforeunload leg is BEST-EFFORT ONLY — the async invoke→SQLite
+       chain often won't complete before the WKWebView dies on quit. The reliable
+       leg is visibilitychange→hidden (macOS Cmd+Q typically hides first, and any
+       app-switch/minimize before quitting records the point). */
+    const snapshotIfLive = () => {
+      const a = State.liveAccount;
+      if (!a) return; // no real account (mock world / pre-first-sync) → nothing honest to record
+      // ccy is string|null on the live account; recordSnapshot wants a string —
+      // fall back to the account currency (never fabricate a value, only the label).
+      void recordSnapshot(a.totalMinor, a.ccy || State.accountCcy);
+    };
+    const onVisibility = () => { if (document.hidden) snapshotIfLive(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("beforeunload", snapshotIfLive);
+
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("beforeunload", snapshotIfLive);
       window.removeEventListener("resize", onResize);
       clearTimeout(rz);
       clearTimeout(shell.current.jitterTimer);
       shell.current.timers.forEach(clearTimeout);
       window.clearInterval(clockIv);
       unsubTick();
+      unsubSync();
       DataEngine.stop();
       stopLive();
       setGotoScreenImpl(null);
@@ -489,6 +618,17 @@ export default function Terminal() {
         {/* TASKBAR */}
         <div id="taskbar">
           <span className="seg feed live" ref={tbFeedRef}>feed: <b>LIVE 12ms</b></span>
+          {/* ITEM 13/14 — live SYNC chip. LIVE builds only (omitted under VITE_MOCK
+              so the locked mock taskbar is unchanged byte-for-byte). Clickable +
+              mirrors the Shift+R chord to force an immediate re-sync (SYNC NOW);
+              its title documents the chord and the current-state grammar. */}
+          {!IS_MOCK && (
+            <span
+              className="seg sync" ref={tbSyncRef} style={{ cursor: "pointer" }}
+              title="SYNC NOW — click or press ⇧R to force an immediate account + history re-sync (LIVE·time = last synced · SYNCING… in flight · PARTIAL = deep deposit history blocked · ERR = failed)"
+              onClick={syncNow}
+            >sync: <b>—</b></span>
+          )}
           <span className="seg" id="tbInput">input detected: <b>keyboard</b></span>
           <span className="seg mkt" ref={tbMktRef}>mkt: <b>—</b></span>
           <span className="seg" id="tbBatt">battery: <b>100% [plugged in]</b></span>

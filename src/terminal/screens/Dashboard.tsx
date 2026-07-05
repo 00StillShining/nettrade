@@ -28,8 +28,32 @@ import {
 import { State, stateSubscribe, notifyState, computeEquity, dayPnl } from "../state";
 import { fitCanvas, drawGlowLine, seriesToPts, sparkPath } from "../components/canvas";
 import { setTickText } from "../components/dom";
-import { marqueeState, subscribeMarquee, registerRedraw } from "../bus";
+import { marqueeState, subscribeMarquee, registerRedraw, prefersReduced } from "../bus";
+// TruthStore feeds the as-of freshness stamp (item 34: syncedAtISO). May tsc-drift
+// until worker C's edits land, but the module exists — keep the usage.
+import { TruthStore } from "../engine/truthStore";
 import Roster from "../components/Roster";
+
+// VITE_MOCK builds keep the locked seed-77 look byte-for-byte: the stamp (23),
+// the synthetic/real honesty labels (28) and the freshness stamp (34) are all
+// LIVE-only. This one compile-time constant tree-shakes the whole set out of a
+// design build. The masthead itself already flips on State.liveAccount, so the
+// "live world is active" signal we gate the money-STAMP on is a real liveAccount.
+const IS_MOCK = import.meta.env.VITE_MOCK === "1";
+
+/** "as of HH:MM" body + staleness from an ISO sync time. null iso → empty (no
+ *  claim). >10min old → stale (the poller may have failed silently). Pure, cheap
+ *  to call every tick. */
+function asOf(iso: string | null): { text: string; stale: boolean } | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (!isFinite(t)) return null;
+  const d = new Date(t);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const stale = Date.now() - t > 10 * 60_000; // >10 minutes since the last good sync
+  return { text: `${hh}:${mm}`, stale };
+}
 
 export default function Dashboard() {
   const [, force] = useReducer((n: number) => n + 1, 0);
@@ -50,6 +74,54 @@ export default function Dashboard() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const crossX = useRef<number | null>(null); // hover crosshair state for main chart
+  const acctAsofRef = useRef<HTMLDivElement | null>(null);   // item 34 "as of HH:MM" stamp
+  // item 23: the last REAL masthead total we've seen (minor units). We stamp only
+  // when a live sync moves it — never on the mock walk. `undefined` = not yet seen
+  // (first live paint is not a "change", so it doesn't stamp).
+  const lastLiveTotalMinor = useRef<number | undefined>(undefined);
+
+  /* ================= ITEM 23 · ONE-SHOT PERSONA STAMP (ref-toggled, no re-render) =================
+     Add `.stamped`; remove it on animationend so the NEXT real sync can replay it.
+     Under prefersReduced the class is inert (CSS zeroes the animation) but we still
+     add/remove it harmlessly — no motion, matches the quiet mock digit-flash. Idempotent:
+     if a stamp is mid-flight we restart it (force reflow) so a rapid re-sync re-stamps. */
+  function playStamp(el: HTMLElement | null): void {
+    if (!el || prefersReduced) return;
+    el.classList.add("stamp-target");
+    el.classList.remove("stamped");
+    void el.offsetWidth;            // reflow so re-adding the class restarts the keyframes
+    el.classList.add("stamped");
+    // clear only when the LONGEST animation ends: the ::after ink-swell
+    // (t77-inkSwell, 300ms + 40ms delay) outlives the 260ms figure stamp, and a
+    // pseudo-element's animationend also targets the host — clearing on the
+    // FIRST event would cut the underline off at ~65%.
+    const clear = (e: AnimationEvent): void => {
+      if (e.animationName !== "t77-inkSwell") return;
+      el.classList.remove("stamped");
+      el.removeEventListener("animationend", clear);
+    };
+    el.addEventListener("animationend", clear);
+  }
+
+  /* ================= ITEM 34 · AS-OF FRESHNESS STAMP (masthead) ================= */
+  function renderAsof(): void {
+    const el = acctAsofRef.current; if (!el) return;
+    // LIVE builds only, and only once we actually have a live account link — under
+    // mock (or before first live sync) there's no honest "as of" to claim.
+    if (IS_MOCK || !State.liveAccount) { el.className = "asof acct-asof"; el.textContent = ""; return; }
+    const a = asOf(TruthStore.syncedAtISO);
+    if (!a) { el.className = "asof acct-asof"; el.textContent = ""; return; }
+    const cls = "asof acct-asof" + (a.stale ? " stale" : "");
+    const html = `<span class="asof-k">as of</span> ${a.text}${a.stale ? " · STALE" : ""}`;
+    // patch-on-change (the setTickText discipline): this runs on every 1-2s tick,
+    // but the string only changes when the minute or staleness flips — skip the
+    // innerHTML rebuild when identical.
+    const next = cls + "|" + html;
+    if (el.dataset.prev === next) return;
+    el.dataset.prev = next;
+    el.className = cls;
+    el.innerHTML = html;
+  }
 
   /* ================= ACCOUNT MASTHEAD (renderDashAccount, refs for $()) ================= */
   function renderAccount(): void {
@@ -65,6 +137,16 @@ export default function Dashboard() {
     const invested = live ? total - live.freeMinor / 100 : mv;
     const plPct = invested - pl !== 0 ? (pl / (invested - pl)) * 100 : 0;
     const money = (n: number, dp = 2) => (live ? fmtMoney(n, ccy, dp) : fmtUSD(n, dp));
+    // ITEM 23 — Persona stamp on a REAL money change. We compare the live account
+    // total (minor units, the honest headline the broker reports) against the last
+    // one we stamped: a change means a live sync actually moved money. The mock walk
+    // NEVER reaches here with a `live` object, so the quiet digit-flash (setTickText
+    // below) stays the only mock feedback — the stamp is reserved for real money.
+    if (!IS_MOCK && live) {
+      const prev = lastLiveTotalMinor.current;
+      if (prev !== undefined && live.totalMinor !== prev) playStamp(acctValRef.current);
+      lastLiveTotalMinor.current = live.totalMinor;
+    }
     setTickText(acctValRef.current, money(total));
     const dEl = acctDayRef.current;
     if (dEl) {
@@ -101,7 +183,13 @@ export default function Dashboard() {
       let el: Element;
       if (build) {
         const d = document.createElement("div"); d.className = "idxchip";
+        // ITEM 28a — these indices are SYNTHETIC (derived deterministically from the
+        // roster walk), so in a live build — where the masthead beside them is LIVE —
+        // they carry a tiny MODEL badge (the established News/Scanner honesty grammar).
+        // Mock builds omit it: the whole mock world is simulated and its look is locked.
+        const modelChip = !IS_MOCK ? `<span class="idx-model">MODEL</span>` : "";
         d.innerHTML = `
+          ${modelChip}
           <svg class="spk" viewBox="0 0 56 22" preserveAspectRatio="none"><path fill="none" stroke-width="1.5"/></svg>
           <div class="nm">${o.nm}</div>
           <div class="pr mono" data-pr></div>
@@ -233,19 +321,24 @@ export default function Dashboard() {
     const unsubState = stateSubscribe(force);           // selection / range / book changes
     const unsubTick = DataEngine.subscribe(() => {      // 1–2s walk: patch numerals, no re-render
       renderAccount(); renderIndices(); renderMovers(); patchLast();
+      renderAsof();                                     // recompute staleness each tick (item 34)
       if (State.range === "1D") drawChart();
     });
     const unsubMarq = subscribeMarquee(renderMarquee);
     const unsubRedraw = registerRedraw(drawChart);      // shell calls on resize + power-off swap/settle
+    // A history-sync landing updates syncedAtISO AND may move liveAccount → refresh
+    // the as-of stamp and re-run the masthead so a real money change can stamp (23).
+    // No-op / inert under VITE_MOCK (TruthStore stays empty; renderAsof early-returns).
+    const unsubTruth = TruthStore.subscribe(() => { renderAccount(); renderAsof(); });
     renderMarquee();
-    return () => { unsubState(); unsubTick(); unsubMarq(); unsubRedraw(); };
+    return () => { unsubState(); unsubTick(); unsubMarq(); unsubRedraw(); unsubTruth(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // after EVERY render (mount + each state-driven re-render): full repaint —
   // the prototype's renderDashboard(), minus the marquee (event-driven above).
   useEffect(() => {
-    renderAccount(); renderIndices(); renderMovers(); patchLast(); drawChart();
+    renderAccount(); renderIndices(); renderMovers(); patchLast(); renderAsof(); drawChart();
   });
 
   const sym = State.selected; const p = UNIVERSE[sym];
@@ -260,6 +353,10 @@ export default function Dashboard() {
           <div className="acct-row">
             <span className="acct-day mono" ref={acctDayRef} />
           </div>
+          {/* ITEM 34 — as-of freshness stamp (live builds only; empty otherwise) */}
+          <div className="asof acct-asof" ref={acctAsofRef} />
+          {/* item 23: the masthead value gets the .stamp-target box on first live render
+              (playStamp adds it); no structural change to the box under mock. */}
           <div className="acct-sub">
             <div><div className="lab">Buying Power</div><div className="num mono" ref={acctBPRef} /></div>
             <div><div className="lab">Positions</div><div className="num mono" ref={acctPosRef} /></div>
@@ -304,6 +401,10 @@ export default function Dashboard() {
         {/* MOVERS // SESSION */}
         <div className="card" id="dashMovers">
           <span className="plabel">MOVERS // SESSION</span>
+          {/* ITEM 28b — in a live build the movers are the REAL held roster sorted by
+              real (FMP-enriched) day-%, so the rail earns an honest "ROSTER" note. The
+              mock build parades the seed roster and stays unlabelled — its look is locked. */}
+          {!IS_MOCK && State.liveAccount && <div className="movers-src">SOURCE · ROSTER · REAL DAY %</div>}
           <div className="movers-col"><span className="chip teal" style={{ marginBottom: 6 }}>TOP GAINERS</span><div ref={gainListRef} /></div>
           <div className="movers-col"><span className="chip teal" style={{ marginBottom: 6 }}>TOP LOSERS</span><div ref={loseListRef} /></div>
         </div>

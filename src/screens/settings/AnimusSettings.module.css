@@ -347,6 +347,17 @@
   font-style: italic;
 }
 
+/* item 22a — the "· tested HH:MM" freshness stamp trailing a slot's probe
+   status. Mono telemetry clock, muted so it reads as a quiet timestamp beside
+   the (louder) status word, never competing with the red dot's claim. */
+.tested {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  text-transform: none;
+}
+
 /* bottom bar — the Animus breadcrumb + key legend */
 .bar {
   position: absolute;

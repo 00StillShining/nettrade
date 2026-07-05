@@ -36,7 +36,7 @@
        hover scrubbing never forces a React render.
    ========================================================================= */
 
-import { useEffect, useReducer, useRef, type ReactElement } from "react";
+import { useEffect, useReducer, useRef, type ReactElement, type Ref } from "react";
 import {
   DataEngine, UNIVERSE, RANGES, clamp, lerp, fmtUSD, fmtNum, fmtMoney, type Range,
 } from "../engine/dataEngine";
@@ -49,7 +49,7 @@ import {
 } from "../state";
 import { fitCanvas } from "../components/canvas";
 import { setTickText } from "../components/dom";
-import { registerRedraw, gotoScreen } from "../bus";
+import { registerRedraw, gotoScreen, prefersReduced } from "../bus";
 import Roster from "../components/Roster";
 // LIVE Performance-Truth deck (worker B — may tsc-drift until truthStore.ts lands; keep the usage).
 import { TruthStore, startHistorySync } from "../engine/truthStore";
@@ -57,6 +57,19 @@ import type { TimeSeriesPoint } from "../../engine/types";
 
 // VITE_MOCK builds must be a NO-OP for the whole live path (design builds stay SIMULATED candles).
 const IS_MOCK = import.meta.env.VITE_MOCK === "1";
+
+/** "as of HH:MM" body + staleness from an ISO sync time. null iso → null (no
+ *  claim). >10min old → stale (the poller may have failed silently). (item 34) */
+function asOf(iso: string | null): { text: string; stale: boolean } | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (!isFinite(t)) return null;
+  const d = new Date(t);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const stale = Date.now() - t > 10 * 60_000;
+  return { text: `${hh}:${mm}`, stale };
+}
 
 /* The TRUTH DECK is active only in a live build, on the PORTFOLIO source, when the
    history sync has produced a real PerformanceTruth. Everything else (ROSTER, TYPED,
@@ -179,6 +192,13 @@ export default function Performance() {
   const lastRef = useRef<HTMLSpanElement | null>(null);
   // ---- ref: the TRUTH DECK canvas (net-deposits step + recorded value line) ----
   const truthCvRef = useRef<HTMLCanvasElement | null>(null);
+  // ---- item 23: the TOTAL GAIN hero value element (stamped on a real sync) ----
+  const heroValRef = useRef<HTMLSpanElement | null>(null);
+  // ---- item 34: the TRUTH DECK head "as of HH:MM" stamp ----
+  const truthAsofRef = useRef<HTMLDivElement | null>(null);
+  // item 23: the last REAL total-gain we've stamped (minor units). Stamp only when
+  // a live sync moves it; `undefined` = not yet seen (first reveal doesn't stamp).
+  const lastGainMinor = useRef<number | undefined>(undefined);
 
   /* ================= DRAW BASE (candles + volume + overlays + signal marks) =================
      The "static-ish" layer — redrawn on tick/toggle/resize but NOT on pointer
@@ -401,6 +421,60 @@ export default function Performance() {
 
   function drawAll(): void { drawBase(); drawPanes(); drawOverlay(); }
 
+  /* ================= ITEM 23 · ONE-SHOT PERSONA STAMP (ref-toggled, no re-render) =================
+     Same discipline as the Dashboard masthead: add `.stamped`, force a reflow so a
+     rapid re-sync restarts the keyframes, remove on animationend so it can replay.
+     Inert under prefersReduced (CSS zeroes the animation) — the quiet figure-swap
+     stands, matching the reduced-motion contract. */
+  function playStamp(el: HTMLElement | null): void {
+    if (!el || prefersReduced) return;
+    el.classList.add("stamp-target");
+    el.classList.remove("stamped");
+    void el.offsetWidth;            // reflow → re-adding the class restarts the animation
+    el.classList.add("stamped");
+    // clear only on the LONGEST animation (the ::after ink-swell) — see the
+    // matching comment in Dashboard.tsx playStamp.
+    const clear = (e: AnimationEvent): void => {
+      if (e.animationName !== "t77-inkSwell") return;
+      el.classList.remove("stamped");
+      el.removeEventListener("animationend", clear);
+    };
+    el.addEventListener("animationend", clear);
+  }
+
+  /* ================= ITEM 34 · AS-OF FRESHNESS STAMP (truth deck head) ================= */
+  function renderTruthAsof(): void {
+    const el = truthAsofRef.current; if (!el) return;
+    // only meaningful on the live truth deck; the candle deck (ROSTER/TYPED/mock) has
+    // no synced money to date-stamp, so we leave it empty there.
+    if (IS_MOCK || !truthDeckActive()) { el.className = "asof truth-asof"; el.textContent = ""; return; }
+    const a = asOf(TruthStore.syncedAtISO);
+    if (!a) { el.className = "asof truth-asof"; el.textContent = ""; return; }
+    const cls = "asof truth-asof" + (a.stale ? " stale" : "");
+    const html = `<span class="asof-k">as of</span> ${a.text}${a.stale ? " · STALE" : ""}`;
+    // patch-on-change (the setTickText discipline): this runs on every 1-2s tick,
+    // but the string only changes when the minute or staleness flips — skip the
+    // innerHTML rebuild when identical.
+    const next = cls + "|" + html;
+    if (el.dataset.prev === next) return;
+    el.dataset.prev = next;
+    el.className = cls;
+    el.innerHTML = html;
+  }
+
+  /* ITEM 23 — decide whether the TOTAL GAIN hero should stamp: compare the current
+     real total-gain against the last one we stamped. A change means a live sync moved
+     the money. Runs after render (when the hero element exists) and on TruthStore
+     landings. First reveal (prev===undefined) primes the baseline without stamping. */
+  function maybeStampHero(): void {
+    if (IS_MOCK || !truthDeckActive()) { lastGainMinor.current = undefined; return; }
+    const g = TruthStore.truth?.totalGainMinor;
+    if (g === undefined) return;
+    const prev = lastGainMinor.current;
+    if (prev !== undefined && g !== prev) playStamp(heroValRef.current);
+    lastGainMinor.current = g;
+  }
+
   /* ================= TRUTH DECK CHART (net-deposits step + RECORDED value line) =================
      CHART_CRAFT law, in the terminal's own cream/ink palette:
        • canvas-2D only, data-derived time + value domains, honest un-truncated value axis.
@@ -562,7 +636,16 @@ export default function Performance() {
   // the prototype's perfSyncPanes()+perfDrawAll() tail of every mutation path.
   // Branch on the deck: the truth chart is a distinct canvas from the candle layers.
   useEffect(() => {
-    if (truthDeckActive()) { drawTruth(); return; }
+    if (truthDeckActive()) {
+      drawTruth();
+      renderTruthAsof(); // item 34: freshness stamp on the truth head
+      maybeStampHero();  // item 23: stamp TOTAL GAIN if a real sync moved it
+      return;
+    }
+    // leaving/never-on the truth deck: keep the stamp/as-of inert and reset the
+    // hero baseline so re-entering the deck doesn't false-stamp on a stale compare.
+    renderTruthAsof();
+    lastGainMinor.current = undefined;
     drawAll();
     if (Perf.bars.length) {
       const last = Perf.bars[Perf.bars.length - 1];
@@ -589,7 +672,7 @@ export default function Performance() {
      sign + ▲/▼ + gain/loss colour (a real gain/loss number, legitimately coloured);
      `flat` figures (contributions, fees, dividends, interest) are neutral ink — a
      magnitude with no gain/loss meaning of its own. `hero` gets the big TOTAL GAIN look. */
-  function truthRow(label: string, minor: number, opts?: { signed?: boolean; hero?: boolean; sub?: string }): ReactElement {
+  function truthRow(label: string, minor: number, opts?: { signed?: boolean; hero?: boolean; sub?: string; vref?: Ref<HTMLSpanElement> }): ReactElement {
     const signed = !!opts?.signed;
     const cls = signed ? (minor >= 0 ? "gain" : "loss") : "";
     const body = signed
@@ -598,7 +681,9 @@ export default function Performance() {
     return (
       <div className={"truth-row" + (opts?.hero ? " hero" : "")} key={label}>
         <span className="truth-k">{label}{opts?.sub && <span className="truth-sub">{opts.sub}</span>}</span>
-        <span className={"truth-v mono " + cls}>{body}</span>
+        {/* the hero passes a ref so the Persona stamp (item 23) can toggle .stamped on
+            the exact TOTAL GAIN figure — the one number that means "real money moved". */}
+        <span className={"truth-v mono " + cls} ref={opts?.vref}>{body}</span>
       </div>
     );
   }
@@ -636,6 +721,8 @@ export default function Performance() {
               <span className={"perf-tag " + (whoTag === "SIMULATED" ? "sim" : whoTag === "LIVE" ? "live" : "mock")} id="perfTag">{whoTag}</span>
               {/* candle-tick numeral surface — meaningless on the truth deck (no live-forming candle) */}
               {!truthMode && <span className="last mono" id="perfLast" ref={lastRef} />}
+              {/* ITEM 34 — as-of freshness stamp on the TRUTH DECK head (live only; empty on the candle deck) */}
+              {truthMode && <div className="asof truth-asof" ref={truthAsofRef} />}
             </div>
             {/* range toggle is meaningless on the truth deck — it shows FULL history, always */}
             {!truthMode && (
@@ -647,6 +734,19 @@ export default function Performance() {
             )}
           </div>
           <div className={"perf-stage" + (truthMode ? " perf-truthstage" : "")}>
+            {/* cause-naming error line (item 13, Orders' pattern): a live build on
+                the PORTFOLIO source whose history sync FAILED before producing a
+                truth would otherwise silently show SIMULATED candles with no clue
+                why. Name the reason; a 403 names its own fix. */}
+            {!IS_MOCK && Perf.source === "PORTFOLIO" && !truth && TruthStore.sync === "error" && (
+              <div className="orders-empty">
+                PERFORMANCE-TRUTH UNAVAILABLE — BROKER SYNC FAILED
+                {TruthStore.syncError ? <>: <b>{TruthStore.syncError}</b></> : ""}.
+                {TruthStore.syncError && TruthStore.syncError.includes("(403)")
+                  ? " YOUR TRADING 212 KEY LIKELY LACKS THE HISTORY PERMISSIONS — REGENERATE IT WITH ORDERS/DIVIDENDS/TRANSACTIONS ENABLED."
+                  : " THE MODELLED CANDLE DECK BELOW IS UNAFFECTED."}
+              </div>
+            )}
             {/* ===================== TRUTH DECK (live build, PORTFOLIO source) ===================== */}
             {truthMode && truth && (
               <>
@@ -676,7 +776,7 @@ export default function Performance() {
                   </div>
                   {/* THE ONE HERO: TOTAL GAIN — the honest "what you actually made" + return % */}
                   <div className="truth-herowrap">
-                    {truthRow("TOTAL GAIN", truth.totalGainMinor, { signed: true, hero: true })}
+                    {truthRow("TOTAL GAIN", truth.totalGainMinor, { signed: true, hero: true, vref: heroValRef })}
                     <div className="truth-return">
                       <span className="truth-k">RETURN</span>
                       <span className={"truth-v mono " + (truth.totalReturnPct == null ? "" : truth.totalReturnPct >= 0 ? "gain" : "loss")}>

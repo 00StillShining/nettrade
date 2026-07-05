@@ -48,8 +48,28 @@ import {
 } from "../state";
 import { setTickText } from "../components/dom";
 import { registerRedraw, registerKeyExtra, pushMarquee, gotoScreen, type KeyExtra } from "../bus";
+// TruthStore feeds the as-of freshness stamp (item 34: syncedAtISO). May tsc-drift
+// until worker C's edits land, but the module exists — keep the usage.
+import { TruthStore } from "../engine/truthStore";
 import Radar from "../components/Radar";
 import Roster from "../components/Roster";
+
+// VITE_MOCK builds stay seed-77, look locked: the as-of freshness stamp (item 34)
+// is LIVE-only. Tree-shaken out of design builds by this compile-time constant.
+const IS_MOCK = import.meta.env.VITE_MOCK === "1";
+
+/** "as of HH:MM" body + staleness from an ISO sync time. null iso → null (no
+ *  claim). >10min old → stale (the poller may have failed silently). */
+function asOf(iso: string | null): { text: string; stale: boolean } | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (!isFinite(t)) return null;
+  const d = new Date(t);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const stale = Date.now() - t > 10 * 60_000;
+  return { text: `${hh}:${mm}`, stale };
+}
 
 /* ---------------- stat-row icons (prototype STAT_IC, verbatim) ---------------- */
 const STAT_IC: Record<string, string> = {
@@ -75,6 +95,27 @@ export default function Positions() {
   const silRef = useRef<SVGSVGElement | null>(null);          // #posSilhouette
   const tutRef = useRef<HTMLDivElement | null>(null);         // #tutorial overlay
   const tutPortraitRef = useRef<HTMLDivElement | null>(null); // pixel-art canvas slot
+  const asofRef = useRef<HTMLDivElement | null>(null);        // item 34 "as of HH:MM" stamp (positions header)
+
+  /* ================= ITEM 34 · AS-OF FRESHNESS STAMP (positions header) ================= */
+  function renderAsof(): void {
+    const el = asofRef.current; if (!el) return;
+    // LIVE builds only, and only once the T212 account link is live (real money on
+    // screen). Mock / pre-sync → empty (no honest "as of" to claim).
+    if (IS_MOCK || !State.liveAccount) { el.className = "asof"; el.textContent = ""; return; }
+    const a = asOf(TruthStore.syncedAtISO);
+    if (!a) { el.className = "asof"; el.textContent = ""; return; }
+    const cls = "asof" + (a.stale ? " stale" : "");
+    const html = `<span class="asof-k">as of</span> ${a.text}${a.stale ? " · STALE" : ""}`;
+    // patch-on-change (the setTickText discipline): this runs on every 1-2s tick,
+    // but the string only changes when the minute or staleness flips — skip the
+    // innerHTML rebuild when identical.
+    const next = cls + "|" + html;
+    if (el.dataset.prev === next) return;
+    el.dataset.prev = next;
+    el.className = cls;
+    el.innerHTML = html;
+  }
 
   /* ================= SILHOUETTE (screened-back duotone portrait — verbatim) ================= */
   function drawSilhouette(): void {
@@ -159,6 +200,7 @@ export default function Positions() {
     }
 
     drawSilhouette(); // 1Y portrait tracks live crypto re-anchors, exactly the prototype's per-tick redraw
+    renderAsof();     // item 34: recompute the header freshness stamp each tick (staleness ticks over)
   }
 
   /* ================= STAGE / CONFIRM plumbing ================= */
@@ -236,8 +278,11 @@ export default function Positions() {
     const unsubTick = DataEngine.subscribe(renderNumbers); // 1–2s walk: patch numerals, no re-render
     const unsubRedraw = registerRedraw(drawSilhouette);  // shell calls on resize + power-off swap/settle
     const unsubKeys = registerKeyExtra(keyExtra);
+    // a history-sync landing updates syncedAtISO → refresh the header freshness stamp.
+    // No-op / inert under VITE_MOCK (TruthStore stays empty; renderAsof early-returns).
+    const unsubTruth = TruthStore.subscribe(renderAsof); // item 34
     maybeTutorial();                                     // first visit to POSITIONS.dat → DESK 07 briefing
-    return () => { unsubState(); unsubTick(); unsubRedraw(); unsubKeys(); };
+    return () => { unsubState(); unsubTick(); unsubRedraw(); unsubKeys(); unsubTruth(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -267,6 +312,8 @@ export default function Positions() {
                   <span key={i} className="tag">{t}</span>
                 ))}
               </div>
+              {/* ITEM 34 — as-of freshness stamp (live builds only; empty otherwise) */}
+              <div className="asof" ref={asofRef} />
             </div>
             <div className="budget-chip">
               <span className="lab">BUYING POWER UNSPENT</span>

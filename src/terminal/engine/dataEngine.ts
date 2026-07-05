@@ -182,6 +182,9 @@ export const DataEngine = {
   _listeners: new Set<Listener>(),
   _tickTimer: null as ReturnType<typeof setTimeout> | null,
   _liveTimer: null as ReturnType<typeof setInterval> | null,
+  // ITEM 38 — registered once (first start()); repaints on window-shown so the
+  // hidden-gated loop doesn't leave a stale frame for up to 2s.
+  _visListener: null as (() => void) | null,
   _running: false,
 
   init(): void {
@@ -211,6 +214,13 @@ export const DataEngine = {
 
   // one live-ish tick: random-walk last prices (mock). Small, calm steps.
   tick(): void {
+    // ITEM 38 — pause when hidden: the tab/window is not visible, so re-walking
+    // the mock prices would burn battery painting a screen nobody can see. Skip
+    // the tick BODY (not the timer) — the loop's setTimeout still fires, so the
+    // 1–2s cadence resumes cleanly the instant the app is shown again, with no
+    // catch-up burst. Guard `typeof document` so the pure-node parity tests (no
+    // DOM) run the walk exactly as before.
+    if (typeof document !== "undefined" && document.hidden) return;
     const rng = Math.random;
     DEFAULT_ROSTER.forEach((sym) => {
       const q = this.quotes[sym]; const p = UNIVERSE[sym];
@@ -297,16 +307,41 @@ export const DataEngine = {
     if (!Object.keys(this.quotes).length) this.init();
     const loop = () => {
       if (!this._running) return;
-      this.tick();
-      this.notify();
+      // ITEM 38 — pause when hidden: gate notify() too, not just the tick body —
+      // notify() is what drives every subscribed screen's full canvas redraw
+      // (Dashboard chart, Positions silhouette, Performance panes), which is the
+      // actual battery cost of painting an invisible window.
+      const hidden = typeof document !== "undefined" && document.hidden;
+      if (!hidden) {
+        this.tick();
+        this.notify();
+      }
       this._tickTimer = setTimeout(loop, 1000 + Math.random() * 1000); // 1–2s
     };
     this._tickTimer = setTimeout(loop, 1000 + Math.random() * 1000);
+    // repaint IMMEDIATELY when the app is shown again (instead of waiting up to
+    // 2s for the next loop pass) — one listener for the engine's lifetime is
+    // fine; stop() ends the loop, and a re-start() would add a duplicate, so
+    // register once and let the _running flag gate the work.
+    if (typeof document !== "undefined" && !this._visListener) {
+      this._visListener = () => {
+        if (!document.hidden && this._running) this.notify();
+      };
+      document.addEventListener("visibilitychange", this._visListener);
+    }
     // live handshake: fire-and-forget; failure is the diegetic OFFLINE // CACHED state
     void this.tryLive().then((ok) => {
       this.notify();
       if (ok && this._running) {
-        this._liveTimer = setInterval(() => { void this.tryLive().then(() => this.notify()); }, 15000);
+        // ITEM 38 — pause when hidden: skip the 15s Coinbase re-poll while the app
+        // is not visible (no network + no repaint for an invisible screen). Keep
+        // the interval alive so it resumes on the next tick after the app returns,
+        // rather than tearing down/rebuilding the timer. Guard `typeof document`
+        // so a non-DOM host still re-polls exactly as before.
+        this._liveTimer = setInterval(() => {
+          if (typeof document !== "undefined" && document.hidden) return;
+          void this.tryLive().then(() => this.notify());
+        }, 15000);
       }
     });
   },

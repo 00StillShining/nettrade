@@ -98,14 +98,14 @@ inputs stay honestly MODEL.
 
 ## B · INTUITIVENESS & UX (10)
 
-**13. ☐ Taskbar sync chip + named errors everywhere** — HIGH / S
+**13. ◐ Taskbar sync chip + named errors everywhere** — HIGH / S
 Sync state lives only in Orders' empty-state — once fills exist, a later 403/429 is
 invisible. Add a persistent taskbar segment (`sync: LIVE · 14:32` / `SYNC ERR (403)`)
 patched from `TruthStore`, and give Journal/Performance the same cause-naming error
 lines Orders already has.
 *Area: `Terminal.tsx` taskbar + screens.*
 
-**14. ☐ SYNC NOW button** — HIGH / S
+**14. ◐ SYNC NOW button** — HIGH / S
 `refreshLive()` exists but no UI calls it — the user can only wait out the 5-minute
 poller. A taskbar/keyboard affordance (e.g. `R`) that forces an immediate account +
 history re-sync, with the sync chip animating while in flight.
@@ -123,7 +123,7 @@ diegetic cheat-sheet card (global + current-screen verbs, auto-built from the
 registries); extends the existing LSHIFT tooltip pattern.
 *Area: `Terminal.tsx` + per-screen hint data.*
 
-**17. ☐ Make the Refresh setting real** — HIGH / S
+**17. ◐ Make the Refresh setting real** — HIGH / S
 Settings persists a refresh preference that nothing reads — `startLive(5min)` is
 hardcoded. Wire the chips to the poller (MANUAL = no timer + SYNC NOW only). A setting
 that lies is an honesty bug.
@@ -153,7 +153,7 @@ reorder persisted, and stamp the watch-trigger star visibly even when it fires w
 you're on another screen.
 *Area: `Roster.tsx` + `state.ts`.*
 
-**22. ☐ Settings truth pass** — MEDIUM / S
+**22. ◐ Settings truth pass** — MEDIUM / S
 Show "last tested HH:MM" on each key slot; merge the duplicate Environment/Data-Mode
 toggles into one honest control; put the sub-minute-chips explanation in visible
 microcopy instead of a hover title.
@@ -163,7 +163,7 @@ microcopy instead of a hover title.
 
 ## C · LOOK & DIEGETIC CRAFT (9)
 
-**23. ☐ Stamped money figures on live sync** — HIGH / S
+**23. ◐ Stamped money figures on live sync** — HIGH / S
 When a sync lands, the TOTAL GAIN hero and the Dashboard masthead just swap text.
 Give real money changes the Persona stamp (translateY + opacity + 1° rotate, ink-burst
 underline) — transform/opacity only, reduced-motion aware. Mock ticks keep the quiet
@@ -194,7 +194,7 @@ spec-mandated directional wipe (deeper = L→R, back = reverse, peer = diagonal)
 learnable vocabulary, one full-screen effect at a time, CRT suspended during.
 *Area: `Terminal.tsx` `runPowerOff` variants.*
 
-**28. ☐ Label the synthetic: index chips + movers** — MEDIUM / S
+**28. ◐ Label the synthetic: index chips + movers** — MEDIUM / S
 The masthead is LIVE but SPX/NDX/DJI/VIX chips and the movers rail are synthetic and
 unlabelled beside it. Tiny MODEL chips (the established grammar) — or live-ify the
 movers from the real roster's real day-% (already available) and label only the
@@ -229,12 +229,12 @@ per stream, row counts + spans, snapshot count, FMP daily budget meter, last ref
 timings. The app explains itself; future issues become self-diagnosable.
 *Area: new `System.tsx` + screens registry; reads `sync_meta`/`TruthStore`.*
 
-**33. ☐ Snapshot on quit/hide** — MEDIUM / S
+**33. ◐ Snapshot on quit/hide** — MEDIUM / S
 Snapshots only land on the 5-min poller — short sessions record nothing. Record one
 honest snapshot on window-hide/quit (same minute-key dedupe, same gating).
 *Area: `Terminal.tsx` lifecycle + `recordSnapshot`.*
 
-**34. ☐ As-of freshness stamps** — MEDIUM / S
+**34. ◐ As-of freshness stamps** — MEDIUM / S
 Nothing says how fresh the money is. Small mono "as of HH:MM" beside the masthead,
 Positions header, and Truth deck — flipping to an amber "stale >10m" state when the
 poller has failed silently.
@@ -259,7 +259,7 @@ data with as-of stamps, no spinners-forever, no fabricated ticks. Fix what fails
 the checklist to the verify docs.
 *Area: all screens; likely fixes in Dashboard/Performance labels.*
 
-**38. ☐ Pause the engine when hidden** — MEDIUM / S
+**38. ◐ Pause the engine when hidden** — MEDIUM / S
 The mock walk, Coinbase re-poll, and CRT jitter all run while the app is hidden —
 wasted battery re-rendering an invisible screen. Gate on `document.hidden`, resume
 cleanly on show.

@@ -21,6 +21,11 @@
 // real-world status separately.
 
 import { useCallback, useMemo, useState } from "react";
+import {
+  getSyncIntervalPref,
+  setSyncIntervalPref,
+  type SyncIntervalPref,
+} from "../../terminal/engine/prefs";
 
 /** Sync-interval options (minutes) surfaced as keycap buttons. `manual`
  * means "only when I press SYNC" — an honest option, not a fake schedule. */
@@ -82,7 +87,16 @@ export function useSettingsPanel(seed: SettingsSeed = {}): SettingsPanelState {
   const [savedKey, setSavedKey] = useState<string | null>(seed.savedKey ?? null);
   const [keyInput, setKeyInput] = useState<string>(seed.savedKey ?? "");
   const [env, setEnv] = useState<"demo" | "live">(seed.env ?? "demo");
-  const [interval, setInterval] = useState<SyncInterval>(seed.interval ?? "manual");
+  // Item 17 (write side): seat the chip from the PERSISTED refresh truth
+  // (getSyncIntervalPref) so Settings reflects what the poller will actually
+  // read at the next terminal entry — never a hardcoded default that lies.
+  // An explicit `seed.interval` still wins (the Mock container pins 5 to keep
+  // the design build's look byte-for-byte); only when no seed is given do we
+  // read the store. Because the persisted pref is "manual" | 5, the chip lands
+  // on one of the two enabled chips — never a disabled sub-minute one.
+  const [interval, setIntervalState] = useState<SyncInterval>(
+    () => seed.interval ?? getSyncIntervalPref(),
+  );
   const [crtCurve, setCrtCurve] = useState<boolean>(seed.crtCurve ?? true);
   const [reduceMotion, setReduceMotion] = useState<boolean>(seed.reduceMotion ?? false);
   const [compactFigures, setCompactFigures] = useState<boolean>(seed.compactFigures ?? false);
@@ -109,6 +123,22 @@ export function useSettingsPanel(seed: SettingsSeed = {}): SettingsPanelState {
   const clearKey = useCallback(() => {
     setSavedKey(null);
     setKeyInput("");
+  }, []);
+
+  // Item 17 (write side): the refresh chip must PERSIST through to the shared
+  // truth (prefs.setSyncIntervalPref) so the poller can read it at the next
+  // terminal entry. Only "manual" and 5 are honest, sustainable cadences and the
+  // only two the enabled chips ever pass; the disabled sub-minute chips (15/30/
+  // 60s) never call this. We defensively guard anyway: a sub-minute value maps to
+  // the local state for the UI but is NOT written to the pref (it can't be — the
+  // pref type is "manual" | 5), so a stray call can never seat an impossible
+  // cadence in the store.
+  const setInterval = useCallback((i: SyncInterval) => {
+    setIntervalState(i);
+    if (i === "manual" || i === 5) {
+      const pref: SyncIntervalPref = i; // "manual" -> "manual", 5 -> 5
+      setSyncIntervalPref(pref);
+    }
   }, []);
 
   return {

@@ -356,6 +356,16 @@
 
 .t77 #taskbar .mkt.closed{color:#9a8a5a;}
 
+/* SYNC CHIP (items 13/14) — LIVE builds only; reuses the taskbar's colour grammar.
+   healthy "LIVE · HH:MM" = teal (info); SYNCING…/PARTIAL/ERR = orange (a demand /
+   attention state). No animated fill/filter — only the text + colour change (the
+   SYNCING… label itself is the honest in-flight signal, driven by TruthStore). */
+.t77 #taskbar .sync b{color:var(--teal);}
+.t77 #taskbar .sync.syncing b{color:var(--orange);}
+.t77 #taskbar .sync.partial b{color:var(--orange);}
+.t77 #taskbar .sync.err{color:var(--orange);}
+.t77 #taskbar .sync.err b{color:var(--orange); font-weight:600;}
+
 .t77 #taskbar .disc{color:var(--teal); letter-spacing:.06em; font-weight:500;}
 
 .t77 #taskbar .spacer{flex:1 1 auto;}
@@ -1829,4 +1839,85 @@
     .t77 #dash .screenbody{ grid-template-columns:1fr 1fr; grid-template-areas:"acct chart""idx movers""roster roster"; }
 
 }
+
+
+/* =========================================================================
+   WORKER B — SCREENS HONESTY + STAMPS (wave-1 items 23 / 28 / 34)
+   Screen-scoped additions only. NEW classes, coordinate-free — nothing here
+   restyles shell chrome (worker A appends the shell block separately). Laws:
+   animate ONLY transform / opacity / clip-path; NO filter/blend/backdrop; all
+   motion reduced-motion aware. Mock builds never mount these (gated in TSX by
+   IS_MOCK), so the locked mock look is byte-for-byte untouched.
+   ------------------------------------------------------------------------- */
+
+/* ---- ITEM 23 · PERSONA STAMP on a REAL money change (masthead + TRUTH hero) ----
+   Toggled via a ref by adding `.stamped`; removed on animationend so it can
+   replay on the next real sync. transform + opacity ONLY (the ink-underline is a
+   ::after scaleX swell). NEVER fired on the mock digit-walk — reserved for real
+   money moving. The parent element only needs position + display:inline-block so
+   the transform-origin and the ::after underline anchor correctly; we set that
+   on the stamp targets without disturbing their existing layout box. */
+.t77 .stamp-target{ position:relative; display:inline-block; transform-origin:left bottom;
+  will-change:transform, opacity; }
+
+/* the one-shot figure stamp: drop-in from -6px with a 0.8° over-rotate settling
+   to rest, opacity 0->1. ~260ms ease-out. */
+@keyframes t77-moneyStamp{
+  0%{   transform:translateY(-6px) rotate(-0.8deg); opacity:0; }
+  60%{  opacity:1; }
+  100%{ transform:translateY(0) rotate(0deg); opacity:1; }
+}
+/* the ink-underline swell — a ::after bar that scaleX-grows once beneath the
+   figure, then holds. clip-free, transform-only. */
+@keyframes t77-inkSwell{
+  0%{   transform:scaleX(0); opacity:0; }
+  30%{  opacity:1; }
+  100%{ transform:scaleX(1); opacity:1; }
+}
+.t77 .stamp-target.stamped{ animation:t77-moneyStamp 260ms ease-out 1 both; }
+.t77 .stamp-target.stamped::after{
+  content:""; position:absolute; left:0; right:0; bottom:-3px; height:2px;
+  background:var(--orange); transform-origin:left center; transform:scaleX(0);
+  animation:t77-inkSwell 300ms ease-out 40ms 1 both; pointer-events:none;
+}
+/* reduced motion: no stamp, no swell — the figure just changes (matches the
+   quiet mock digit-flash discipline). The .stamped class becomes inert. */
+@media (prefers-reduced-motion:reduce){
+  .t77 .stamp-target.stamped{ animation:none; }
+  .t77 .stamp-target.stamped::after{ animation:none; content:none; }
+}
+
+/* ---- ITEM 28 · label the synthetic (index MODEL chip) + real movers sublabel ----
+   The MODEL micro-chip sits in the idxchip corner — the established grammar
+   (see the "· MODEL" plabels on News/Scanner/Alerts) shrunk to a badge, so the
+   synthetic SPX/NDX/DJI/VIX never read as live beside the LIVE masthead. Built
+   into the chip skeleton once (live builds only; the mock look is locked). */
+.t77 .idxchip .idx-model{ position:absolute; top:5px; right:6px; z-index:2;
+  font-family:var(--f-cond); font-weight:700; font-size:8px; letter-spacing:.12em;
+  text-transform:uppercase; line-height:1; padding:2px 4px;
+  color:var(--ink-soft); background:var(--paper-dark); border:1px solid var(--ink-soft); }
+
+/* the MOVERS // SESSION rail sublabel: in a live build the roster IS the real
+   held roster and the sort runs on real (FMP-enriched) day-%, so it earns an
+   honest "ROSTER" note beside the plabel. Mock builds don't render it. */
+.t77 #dashMovers .movers-src{ font-family:var(--f-mono); font-size:9px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--teal); margin:-2px 0 8px 1px; }
+
+/* ---- ITEM 34 · AS-OF freshness stamp (masthead / positions head / TRUTH head) ----
+   Small mono "as of HH:MM" beside a money surface — reads how fresh the number
+   is. >10min since the last successful sync flips it to the amber warn tone with
+   "· STALE". Live builds only (mock hidden — the locked look). Colour-by-token,
+   no filter. */
+.t77 .asof{ display:inline-flex; align-items:baseline; gap:5px; font-family:var(--f-mono);
+  font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft);
+  white-space:nowrap; }
+.t77 .asof .asof-k{ opacity:.72; }
+.t77 .asof.stale{ color:var(--orange); }
+.t77 .asof.stale .asof-k{ opacity:.9; }
+.t77 .asof:empty{ display:none; }
+/* placement helpers per host (coordinate-free — only margin nudges, no reflow of
+   the chrome around them). */
+.t77 .acct-asof{ margin-top:7px; }
+.t77 .pos-left .phead .asof{ margin-top:2px; }
+.t77 .truth-asof{ margin-left:auto; align-self:center; }
 
