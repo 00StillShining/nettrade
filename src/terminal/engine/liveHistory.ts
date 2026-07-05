@@ -553,6 +553,9 @@ export function startHistorySync(): void {
 
     // ORDERS -----------------------------------------------------------------
     try {
+      // a fresh attempt clears the stream's persisted error — a stale one must
+      // not masquerade as the CURRENT failure during diagnosis
+      await writeCursor(CURSOR_KEYS.orders + ":last_error", null);
       await syncTable(
         CURSOR_KEYS.orders,
         (cursor) => fetchOrderHistoryPage(c, ENV, cursor),
@@ -572,6 +575,9 @@ export function startHistorySync(): void {
 
     // DIVIDENDS --------------------------------------------------------------
     try {
+      // a fresh attempt clears the stream's persisted error — a stale one must
+      // not masquerade as the CURRENT failure during diagnosis
+      await writeCursor(CURSOR_KEYS.dividends + ":last_error", null);
       await syncTable(
         CURSOR_KEYS.dividends,
         (cursor) => fetchDividendsPage(c, ENV, cursor),
@@ -592,6 +598,9 @@ export function startHistorySync(): void {
     // TRANSACTIONS -----------------------------------------------------------
     let txnsSynced = false;
     try {
+      // a fresh attempt clears the stream's persisted error — a stale one must
+      // not masquerade as the CURRENT failure during diagnosis
+      await writeCursor(CURSOR_KEYS.transactions + ":last_error", null);
       await syncTable(
         CURSOR_KEYS.transactions,
         (cursor) => fetchTransactionsPage(c, ENV, cursor),
