@@ -89,9 +89,12 @@ pub fn keychain_get_credentials(account_id: String) -> Result<Option<Credentials
     // THE gate: when Touch ID is enabled, no secret leaves this process until one
     // fingerprint (or the Mac password fallback) passes this launch.
     crate::keychain_bio::ensure_gate()?;
-    let entry = entry_for(&account_id)?;
-    match entry.get_password() {
-        Ok(payload) => {
+    // Read via the MODERN SecItem API — the keyring crate's legacy read path
+    // enforces the partition-list check a teamless self-signed app can never
+    // pass (the source of the password-prompt-per-rebuild purgatory); SecItem
+    // honours the item's trusted-app ACL. See keychain_bio::file_item_read.
+    match crate::keychain_bio::file_item_read(SERVICE, &username)? {
+        Some(payload) => {
             // Static message on parse failure: never format the serde error, which
             // could carry fragments of the stored payload (the secret).
             let creds: Credentials = serde_json::from_str(&payload)
@@ -107,7 +110,7 @@ pub fn keychain_get_credentials(account_id: String) -> Result<Option<Credentials
         // No entry in the current location — fall back to the Phase-0 location
         // and migrate it forward (onto the trusted-app ACL) so we don't re-read
         // it on every launch. The legacy entries are left untouched.
-        Err(keyring::Error::NoEntry) => match read_legacy(&account_id)? {
+        None => match read_legacy(&account_id)? {
             Some(creds) => {
                 if let Ok(payload) = serde_json::to_string(&creds) {
                     let _ = crate::keychain_bio::acl_set(&username, &payload); // best-effort migrate
@@ -116,7 +119,6 @@ pub fn keychain_get_credentials(account_id: String) -> Result<Option<Credentials
             }
             None => Ok(None),
         },
-        Err(e) => Err(format!("keychain error: {e}")),
     }
 }
 
@@ -179,17 +181,16 @@ pub fn keychain_get_marketdata_key() -> Result<Option<String>, String> {
         return Ok(None);
     }
     crate::keychain_bio::ensure_gate()?;
-    let entry = marketdata_entry()?;
-    match entry.get_password() {
-        Ok(key) => {
+    // Modern-API read — see keychain_get_credentials for why (legacy partition gate).
+    match crate::keychain_bio::file_item_read(SERVICE, MARKETDATA_ACCOUNT)? {
+        Some(key) => {
             // ON-READ MIGRATION — see keychain_get_credentials.
             if !MIGRATED_MD.swap(true, Ordering::AcqRel) {
                 let _ = crate::keychain_bio::acl_set(MARKETDATA_ACCOUNT, &key); // best-effort
             }
             Ok(Some(key))
         }
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(format!("keychain error: {e}")),
+        None => Ok(None),
     }
 }
 

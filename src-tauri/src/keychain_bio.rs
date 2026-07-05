@@ -56,6 +56,7 @@ extern "C" {
     static kSecAttrService: CFStringRef;
     static kSecAttrAccount: CFStringRef;
     static kSecValueData: CFStringRef;
+    static kSecReturnData: CFStringRef;
     static kSecReturnAttributes: CFStringRef;
     static kSecMatchLimit: CFStringRef;
     static kSecMatchLimitOne: CFStringRef;
@@ -114,6 +115,50 @@ pub fn file_item_exists(service: &str, account: &str) -> bool {
             let _ = CFType::wrap_under_create_rule(result); // balance +1
         }
         status == ERR_SEC_SUCCESS
+    }
+}
+
+/* ============================ MODERN-API SECRET READ ============================ */
+
+/// Read a file-keychain item's secret via SecItemCopyMatching — the MODERN API.
+///
+/// WHY THIS EXISTS (the last head of the password-prompt hydra): our items carry
+/// a trusted-app ACL naming /Applications/Actuality.app, but they ALSO carry an
+/// EMPTY partition list (a teamless self-signed app cannot mint a partition ID).
+/// The LEGACY SecKeychain API (which the `keyring` crate reads through) enforces
+/// the partition check — which an empty list always fails → password prompt on
+/// every rebuild. SecItemCopyMatching honours the trusted-app ACL without that
+/// legacy partition gate (verified empirically: the acltest binary read its
+/// ACL'd item silently ACROSS a re-sign via this API, while the app re-prompted
+/// through keyring). So secret READS must go through here; writes already do
+/// (acl_set), leaving keyring only for deletes and the legacy phase-0 fallback.
+pub fn file_item_read(service: &str, account: &str) -> Result<Option<String>, String> {
+    unsafe {
+        let pairs: Vec<(CFType, CFType)> = vec![
+            (cfstr(kSecClass), cfstr(kSecClassGenericPassword)),
+            (cfstr(kSecAttrService), CFString::new(service).as_CFType()),
+            (cfstr(kSecAttrAccount), CFString::new(account).as_CFType()),
+            (cfstr(kSecReturnData), CFBoolean::true_value().as_CFType()),
+            (cfstr(kSecMatchLimit), cfstr(kSecMatchLimitOne)),
+        ];
+        let dict = CFDictionary::from_CFType_pairs(&pairs);
+        let mut result: CFTypeRef = ptr::null();
+        let status = SecItemCopyMatching(dict.as_concrete_TypeRef(), &mut result);
+        match status {
+            ERR_SEC_SUCCESS => {
+                if result.is_null() {
+                    return Ok(None);
+                }
+                let data =
+                    core_foundation::data::CFData::wrap_under_create_rule(result as core_foundation::data::CFDataRef);
+                match String::from_utf8(data.bytes().to_vec()) {
+                    Ok(s) => Ok(Some(s)),
+                    Err(_) => Err("keychain error: stored secret is not valid UTF-8".to_string()),
+                }
+            }
+            -25300 => Ok(None), // errSecItemNotFound
+            s => Err(format!("keychain error: SecItemCopyMatching failed ({s})")),
+        }
     }
 }
 
