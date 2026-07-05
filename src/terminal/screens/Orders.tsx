@@ -166,7 +166,15 @@ export default function Orders() {
             <div className="orders-empty">SYNCING FILL HISTORY…</div>
           )}
           {!hasLive && syncErr && (
-            <div className="orders-empty">FILL HISTORY UNAVAILABLE — BROKER SYNC FAILED. THE DRY-RUN SESSION LOG BELOW IS UNAFFECTED.</div>
+            <div className="orders-empty">
+              FILL HISTORY UNAVAILABLE — BROKER SYNC FAILED
+              {TruthStore.syncError ? <>: <b>{TruthStore.syncError}</b></> : ""}.
+              {/* a 403 here = the T212 API key lacks the HISTORY scopes (orders/
+                  dividends/transactions toggles when generating the key) */}
+              {TruthStore.syncError && TruthStore.syncError.includes("(403)")
+                ? " YOUR TRADING 212 KEY LIKELY LACKS THE HISTORY PERMISSIONS — REGENERATE IT WITH ORDERS/DIVIDENDS/TRANSACTIONS ENABLED."
+                : " THE DRY-RUN SESSION LOG BELOW IS UNAFFECTED."}
+            </div>
           )}
 
           {/* ---- SESSION DRY-RUN LOG (always present; hero only in the mock build) ---- */}

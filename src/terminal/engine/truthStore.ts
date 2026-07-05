@@ -44,6 +44,11 @@ export const TruthStore: {
   /** Dividends, newest-first. */
   dividends: HistoryDividend[];
   sync: HistorySyncState;
+  /** The last sync failure's honest reason (e.g. "…/history/orders failed (403)"),
+   *  or null. Carries only the endpoint + status kind — never a secret. Screens
+   *  surface it so "BROKER SYNC FAILED" names WHY (a 403 = the T212 key lacks
+   *  the history scopes; a 429 = rate-limited). */
+  syncError: string | null;
   /** When the last successful sync landed (ISO), or null if never. */
   syncedAtISO: string | null;
   /** Earliest recorded equity snapshot (ISO), or null — the honest start of the
@@ -60,6 +65,7 @@ export const TruthStore: {
   fills: [],
   dividends: [],
   sync: "idle",
+  syncError: null,
   syncedAtISO: null,
   firstSnapshotISO: null,
   ccy: "GBP",

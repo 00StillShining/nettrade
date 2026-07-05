@@ -466,11 +466,15 @@ async function syncTable<T extends { id: string }>(
 // shared adapter queue for 10s and starves the ordinary 1.2s-paced calls behind
 // it. 5 minutes matches the live poller, the natural re-sync heartbeat.
 let lastSyncDoneAt = 0;
+let lastSyncHadError = false;
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+// A FAILED sync retries fast (a fixed key / recovered network shouldn't wait out
+// the full cooldown) while still damping screen-mount retry spam.
+const SYNC_ERROR_RETRY_MS = 30 * 1000;
 
 export function startHistorySync(): void {
   if (IS_MOCK || syncInFlight) return;
-  if (Date.now() - lastSyncDoneAt < SYNC_COOLDOWN_MS) return;
+  if (Date.now() - lastSyncDoneAt < (lastSyncHadError ? SYNC_ERROR_RETRY_MS : SYNC_COOLDOWN_MS)) return;
   syncInFlight = true;
   void (async () => {
     let creds: Credentials | null;
@@ -486,9 +490,15 @@ export function startHistorySync(): void {
     }
 
     TruthStore.sync = "syncing";
+    TruthStore.syncError = null;
     TruthStore.notify();
     const c = creds; // narrowed, stable reference for the closures below
     let anyError = false;
+    // Keep the last failure's honest reason for the screens (endpoint + status
+    // kind only — an Error message from the adapter never carries a secret).
+    const noteError = (err: unknown) => {
+      TruthStore.syncError = String(err instanceof Error ? err.message : err).slice(0, 160);
+    };
 
     // ORDERS -----------------------------------------------------------------
     try {
@@ -502,6 +512,7 @@ export function startHistorySync(): void {
       TruthStore.notify();
     } catch (err) {
       anyError = true;
+      noteError(err);
       console.warn("history sync (orders) failed:", err);
     }
 
@@ -517,6 +528,7 @@ export function startHistorySync(): void {
       TruthStore.notify();
     } catch (err) {
       anyError = true;
+      noteError(err);
       console.warn("history sync (dividends) failed:", err);
     }
 
@@ -534,6 +546,7 @@ export function startHistorySync(): void {
       TruthStore.notify();
     } catch (err) {
       anyError = true;
+      noteError(err);
       console.warn("history sync (transactions) failed:", err);
     }
 
@@ -546,6 +559,7 @@ export function startHistorySync(): void {
     TruthStore.syncedAtISO = new Date().toISOString();
     TruthStore.notify();
     lastSyncDoneAt = Date.now();
+    lastSyncHadError = anyError;
     syncInFlight = false;
   })();
 }
