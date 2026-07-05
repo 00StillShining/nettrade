@@ -57,8 +57,13 @@ function ensureUniverse(sym: string, name: string | null): void {
   UNIVERSE[sym] = {
     name: name || sym,
     base: 100,
-    drift: 0.04,
-    vol: 0.22,
+    // PER-CANDLE GBM parameters — the UNIVERSE convention (see dataEngine.ts:
+    // NVDA drift 0.0004 / vol 0.030). The first cut used 0.04/0.22 (annualised-
+    // scale numbers), i.e. 100x drift and ~7x vol: every real holding's
+    // synthetic history became a violent walk whose median path collapses
+    // toward ZERO — the "stock goes to 0 at the end" glitch on Performance.
+    drift: 0.0002,
+    vol: 0.02,
     sector: "—",
     exch: "—",
     style: "—",

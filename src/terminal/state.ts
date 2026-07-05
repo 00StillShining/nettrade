@@ -501,9 +501,17 @@ export function perfLoadSeries(): void {
   } else {
     const sym = Perf.symbol; const known = UNIVERSE[sym];
     if (known) {
-      // a real roster instrument — reuse the engine's history for the range
+      // a real roster instrument — use the ENGINE'S STORED per-range history, not
+      // a fresh genHistory. For the seed instruments the two are BYTE-IDENTICAL
+      // (DataEngine.init builds hist[r] with the exact seed derivation below), so
+      // the mock world doesn't move; but for LIVE-HELD symbols foldLivePrice
+      // SCALES the stored series to the real price level — regenerating raw threw
+      // that scaling away, so a held stock's 1W/1M/1Y chart neither matched its
+      // live price nor its 1D chart (and, with the old broken synthesized
+      // drift/vol, collapsed toward zero at the right edge).
       const sd = (DataEngine.seed ^ seedFromString(sym)) ^ (range.charCodeAt(0) * 131);
-      closes = (range === "1D" ? DataEngine.get(sym).hist["1D"].slice() : genHistory(sym, N, sd, range));
+      const q = DataEngine.get(sym);
+      closes = (q.hist[range] && q.hist[range].length ? q.hist[range] : genHistory(sym, N, sd, range)).slice();
       seed = sd; volBase = Math.max(1, known.avgvol / 1e6);
       live = known.live && DataEngine.live && range === "1D"; // crypto stays live-capable on 1D
       tag = live ? "LIVE" : (known.live ? "LIVE" : "MOCK");
