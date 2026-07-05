@@ -309,6 +309,10 @@ export interface HistoryPage<T> {
   items: T[];
   nextCursor: string | null;
   rawCount: number;
+  /** The FIRST raw row that failed normalization on this page (null when none) —
+   *  the sync persists a sample so a shape drift is diagnosable from the DB
+   *  instead of vanishing silently. Broker rows carry no credentials. */
+  skippedSample: unknown | null;
 }
 
 /* ====================== HISTORY: DEFENSIVE FIELD HELPERS ====================== */
@@ -325,6 +329,17 @@ function firstNum(...vals: unknown[]): number | undefined {
 function firstStr(...vals: unknown[]): string | undefined {
   for (const v of vals) {
     if (typeof v === "string" && v.trim().length > 0) return v;
+  }
+  return undefined;
+}
+
+/** First usable ID among the candidates, stringified — T212's real history rows
+ *  carry NUMERIC ids (captured live: order.id 53554138761), which firstStr would
+ *  silently reject. Accepts a non-empty string or a finite number. */
+function firstId(...vals: unknown[]): string | undefined {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim().length > 0) return v;
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
   }
   return undefined;
 }
@@ -409,38 +424,59 @@ function normalizeOrderFill(raw: unknown): HistoryOrderFill | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
 
-  const instrument = (r.instrument && typeof r.instrument === "object" ? r.instrument : undefined) as
-    | { ticker?: unknown }
-    | undefined;
-  const ticker = firstStr(r.ticker, instrument?.ticker);
+  // REAL SHAPE (captured live 2026-07-05 via the skipped-sample diagnostic): each
+  // row is a NESTED PAIR — { order: { id, ticker, status, side, filledValue,
+  // currency, createdAt, instrument: { ticker, currency } }, fill: { id,
+  // quantity, price, filledAt, walletImpact: { currency, netValue, taxes: [
+  // { name, quantity: -0.04 } ] } } }. ids are NUMBERS. `fill.price` is
+  // INSTRUMENT ccy; `order.filledValue` / `walletImpact.netValue` are ACCOUNT
+  // ccy. Cancelled/pending rows may carry no fill. The flat fallbacks below keep
+  // the old defensive guesses alive in case the shape drifts again.
+  const order = (r.order && typeof r.order === "object" ? r.order : r) as Record<string, unknown>;
+  const fill = (r.fill && typeof r.fill === "object" ? r.fill : r) as Record<string, unknown>;
+  const wallet = (fill.walletImpact && typeof fill.walletImpact === "object"
+    ? fill.walletImpact
+    : undefined) as Record<string, unknown> | undefined;
+
+  const instrument = (order.instrument && typeof order.instrument === "object"
+    ? order.instrument
+    : r.instrument && typeof r.instrument === "object"
+      ? r.instrument
+      : undefined) as { ticker?: unknown } | undefined;
+  const ticker = firstStr(order.ticker, instrument?.ticker, r.ticker);
   if (ticker === undefined) return null; // unidentifiable — skip
 
-  const dateISO = passDateISO(r.dateExecuted, r.dateModified, r.dateCreated);
+  const dateISO = passDateISO(
+    fill.filledAt, order.createdAt, // real nested shape
+    r.dateExecuted, r.dateModified, r.dateCreated, // legacy flat guesses
+  );
   if (dateISO === null) return null; // no trustworthy timestamp — skip
 
-  const rawQty = firstNum(r.filledQuantity, r.orderedQuantity, r.quantity);
+  const rawQty = firstNum(fill.quantity, r.filledQuantity, r.orderedQuantity, r.quantity);
   const quantity = rawQty === undefined ? 0 : Math.abs(rawQty);
 
-  // Prefer a stable unique fill id; fall back to the order id DISAMBIGUATED with
+  // Prefer the FILL's own id (unique per row in the real shape — ids are numeric,
+  // hence firstId not firstStr); fall back to the order id DISAMBIGUATED with
   // per-row content (date + qty) — an order can produce several fills, so a bare
   // `ord:<orderId>` key would make sibling fills collide on the DB primary key
   // and INSERT OR REPLACE would silently drop real executed volume.
-  const fillId = firstStr(r.fillId);
-  const orderId = firstStr(r.id);
+  const fillId = firstId(fill !== r ? fill.id : undefined, r.fillId);
+  const orderId = firstId(order.id, r.id);
   const id = fillId ?? (orderId !== undefined ? `ord:${orderId}:${dateISO}:${quantity}` : undefined);
   if (id === undefined) return null; // no id to key on — skip
 
   // Explicit side wins; otherwise sign of quantity (negative => sell).
-  const sideField = firstStr(r.side, r.direction, r.type)?.toUpperCase() ?? "";
+  const sideField = firstStr(order.side, r.side, r.direction, r.type)?.toUpperCase() ?? "";
   let side: "buy" | "sell";
   if (sideField.includes("SELL")) side = "sell";
   else if (sideField.includes("BUY")) side = "buy";
   else side = rawQty !== undefined && rawQty < 0 ? "sell" : "buy";
 
-  const fillPrice = firstNum(r.fillPrice, r.price, r.averagePrice);
-  const filledValue = firstNum(r.filledValue, r.value);
-  const feeMinor = sumFeesMinor(r.taxes) + sumFeesMinor(r.fees);
-  const status = firstStr(r.status, r.fillResult) ?? "";
+  const fillPrice = firstNum(fill.price, r.fillPrice, r.price, r.averagePrice);
+  const filledValue = firstNum(order.filledValue, wallet?.netValue, r.filledValue, r.value);
+  const feeMinor =
+    sumFeesMinor(wallet?.taxes) + sumFeesMinor(r.taxes) + sumFeesMinor(r.fees);
+  const status = firstStr(order.status, r.status, r.fillResult) ?? "";
 
   return {
     id,
@@ -555,11 +591,13 @@ async function fetchHistoryPage<T>(
       : null;
 
   const items: T[] = [];
+  let skippedSample: unknown | null = null;
   for (const item of rawItems) {
     const norm = normalize(item);
     if (norm) items.push(norm); // unparseable rows are skipped, not thrown on
+    else if (skippedSample === null) skippedSample = item; // keep ONE for diagnosis
   }
-  return { items, nextCursor: extractCursor(nextPagePath), rawCount: rawItems.length };
+  return { items, nextCursor: extractCursor(nextPagePath), rawCount: rawItems.length, skippedSample };
 }
 
 /** One page of executed/attempted order fills, newest-first per the API. Strict 10s pacing. */

@@ -386,7 +386,7 @@ async function syncTable<T extends { id: string }>(
   cursorKey: string,
   fetchPage: (
     cursor: string | null,
-  ) => Promise<{ items: T[]; nextCursor: string | null; rawCount: number }>,
+  ) => Promise<{ items: T[]; nextCursor: string | null; rawCount: number; skippedSample: unknown | null }>,
   upsert: (items: T[]) => Promise<void>,
   readAllIds: () => Promise<string[]>,
 ): Promise<void> {
@@ -408,6 +408,18 @@ async function syncTable<T extends { id: string }>(
   for (;;) {
     const page = await fetchPage(cursor);
     await upsert(page.items);
+
+    // DIAGNOSTIC: a raw row that failed normalization means the broker's shape
+    // drifted from the parser — persist ONE sample (broker data, no credentials)
+    // so the drift is diagnosable from the DB instead of vanishing silently.
+    if (page.skippedSample !== null) {
+      try {
+        await writeCursor(
+          cursorKey + ":skipped_sample",
+          JSON.stringify(page.skippedSample).slice(0, 4000),
+        );
+      } catch { /* best-effort */ }
+    }
 
     const pageIds = page.items.map((it) => it.id);
 

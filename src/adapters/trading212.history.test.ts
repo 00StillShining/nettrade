@@ -52,6 +52,81 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 /* ============================ ORDER NORMALIZER ============================ */
 
+describe("normalizeOrderFill — the REAL nested {order, fill} shape (captured live 2026-07-05)", () => {
+  // Field-for-field mirror of a real /equity/history/orders row from the
+  // skipped-sample diagnostic (values altered). THE regression test: the flat
+  // first-guess normalizer skipped 100% of real rows.
+  const REAL = {
+    order: {
+      id: 53554138761,
+      strategy: "VALUE",
+      type: "MARKET",
+      ticker: "TSM_US_EQ",
+      status: "FILLED",
+      value: 24.5,
+      filledValue: 24.5,
+      currency: "GBP",
+      extendedHours: false,
+      initiatedFrom: "AUTOINVEST",
+      side: "BUY",
+      createdAt: "2026-07-02T15:35:11.000Z",
+      instrument: {
+        ticker: "TSM_US_EQ",
+        name: "Taiwan Semiconductor Manufacturing",
+        isin: "US8740391003",
+        currency: "USD",
+      },
+    },
+    fill: {
+      id: 53563904197,
+      quantity: 0.0734382,
+      price: 445.42,
+      type: "TRADE",
+      tradingMethod: "OTC",
+      filledAt: "2026-07-02T15:35:12.000Z",
+      walletImpact: {
+        currency: "GBP",
+        netValue: 24.5,
+        fxRate: 1.33731983,
+        taxes: [
+          { name: "CURRENCY_CONVERSION_FEE", quantity: -0.04, currency: "GBP", chargedAt: "2026-07-02T15:35:12.405Z" },
+        ],
+      },
+    },
+  };
+
+  it("parses every field from the nested pair", () => {
+    const o = normalizeOrderFill(REAL)!;
+    expect(o).not.toBeNull();
+    expect(o.id).toBe("53563904197"); // the FILL's own id, stringified (numeric in the feed)
+    expect(o.ticker).toBe("TSM_US_EQ");
+    expect(o.dateISO).toBe("2026-07-02T15:35:12.000Z"); // filledAt beats createdAt
+    expect(o.side).toBe("buy"); // explicit order.side
+    expect(o.quantity).toBeCloseTo(0.0734382);
+    expect(o.fillPriceMinor).toBe(44542); // instrument-ccy (USD) minor units
+    expect(o.filledValueMinor).toBe(2450); // account-ccy (GBP) minor units
+    expect(o.feeMinor).toBe(4); // |−0.04| from walletImpact.taxes
+    expect(o.status).toBe("FILLED");
+    expect(o.raw).toBe(REAL);
+  });
+
+  it("a SELL row and a fill-less (cancelled) row behave honestly", () => {
+    const sell = normalizeOrderFill({
+      order: { ...REAL.order, id: 1, side: "SELL" },
+      fill: { ...REAL.fill, id: 2 },
+    })!;
+    expect(sell.side).toBe("sell");
+    // no fill object at all (e.g. a cancelled order in history): still parses
+    // via order-level fields, and its non-FILLED status excludes it downstream.
+    const cancelled = normalizeOrderFill({
+      order: { ...REAL.order, id: 3, status: "CANCELLED", filledValue: 0 },
+    })!;
+    expect(cancelled).not.toBeNull();
+    expect(cancelled.status).toBe("CANCELLED");
+    expect(cancelled.id).toMatch(/^ord:3:/); // order-id fallback, disambiguated
+  });
+});
+
 describe("normalizeOrderFill — happy path", () => {
   it("normalizes a full nested-instrument order and keeps raw", () => {
     const raw = {
