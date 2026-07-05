@@ -200,6 +200,30 @@ export async function fetchPositions(creds: Credentials, env: Environment): Prom
   return out;
 }
 
+/** Cash / account summary: total account value, free buying power, and total
+ *  P/L — all in the ACCOUNT currency (e.g. GBP). Read-only. Defensive: any
+ *  missing field normalizes to 0/null. Minor units (×100) to match Position. */
+export interface AccountCash {
+  freeMinor: number; // buying power (available cash)
+  totalMinor: number; // total account value (invested + cash)
+  investedMinor: number;
+  pplMinor: number; // open positions' total P/L (account ccy)
+  currency: string | null;
+}
+export async function fetchAccountCash(creds: Credentials, env: Environment): Promise<AccountCash> {
+  const res = await request("/equity/account/cash", creds, env);
+  if (!res.ok) throw new Error(`trading212: account/cash failed (${res.status})`);
+  const r = (await res.json()) as Record<string, unknown>;
+  const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return {
+    freeMinor: toMinor(n(r.free)),
+    totalMinor: toMinor(n(r.total)),
+    investedMinor: toMinor(n(r.invested)),
+    pplMinor: toMinor(n(r.ppl)),
+    currency: typeof r.currencyCode === "string" ? r.currencyCode : null,
+  };
+}
+
 /**
  * Single lightweight authed GET used to validate credentials without doing
  * anything destructive. Maps the response to a coarse status the UI can show.

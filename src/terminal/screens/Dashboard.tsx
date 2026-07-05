@@ -23,7 +23,7 @@
 import { useEffect, useReducer, useRef } from "react";
 import {
   DataEngine, UNIVERSE, DEFAULT_ROSTER, IDX_DEFS, RANGES,
-  fmtUSD, fmtNum, fmtPct, arrow, glClass, clamp, type Range,
+  fmtUSD, fmtMoney, fmtNum, fmtPct, arrow, glClass, clamp, type Range,
 } from "../engine/dataEngine";
 import { State, stateSubscribe, notifyState, computeEquity, dayPnl } from "../state";
 import { fitCanvas, drawGlowLine, seriesToPts, sparkPath } from "../components/canvas";
@@ -53,21 +53,32 @@ export default function Dashboard() {
 
   /* ================= ACCOUNT MASTHEAD (renderDashAccount, refs for $()) ================= */
   function renderAccount(): void {
-    const { mv, total } = computeEquity();
-    const dp = dayPnl(); const dpPct = mv ? (dp / (mv - dp)) * 100 : 0;
-    setTickText(acctValRef.current, fmtUSD(total));
+    // LIVE: use Trading 212's own reported account figures (the correct account-
+    // currency total — computeEquity() would mix a GBP account with USD stock
+    // prices). MOCK: the seed-77 computeEquity in $.
+    const live = State.liveAccount;
+    const ccy = State.accountCcy;
+    const { mv, total: mockTotal } = computeEquity();
+    const total = live ? live.totalMinor / 100 : mockTotal;
+    // P&L: live → T212's total open P/L (honest headline); mock → seed day P&L.
+    const pl = live ? live.pplMinor / 100 : dayPnl();
+    const invested = live ? total - live.freeMinor / 100 : mv;
+    const plPct = invested - pl !== 0 ? (pl / (invested - pl)) * 100 : 0;
+    const money = (n: number, dp = 2) => (live ? fmtMoney(n, ccy, dp) : fmtUSD(n, dp));
+    setTickText(acctValRef.current, money(total));
     const dEl = acctDayRef.current;
     if (dEl) {
-      dEl.className = "acct-day mono " + glClass(dp);
-      dEl.textContent = `${arrow(dp)} ${fmtUSD(Math.abs(dp))} (${fmtPct(dpPct)})`;
+      dEl.className = "acct-day mono " + glClass(pl);
+      dEl.textContent = `${arrow(pl)} ${money(Math.abs(pl))} (${fmtPct(plPct)})`;
     }
-    if (acctBPRef.current) acctBPRef.current.textContent = fmtUSD(State.cash);
+    const bp = live ? live.freeMinor / 100 : State.cash;
+    if (acctBPRef.current) acctBPRef.current.textContent = money(bp);
     let posCount = 0; for (const s in State.positions) if (State.positions[s].qty > 0) posCount++;
     if (acctPosRef.current) acctPosRef.current.textContent = posCount + " OPEN";
-    const marginUsed = mv * 0.35, marginMax = total * 0.5;
-    if (marginFillRef.current) marginFillRef.current.style.width = clamp((marginUsed / marginMax) * 100, 2, 100).toFixed(0) + "%";
-    if (marginUsedRef.current) marginUsedRef.current.textContent = fmtUSD(marginUsed, 0);
-    if (marginMaxRef.current) marginMaxRef.current.textContent = "/ " + fmtUSD(marginMax, 0);
+    const marginUsed = invested * 0.35, marginMax = total * 0.5;
+    if (marginFillRef.current) marginFillRef.current.style.width = clamp(marginMax ? (marginUsed / marginMax) * 100 : 0, 2, 100).toFixed(0) + "%";
+    if (marginUsedRef.current) marginUsedRef.current.textContent = money(marginUsed, 0);
+    if (marginMaxRef.current) marginMaxRef.current.textContent = "/ " + money(marginMax, 0);
   }
 
   /* ================= INDEX CHIPS (renderIndices — skeleton once, patch after) ================= */

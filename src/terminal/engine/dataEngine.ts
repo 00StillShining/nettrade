@@ -34,6 +34,14 @@ export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
 // sign OUTSIDE the $ (never "$-1,234")
 export const fmtUSD = (n: number, dp = 2): string =>
   (n < 0 ? "-" : "") + "$" + Math.abs(Number(n)).toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+/** Currency-aware money format (the live account may be GBP/EUR/…). Falls back to
+ *  the ISO code as a prefix for currencies without a common symbol. */
+const CCY_SYMBOL: Record<string, string> = { USD: "$", GBP: "£", EUR: "€", GBX: "p" };
+export const fmtMoney = (n: number, ccy = "USD", dp = 2): string => {
+  const sym = CCY_SYMBOL[ccy.toUpperCase()];
+  const body = Math.abs(Number(n)).toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  return (n < 0 ? "-" : "") + (sym ? sym + body : `${ccy.toUpperCase()} ${body}`);
+};
 export const fmtNum = (n: number, dp = 2): string =>
   Number(n).toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
 export const fmtPct = (n: number): string => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";

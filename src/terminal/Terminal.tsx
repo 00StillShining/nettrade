@@ -35,6 +35,7 @@ import { flushSync } from "react-dom";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import "./terminal.css";
 import { DataEngine, isMarketOpen } from "./engine/dataEngine";
+import { startLive, stopLive } from "./engine/live";
 import {
   State, notifyState, alertsSeedBook, evaluateWatchesNow,
   confirmStage, stageDelta, resetStage, toggleStrategy, moveRoster,
@@ -283,6 +284,9 @@ export default function Terminal() {
     // the shell owns the engine clock: 1–2s mock walk + boot-time Coinbase
     // handshake (15s re-poll on success) live inside DataEngine.start().
     DataEngine.start();
+    // LIVE ORCHESTRATOR (phase 2a): pull the user's real Trading 212 holdings +
+    // live prices into the engine every 5 min (no-op under VITE_MOCK / no key).
+    startLive(5 * 60 * 1000);
     const unsubTick = DataEngine.subscribe(() => {
       // Watches evaluate UNCONDITIONALLY so a TRIGGERED cross surfaces the orange
       // roster .flag star even while the user is on another screen (latching).
@@ -408,6 +412,7 @@ export default function Terminal() {
       window.clearInterval(clockIv);
       unsubTick();
       DataEngine.stop();
+      stopLive();
       setGotoScreenImpl(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
