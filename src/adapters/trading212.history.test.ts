@@ -419,29 +419,31 @@ describe("toMinor rounding (shared helper, re-exported for history tests)", () =
 
 /* ============================ CURSOR EXTRACTION ============================ */
 
-describe("extractCursor", () => {
-  it("lifts the cursor value out of a full nextPagePath with a query string", () => {
-    expect(extractCursor("/equity/history/orders?limit=50&cursor=ABC123")).toBe("ABC123");
+describe("extractCursor — round-trips the WHOLE query as the opaque token", () => {
+  // WHY: some feeds paginate with MORE than a cursor param (transactions carry
+  // cursor + time); lifting only `cursor` built a resume token the server
+  // rejected, which froze the transactions back-fill at one page.
+  it("keeps every query param from a full nextPagePath", () => {
+    expect(extractCursor("/equity/history/orders?limit=50&cursor=ABC123")).toBe("limit=50&cursor=ABC123");
   });
-  it("lifts the cursor out of an absolute URL form too", () => {
-    expect(extractCursor("https://live.trading212.com/api/v0/history/dividends?cursor=XYZ&limit=50")).toBe("XYZ");
+  it("keeps every param from an absolute URL form too", () => {
+    expect(extractCursor("https://live.trading212.com/api/v0/history/dividends?cursor=XYZ&limit=50")).toBe("cursor=XYZ&limit=50");
   });
-  it("treats a bare token (no cursor param) as the whole opaque cursor", () => {
+  it("preserves MULTI-PARAM pagination (the transactions cursor+time shape)", () => {
+    expect(extractCursor("/history/transactions?cursor=123&time=2026-06-07T01:21:07.902Z&limit=50")).toBe(
+      "cursor=123&time=2026-06-07T01:21:07.902Z&limit=50",
+    );
+  });
+  it("treats a bare token (no query) as the whole opaque cursor", () => {
     expect(extractCursor("opaque-bare-token-42")).toBe("opaque-bare-token-42");
   });
-  it("returns a path with a non-cursor query verbatim as the token", () => {
-    // No `cursor=` param present -> the whole string is the opaque token.
-    expect(extractCursor("/history/transactions?limit=50")).toBe("/history/transactions?limit=50");
-  });
-  it("returns null at end of feed (null / empty / non-string)", () => {
+  it("returns null at end of feed (null / empty / non-string / empty query)", () => {
     expect(extractCursor(null)).toBeNull();
     expect(extractCursor("")).toBeNull();
     expect(extractCursor("   ")).toBeNull();
     expect(extractCursor(undefined)).toBeNull();
     expect(extractCursor(42)).toBeNull();
-  });
-  it("ignores an empty cursor param and keeps the path as the token", () => {
-    expect(extractCursor("/orders?cursor=&limit=50")).toBe("/orders?cursor=&limit=50");
+    expect(extractCursor("/orders?")).toBeNull();
   });
 });
 
@@ -457,12 +459,24 @@ describe("historyQuery", () => {
     expect(historyQuery(null, 999)).toBe(`limit=${HISTORY_PAGE_LIMIT}`);
     expect(historyQuery(null, 20)).toBe("limit=20");
   });
-  it("appends and URL-encodes an opaque cursor token", () => {
-    // A cursor that is itself a full path must round-trip encoded.
-    const q = historyQuery("/orders?cursor=A&limit=50", 50);
+  it("merges a full-query token back into the request (multi-param pagination)", () => {
+    const q = historyQuery("cursor=123&time=2026-06-07T01:21:07.902Z&limit=50", 50);
     const params = new URLSearchParams(q);
+    expect(params.get("cursor")).toBe("123");
+    expect(params.get("time")).toBe("2026-06-07T01:21:07.902Z");
+    expect(params.get("limit")).toBe("50"); // ours wins, clamped
+  });
+  it("tolerates a token that is a path?query (keeps the query part)", () => {
+    const q = historyQuery("/orders?cursor=A&time=T1", 50);
+    const params = new URLSearchParams(q);
+    expect(params.get("cursor")).toBe("A");
+    expect(params.get("time")).toBe("T1");
+  });
+  it("treats a LEGACY bare token (persisted by older builds) as the cursor value", () => {
+    const q = historyQuery("ABC123", 50);
+    const params = new URLSearchParams(q);
+    expect(params.get("cursor")).toBe("ABC123");
     expect(params.get("limit")).toBe("50");
-    expect(params.get("cursor")).toBe("/orders?cursor=A&limit=50");
   });
 });
 
@@ -507,7 +521,8 @@ describe("fetchOrderHistoryPage — envelope + cursor round-trip", () => {
     expect(page.items).toHaveLength(1);
     expect(page.items[0].id).toBe("F-1");
     expect(page.items[0].fillPriceMinor).toBe(28592);
-    expect(page.nextCursor).toBe("NEXT99");
+    // the WHOLE query round-trips as the opaque token (multi-param pagination)
+    expect(page.nextCursor).toBe("limit=50&cursor=NEXT99");
 
     // The request carried limit + no inbound cursor on the first page.
     const url = httpFetchMock.mock.calls[0][0] as string;

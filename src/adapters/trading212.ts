@@ -385,13 +385,16 @@ function extractCursor(nextPagePath: unknown): string | null {
   if (typeof nextPagePath !== "string") return null;
   const raw = nextPagePath.trim();
   if (raw.length === 0) return null;
-  // Look for a `cursor=` query param without needing a valid absolute URL base.
+  // Round-trip the WHOLE query string as the opaque token — some feeds paginate
+  // with MORE than a cursor param (transactions carry e.g. cursor + time);
+  // lifting only `cursor` produced a token the server rejects on resume, which
+  // froze the transactions back-fill. historyQuery() merges every param back.
   const qIdx = raw.indexOf("?");
-  const query = qIdx >= 0 ? raw.slice(qIdx + 1) : raw;
-  const params = new URLSearchParams(query);
-  const cursor = params.get("cursor");
-  if (cursor !== null && cursor.trim().length > 0) return cursor;
-  // No cursor param — the whole path IS the opaque token.
+  if (qIdx >= 0) {
+    const query = raw.slice(qIdx + 1).trim();
+    return query.length > 0 ? query : null;
+  }
+  // No query part — the whole string IS the opaque token.
   return raw;
 }
 
@@ -403,8 +406,21 @@ function extractCursor(nextPagePath: unknown): string | null {
 function historyQuery(cursor: string | null | undefined, limit: number | undefined): string {
   const params = new URLSearchParams();
   const lim = Math.max(1, Math.min(HISTORY_PAGE_LIMIT, Math.trunc(limit ?? HISTORY_PAGE_LIMIT)));
-  params.set("limit", String(lim));
-  if (typeof cursor === "string" && cursor.trim().length > 0) params.set("cursor", cursor);
+  const token = typeof cursor === "string" ? cursor.trim() : "";
+  if (token.length > 0) {
+    if (token.includes("=")) {
+      // Full-query token (the current extractCursor form, possibly multi-param —
+      // e.g. transactions paginate with cursor + time): merge EVERY param back.
+      // Tolerates a token that is itself a path?query by keeping the query part.
+      const qIdx = token.indexOf("?");
+      const query = qIdx >= 0 ? token.slice(qIdx + 1) : token;
+      new URLSearchParams(query).forEach((v, k) => params.set(k, v));
+    } else {
+      // Legacy bare-cursor token (persisted by older builds) — best effort.
+      params.set("cursor", token);
+    }
+  }
+  params.set("limit", String(lim)); // ours wins — clamped to the API max
   return params.toString();
 }
 

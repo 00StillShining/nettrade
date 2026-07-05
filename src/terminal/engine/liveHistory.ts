@@ -398,6 +398,14 @@ async function syncTable<T extends { id: string }>(
   const resumeCursor = tableWasNonEmpty ? await readCursor(cursorKey) : null;
   let cursor: string | null = resumeCursor;
 
+  // POISONED-RESUME RECOVERY: if the very first fetch at a RESUMED cursor fails
+  // (older builds persisted a lossy token the server rejects — the frozen
+  // transactions back-fill), clear the cursor and RE-WALK from page 1 to
+  // exhaustion, IGNORING the all-known early stop (upserts are idempotent, so a
+  // full re-walk is safe — just slow). Without the full walk, page 1 would read
+  // all-known and stop, permanently orphaning everything older than the freeze.
+  let forceFullWalk = false;
+
   // Loop-safety state: the cursor token is round-tripped OPAQUELY (extractCursor
   // may fall back to the whole nextPagePath), so a server that doesn't advance it
   // would otherwise serve the same page forever at one request per 10s. We stop
@@ -406,7 +414,22 @@ async function syncTable<T extends { id: string }>(
   const seenThisRun = new Set<string>();
 
   for (;;) {
-    const page = await fetchPage(cursor);
+    let page: Awaited<ReturnType<typeof fetchPage>>;
+    try {
+      page = await fetchPage(cursor);
+    } catch (err) {
+      if (cursor !== null && cursor === resumeCursor && !forceFullWalk) {
+        console.warn(
+          `history sync (${cursorKey}): resume cursor rejected — re-walking from page 1`,
+          err,
+        );
+        await writeCursor(cursorKey, null);
+        cursor = null;
+        forceFullWalk = true; // disable the all-known stop: walk to exhaustion
+        continue;
+      }
+      throw err; // a mid-walk failure propagates (cursor persisted → resumes next run)
+    }
     await upsert(page.items);
 
     // DIAGNOSTIC: a raw row that failed normalization means the broker's shape
@@ -437,7 +460,10 @@ async function syncTable<T extends { id: string }>(
         return;
       }
     } else if (
-      pageAllKnown(pageIds, knownBefore, tableWasNonEmpty) ||
+      // forceFullWalk disables the all-known stop (a re-walk after a poisoned
+      // resume MUST reach exhaustion to recover the orphaned older pages); the
+      // repeated-page guard always applies (loop safety).
+      (!forceFullWalk && pageAllKnown(pageIds, knownBefore, tableWasNonEmpty)) ||
       pageIds.every((id) => seenThisRun.has(id)) // repeated page THIS run — server not advancing
     ) {
       await writeCursor(cursorKey, null); // back-fill complete/none — clear resume point
@@ -525,6 +551,9 @@ export function startHistorySync(): void {
     } catch (err) {
       anyError = true;
       noteError(err);
+      // persist the reason so failures are diagnosable from the DB (sqlite3),
+      // even when the screens' error line isn't showing (fills already present)
+      void writeCursor(CURSOR_KEYS.orders + ":last_error", String(err).slice(0, 300)).catch(() => undefined);
       console.warn("history sync (orders) failed:", err);
     }
 
@@ -541,6 +570,9 @@ export function startHistorySync(): void {
     } catch (err) {
       anyError = true;
       noteError(err);
+      // persist the reason so failures are diagnosable from the DB (sqlite3),
+      // even when the screens' error line isn't showing (fills already present)
+      void writeCursor(CURSOR_KEYS.dividends + ":last_error", String(err).slice(0, 300)).catch(() => undefined);
       console.warn("history sync (dividends) failed:", err);
     }
 
@@ -559,6 +591,9 @@ export function startHistorySync(): void {
     } catch (err) {
       anyError = true;
       noteError(err);
+      // persist the reason so failures are diagnosable from the DB (sqlite3),
+      // even when the screens' error line isn't showing (fills already present)
+      void writeCursor(CURSOR_KEYS.transactions + ":last_error", String(err).slice(0, 300)).catch(() => undefined);
       console.warn("history sync (transactions) failed:", err);
     }
 
