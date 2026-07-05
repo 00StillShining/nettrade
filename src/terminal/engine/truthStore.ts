@@ -49,6 +49,10 @@ export const TruthStore: {
    *  surface it so "BROKER SYNC FAILED" names WHY (a 403 = the T212 key lacks
    *  the history scopes; a 429 = rate-limited). */
   syncError: string | null;
+  /** TRUE while the transactions back-fill is known-incomplete (deep pages
+   *  blocked, e.g. the T212 pagination 404 bug). NET CONTRIBUTIONS is then
+   *  UNDERSTATED and TOTAL GAIN may overstate — the truth deck must say so. */
+  txnsPartial: boolean;
   /** When the last successful sync landed (ISO), or null if never. */
   syncedAtISO: string | null;
   /** Earliest recorded equity snapshot (ISO), or null — the honest start of the
@@ -66,6 +70,7 @@ export const TruthStore: {
   dividends: [],
   sync: "idle",
   syncError: null,
+  txnsPartial: false,
   syncedAtISO: null,
   firstSnapshotISO: null,
   ccy: "GBP",

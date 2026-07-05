@@ -619,11 +619,24 @@ export function startHistorySync(): void {
       console.warn("history sync (transactions) failed:", err);
     }
 
-    // Snapshots may record ONLY once the TRANSACTIONS stream specifically has
-    // synced — net deposits come from transaction rows, and recording a value
-    // point against an empty/partial deposits table would persist rows where a
-    // fresh top-up masquerades as gain (permanently: the PK is minute-keyed).
-    if (txnsSynced) historySyncedOnce = true;
+    // Snapshots may record once the transactions HEAD has landed (the newest-
+    // first first page — recent deposits are then complete). The VALUE line
+    // never depended on old deposits (valueSeries is a totalValue passthrough),
+    // so deep-history gaps (the T212 pagination-404 bug) must not keep the
+    // curve unborn; the stored netDepositsMinor is best-known and the gap is
+    // surfaced honestly via txnsPartial below.
+    const txnRowCount = txnsSynced ? 1 : (await readAllTransactions().catch(() => [])).length;
+    if (txnsSynced || txnRowCount > 0) historySyncedOnce = true;
+
+    // HONESTY FLAG: while the transactions back-fill is known-incomplete
+    // (errored this run, or a resume cursor is still parked), NET CONTRIBUTIONS
+    // is understated and TOTAL GAIN may overstate — the truth deck says so.
+    try {
+      const parked = await readCursor(CURSOR_KEYS.transactions);
+      TruthStore.txnsPartial = !txnsSynced || parked !== null;
+    } catch {
+      TruthStore.txnsPartial = !txnsSynced;
+    }
     TruthStore.sync = anyError ? "error" : "done";
     TruthStore.syncedAtISO = new Date().toISOString();
     TruthStore.notify();

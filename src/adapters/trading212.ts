@@ -576,6 +576,35 @@ function normalizeTransaction(raw: unknown): HistoryTransaction | null {
  * extracts the opaque next-page cursor from the `{ items, nextPagePath }`
  * envelope. Tolerates a bare array body (older shape) as items with no cursor.
  */
+/**
+ * 404-FALLBACK LADDER for a multi-param pagination token. Observed live: the
+ * transactions endpoint 404s on its OWN nextPagePath (byte-for-byte replay,
+ * raw colons intact) at deep pages — a T212 beta-API bug we can only negotiate
+ * around. Variants tried in order after the verbatim form fails with 404:
+ *   1. time without milliseconds (…T01:15:31Z instead of …T01:15:31.065Z)
+ *   2. cursor-only (drop time)
+ *   3. time-only (drop cursor)
+ * Each candidate is a QUERY STRING. Only generated for tokens that carry a
+ * time param — plain cursors have nothing to ladder.
+ */
+function paginationFallbacks(query: string): string[] {
+  if (!/(^|&)time=/.test(query)) return [];
+  const out: string[] = [];
+  const noMs = query.replace(/(time=[^&]*?)\.\d{1,6}(Z|%5A)/i, "$1$2");
+  if (noMs !== query) out.push(noMs);
+  const noTime = query
+    .split("&")
+    .filter((p) => !p.startsWith("time="))
+    .join("&");
+  if (noTime !== query && noTime.length > 0) out.push(noTime);
+  const noCursor = query
+    .split("&")
+    .filter((p) => !p.startsWith("cursor="))
+    .join("&");
+  if (noCursor !== query && noCursor.length > 0) out.push(noCursor);
+  return out;
+}
+
 async function fetchHistoryPage<T>(
   endpoint: string,
   normalize: (raw: unknown) => T | null,
@@ -585,9 +614,20 @@ async function fetchHistoryPage<T>(
   limit: number | undefined,
 ): Promise<HistoryPage<T>> {
   const query = historyQuery(cursor, limit);
-  const res = await request(`${endpoint}?${query}`, creds, env, {
+  let res = await request(`${endpoint}?${query}`, creds, env, {
     minIntervalMs: HISTORY_MIN_REQUEST_INTERVAL_MS,
   });
+  // 404 on a multi-param token → walk the fallback ladder (each attempt still
+  // respects the strict pacing; rare, so the extra requests are affordable).
+  if (res.status === 404) {
+    for (const alt of paginationFallbacks(query)) {
+      console.warn(`trading212: ${endpoint} 404 — retrying pagination variant ?${alt}`);
+      res = await request(`${endpoint}?${alt}`, creds, env, {
+        minIntervalMs: HISTORY_MIN_REQUEST_INTERVAL_MS,
+      });
+      if (res.ok) break;
+    }
+  }
   // The query carries only pagination state (cursor/time/limit — no secrets);
   // including it makes a paging failure diagnosable from the persisted error.
   if (!res.ok) throw new Error(`trading212: ${endpoint}?${query} failed (${res.status})`);
@@ -657,6 +697,7 @@ export const __historyTest = {
   txnKind,
   extractCursor,
   historyQuery,
+  paginationFallbacks,
   sumFeesMinor,
   toMinor,
   HISTORY_MIN_REQUEST_INTERVAL_MS,

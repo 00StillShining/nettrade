@@ -476,6 +476,20 @@ describe("historyQuery", () => {
   });
 });
 
+describe("paginationFallbacks — the 404 ladder for T212's broken deep pagination", () => {
+  const { paginationFallbacks } = __historyTest;
+  it("generates ms-stripped, cursor-only and time-only variants for a cursor+time token", () => {
+    const q = "limit=50&cursor=019e61d9&time=2026-05-26T01:15:31.065Z";
+    const alts = paginationFallbacks(q);
+    expect(alts).toContain("limit=50&cursor=019e61d9&time=2026-05-26T01:15:31Z"); // no ms
+    expect(alts).toContain("limit=50&cursor=019e61d9"); // no time
+    expect(alts).toContain("limit=50&time=2026-05-26T01:15:31.065Z"); // no cursor
+  });
+  it("returns nothing for a token without a time param (nothing to ladder)", () => {
+    expect(paginationFallbacks("limit=50&cursor=ABC")).toEqual([]);
+  });
+});
+
 /* ============================ FETCHERS (mocked http, fake timers) ============================
    These exercise the real fetchHistoryPage path: envelope parsing, per-item
    normalization + skipping, and cursor extraction — without paying the 10s

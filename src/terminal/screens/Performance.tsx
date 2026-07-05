@@ -653,6 +653,17 @@ export default function Performance() {
                 {/* HERO + SUPPORTING: the truth-split dossier — every figure from TruthStore.truth */}
                 <div className="truth-dossier">
                   <div className="truth-splitgrid">
+                    {/* HONESTY: while the deposit back-fill is known-incomplete (the
+                        T212 deep-pagination 404), the split must confess rather than
+                        quietly overstate the gain. */}
+                    {TruthStore.txnsPartial && (
+                      <div className="truth-row truth-warn" key="__txnwarn">
+                        <span className="truth-k" style={{ color: "var(--loss)" }}>⚠ DEPOSIT HISTORY INCOMPLETE</span>
+                        <span className="truth-v" style={{ fontSize: 10, opacity: 0.8 }}>
+                          older deposits blocked by the broker API — contributions understated; gain may overstate
+                        </span>
+                      </div>
+                    )}
                     {truthRow("NET CONTRIBUTIONS", truth.netContributionsMinor, { sub: "deposits − withdrawals" })}
                     {/* the engine's documented v1 limitation (engine/types.ts): realised is
                         computed in each trade's own instrument-ccy terms — the truth deck
