@@ -36,7 +36,7 @@
        hover scrubbing never forces a React render.
    ========================================================================= */
 
-import { useEffect, useReducer, useRef, type ReactElement, type Ref } from "react";
+import { useEffect, useReducer, useRef, useState, type ReactElement, type Ref } from "react";
 import {
   DataEngine, UNIVERSE, RANGES, clamp, lerp, fmtUSD, fmtNum, fmtMoney, type Range,
 } from "../engine/dataEngine";
@@ -53,7 +53,13 @@ import { registerRedraw, gotoScreen, prefersReduced } from "../bus";
 import Roster from "../components/Roster";
 // LIVE Performance-Truth deck (worker B — may tsc-drift until truthStore.ts lands; keep the usage).
 import { TruthStore, startHistorySync } from "../engine/truthStore";
-import type { TimeSeriesPoint } from "../../engine/types";
+import type { TimeSeriesPoint, Period, PeriodTruth, CashEvent, Trade, EquitySnapshot } from "../../engine/types";
+import type { Position } from "../../adapters/trading212";
+// item 4 — the ALREADY-WRITTEN+TESTED period maths. NEVER reimplement these here: the deck
+// only windows/labels what they return (window the chart with filterByPeriod; read the two
+// distinct lenses out of computePeriodTruth). See period.ts's TWO-LENS doc comment.
+import { computePeriodTruth } from "../../engine/period";
+import { filterByPeriod } from "../../engine/series";
 
 // VITE_MOCK builds must be a NO-OP for the whole live path (design builds stay SIMULATED candles).
 const IS_MOCK = import.meta.env.VITE_MOCK === "1";
@@ -78,6 +84,37 @@ function asOf(iso: string | null): { text: string; stale: boolean } | null {
    the two worlds never fight over the same canvases. */
 function truthDeckActive(): boolean {
   return !IS_MOCK && Perf.source === "PORTFOLIO" && !!TruthStore.truth;
+}
+
+/* ================= ITEM 4 · PERIOD SELECTOR (the two-lens window) =================
+   The engine Period vocabulary (period.ts / series.ts) — DISTINCT from the candle
+   deck's `Range` (1D/1W/1M/1Y). Default ALL: the deck's resting state is the all-time
+   truth, exactly what the hero TOTAL GAIN answers; a chip narrows the WINDOW only. */
+const TRUTH_PERIODS: Period[] = ["1M", "3M", "6M", "YTD", "1Y", "ALL"];
+
+/* The as-of instant the period window closes at. The truth store stamps the last
+   successful sync; fall back to "now" only when no sync time exists yet (a first
+   reveal) so filterByPeriod/computePeriodTruth still have a valid upper bound.
+   Kept as ONE resolver so the chart window and the two-lens readings can never
+   disagree about where "now" is. */
+function truthAsOfISO(): string {
+  return TruthStore.syncedAtISO || new Date().toISOString();
+}
+
+/* The RAW engine inputs computePeriodTruth needs (cashEvents/trades/positions/
+   snapshots). The store publishes the DERIVED truth + series for the candle-free
+   deck; the period lenses need the underlying dated events, so worker C exposes
+   them here as `TruthStore.periodInputs` (cross-worker contract — may tsc-drift
+   until the store field lands; keep the usage). `null` = inputs not available in
+   this build (mock, or pre-sync): the deck then shows the ALL-time truth for the
+   readings and marks the windowed lenses "—" with a plain reason, never fabricates.
+   The `as` cast is the single, localised drift point; the runtime guard below makes
+   a missing field degrade honestly rather than throw. */
+/* the store publishes the deck's period inputs directly (typed contract in
+   truthStore.ts — no cast, so a missing publisher is a COMPILE error, never a
+   silently-dead panel again). */
+function readPeriodInputs() {
+  return TruthStore.periodInputs;
 }
 
 /* ================= PURE CANVAS GEOMETRY (prototype helpers, verbatim) ================= */
@@ -183,6 +220,19 @@ function perfTriangle(ctx: CanvasRenderingContext2D, x: number, y: number, s: nu
 
 export default function Performance() {
   const [, force] = useReducer((n: number) => n + 1, 0);
+
+  // ---- item 4: the active truth-deck PERIOD (session-local; default ALL) ----
+  // Mirrored into a ref so the imperative draw/redraw callbacks (drawTruth, the
+  // registerRedraw closure) always read the CURRENT period without a stale-closure
+  // capture — the same ref discipline the tick path uses. setPeriod re-renders the
+  // chips AND the two-lens readings; the after-render effect repaints the windowed
+  // chart. ALL periods are honest windows over the same real series — no new data.
+  const [period, setPeriodState] = useState<Period>("ALL");
+  const periodRef = useRef<Period>("ALL");
+  function setPeriod(p: Period): void {
+    periodRef.current = p;
+    setPeriodState(p);
+  }
 
   // ---- refs: the candle canvas layers + the two imperative text surfaces ----
   const baseRef = useRef<HTMLCanvasElement | null>(null);
@@ -491,8 +541,15 @@ export default function Performance() {
     const cv = truthCvRef.current; if (!cv) return;
     const { ctx, w, h } = fitCanvas(cv); ctx.clearRect(0, 0, w, h);
     const series = TruthStore.series; if (!series) return;
-    const dep = series.netDeposits || [];
-    const val = series.value || [];
+    // ITEM 4 — WINDOW the two chart series to the active period. filterByPeriod is a
+    // pure subsetting op (series.ts): it keeps whichever REAL points already fall
+    // inside [start, asOf] and never invents an edge point — so a window that pre-dates
+    // the first snapshot simply starts the value line where data exists (the honest
+    // "no interpolation before the first snapshot" law the deck already enforces).
+    const p = periodRef.current;
+    const asOf = truthAsOfISO();
+    const dep = filterByPeriod(series.netDeposits || [], p, asOf);
+    const val = filterByPeriod(series.value || [], p, asOf);
     if (!dep.length && !val.length) return;
 
     const epoch = (p: TimeSeriesPoint): number => { const t = Date.parse(p.atISO); return isFinite(t) ? t : 0; };
@@ -668,6 +725,63 @@ export default function Performance() {
   })();
   const valuePts = TruthStore.series?.value?.length ?? 0;
 
+  /* ITEM 4 — the TWO-LENS PeriodTruth for the active window. Computed straight from
+     computePeriodTruth (period.ts) — the deck NEVER re-derives the maths, it only
+     labels the two readings the engine hands back. `periodTruth` is null when the
+     raw inputs aren't published (mock / pre-sync) OR when off the truth deck; the
+     readings then render "—" with a plain reason rather than a fabricated figure.
+     ALL is the resting state and mirrors the all-time hero (period.ts asserts the
+     equivalence), so we still show it — it reassures rather than surprises. */
+  const periodTruth: PeriodTruth | null = (() => {
+    if (!truthMode) return null;
+    const pi = readPeriodInputs();
+    if (!pi) return null;
+    try {
+      return computePeriodTruth(pi.cashEvents, pi.trades, pi.positions, pi.snapshots, period, pi.asOfISO, pi.currency);
+    } catch {
+      // an engine throw must never brick the deck — the readings degrade to "—".
+      return null;
+    }
+  })();
+  // WHY the windowed lenses might be unavailable, in plain words (used as the "—" sub).
+  // Distinguishes "we can't compute period lenses at all in this build" from "we can,
+  // but this specific window has no anchor / no realising events yet".
+  // belt-and-braces mirror of the store contract: NEVER show a rate while the
+  // deposit history is known-incomplete, even if a stale xirrPct slipped through.
+  const xirrShown = TruthStore.txnsPartial ? null : TruthStore.xirrPct;
+
+  const periodReason = readPeriodInputs()
+    ? "no recorded snapshot at this window's start yet"
+    : TruthStore.sync === "done"
+      ? "period inputs not published — press SYNC NOW (Shift+R)"
+      : "needs the first live history sync";
+
+  /* ITEM 3 — DIVIDENDS // RECORDED band. Straight from TruthStore.dividends (already
+     newest-first, account-ccy amountMinor). Three honest reads, all RECORDED (real
+     income the user has actually earned; no FMP upcoming-ex-date enrichment this wave —
+     network-free): trailing-12-month total (Σ within 365d of the as-of), the top few
+     per-ticker totals, and the last few payments. Empty history → the band hides. */
+  const divBand = (() => {
+    if (!truthMode) return null;
+    const divs = TruthStore.dividends || [];
+    if (!divs.length) return null;
+    const nowMs = Date.parse(truthAsOfISO());
+    const yearAgo = isFinite(nowMs) ? nowMs - 365 * 24 * 3600_000 : -Infinity;
+    let ttmMinor = 0;
+    const byTicker = new Map<string, number>();
+    for (const d of divs) {
+      const t = Date.parse(d.dateISO);
+      if (isFinite(t) && t >= yearAgo && t <= nowMs) ttmMinor += d.amountMinor;
+      byTicker.set(d.ticker, (byTicker.get(d.ticker) || 0) + d.amountMinor);
+    }
+    const top = [...byTicker.entries()]
+      .map(([sym, minor]) => ({ sym, minor }))
+      .sort((a, b) => b.minor - a.minor)
+      .slice(0, 4);
+    const recent = divs.slice(0, 5); // already newest-first
+    return { ttmMinor, top, recent, count: divs.length };
+  })();
+
   /* one truth-split dossier row: LABEL ↔ signed money figure. `signed` figures carry
      sign + ▲/▼ + gain/loss colour (a real gain/loss number, legitimately coloured);
      `flat` figures (contributions, fees, dividends, interest) are neutral ink — a
@@ -684,6 +798,28 @@ export default function Performance() {
         {/* the hero passes a ref so the Persona stamp (item 23) can toggle .stamped on
             the exact TOTAL GAIN figure — the one number that means "real money moved". */}
         <span className={"truth-v mono " + cls} ref={opts?.vref}>{body}</span>
+      </div>
+    );
+  }
+
+  /* ITEM 4 — the SNAPSHOT-lens reading (the "holdings growth" row above the chart).
+     `minor` null → "—" + the honest reason (period.ts returns a null anchor with its
+     own note when no snapshot exists at/before the window start). A present figure is
+     a genuine gain: sign + ▲/▼ + gain/loss colour, with the engine's returnPct appended
+     (never re-derived here — the denominator choice is a truth-policy decision in
+     period.ts). The caller passes the right `sub` for each state. */
+  function lensRow(key: string, label: string, minor: number | null, sub: string, opts?: { pct?: number | null }): ReactElement {
+    const has = minor != null;
+    const cls = has ? (minor >= 0 ? "gain" : "loss") : "";
+    const body = has
+      ? (minor >= 0 ? "▲ " : "▼ ") + fmtMoney(Math.abs(minor) / 100, tCcy)
+      : "—";
+    const pct = opts?.pct;
+    const pctStr = pct == null ? "" : (pct >= 0 ? " · +" : " · ") + (pct * 100).toFixed(2) + "%";
+    return (
+      <div className="lens-row" key={key}>
+        <span className="lens-k">{label}<span className="lens-sub">{sub}</span></span>
+        <span className={"lens-v mono " + cls}>{body}{has && pctStr}</span>
       </div>
     );
   }
@@ -723,12 +859,37 @@ export default function Performance() {
               {!truthMode && <span className="last mono" id="perfLast" ref={lastRef} />}
               {/* ITEM 34 — as-of freshness stamp on the TRUTH DECK head (live only; empty on the candle deck) */}
               {truthMode && <div className="asof truth-asof" ref={truthAsofRef} />}
+              {/* READOUT (c) — RECONCILIATION line: does the replayed order ledger match the live
+                  holdings? Quiet mono, right by the as-of stamp. ✓ when every ticker agrees; else
+                  names the count + the offending syms with ledger-vs-live qty so the mismatch is
+                  actionable, not just alarming. Null recon (pre-first-load) shows nothing. */}
+              {truthMode && TruthStore.recon && (
+                TruthStore.recon.mismatches === 0 ? (
+                  <div className="recon ok mono">✓ RECONCILED<span className="recon-sub"> — ledger matches holdings ({TruthStore.recon.perTicker.length} tickers)</span></div>
+                ) : (
+                  <div className="recon warn mono">
+                    ▲ {TruthStore.recon.mismatches} MISMATCH{TruthStore.recon.mismatches === 1 ? "" : "ES"}
+                    <span className="recon-sub"> — {TruthStore.recon.perTicker.filter((t) => !t.ok).slice(0, 4).map((t) => `${t.sym} ${fmtNum(t.ledgerQty, 4)}≠${fmtNum(t.liveQty, 4)}`).join(" · ")}</span>
+                  </div>
+                )
+              )}
             </div>
-            {/* range toggle is meaningless on the truth deck — it shows FULL history, always */}
+            {/* CANDLE deck: the price-history range toggle (1D/1W/1M/1Y). */}
             {!truthMode && (
               <div className="rangetog" id="perfRangeTog">
                 {RANGES.map((r: Range) => (
                   <button key={r} className={r === Perf.range ? "on" : ""} onClick={() => setRange(r)}>{r}</button>
+                ))}
+              </div>
+            )}
+            {/* ITEM 4 — TRUTH deck: the PERIOD chips (1M/3M/6M/YTD/1Y/ALL). Same seg-toggle
+                look as the range toggle but the engine's Period vocabulary — it windows the
+                two chart series (filterByPeriod) AND the two-lens readings (computePeriodTruth).
+                Default ALL = the resting all-time truth the hero already answers. */}
+            {truthMode && (
+              <div className="rangetog truth-periodtog" id="perfPeriodTog" role="group" aria-label="performance period">
+                {TRUTH_PERIODS.map((pp) => (
+                  <button key={pp} className={pp === period ? "on" : ""} aria-pressed={pp === period} onClick={() => setPeriod(pp)}>{pp}</button>
                 ))}
               </div>
             )}
@@ -765,10 +926,16 @@ export default function Performance() {
                       </div>
                     )}
                     {truthRow("NET CONTRIBUTIONS", truth.netContributionsMinor, { sub: "deposits − withdrawals" })}
-                    {/* the engine's documented v1 limitation (engine/types.ts): realised is
-                        computed in each trade's own instrument-ccy terms — the truth deck
-                        must surface that caveat, not silently stamp the account symbol. */}
-                    {truthRow("REALISED P/L", truth.realisedPlMinor, { signed: true, sub: "instr-ccy terms · exact for single-ccy accounts" })}
+                    {/* READOUT (b) — the REALISED sub is now BASIS-AWARE (owner A's realisedBasis):
+                        "settled" means every replayed fill carried T212's exact GBP walletImpact, so
+                        realised is exact account-ccy; "instrument"/"mixed" keep the cautious v1 caveat
+                        (each trade's own instrument-ccy terms — exact only for single-ccy accounts). */}
+                    {truthRow("REALISED P/L", truth.realisedPlMinor, {
+                      signed: true,
+                      sub: truth.realisedBasis === "settled"
+                        ? "exact " + tCcy + " · settled values"
+                        : "instr-ccy terms · exact for single-ccy accounts",
+                    })}
                     {truthRow("UNREALISED P/L", truth.unrealisedPlMinor, { signed: true })}
                     {truthRow("DIVIDENDS", truth.dividendsMinor)}
                     {truthRow("FEES", truth.feesMinor)}
@@ -778,20 +945,118 @@ export default function Performance() {
                   <div className="truth-herowrap">
                     {truthRow("TOTAL GAIN", truth.totalGainMinor, { signed: true, hero: true, vref: heroValRef })}
                     <div className="truth-return">
-                      <span className="truth-k">RETURN</span>
+                      <span className="truth-k">RETURN<span className="truth-sub">simple · gain ÷ net in</span></span>
                       <span className={"truth-v mono " + (truth.totalReturnPct == null ? "" : truth.totalReturnPct >= 0 ? "gain" : "loss")}>
                         {truth.totalReturnPct == null
                           ? "—"
                           : (truth.totalReturnPct >= 0 ? "▲ +" : "▼ ") + Math.abs(truth.totalReturnPct).toFixed(2) + "%"}
                       </span>
                     </div>
+                    {/* READOUT (a) — XIRR (money-weighted, time-aware) beside the simple RETURN.
+                        NULL whenever txnsPartial (owner C nulls xirrPct then — missing old deposits
+                        would fabricate a rate), so the honest sub says WHY rather than showing 0. */}
+                    <div className="truth-return truth-xirr">
+                      <span className="truth-k">XIRR<span className="truth-sub">{xirrShown != null ? "money-weighted" : TruthStore.txnsPartial ? "needs full deposit history" : "needs \u22651 day of dated flows"}</span></span>
+                      <span className={"truth-v mono " + (xirrShown == null ? "" : xirrShown >= 0 ? "gain" : "loss")}>
+                        {xirrShown == null
+                          ? "—"
+                          : (xirrShown >= 0 ? "▲ +" : "▼ ") + Math.abs(xirrShown).toFixed(2) + "%/yr"}
+                      </span>
+                    </div>
                   </div>
+
+                  {/* ITEM 3 — DIVIDENDS // RECORDED band. Below the split + hero (the deck keeps ONE
+                      hero: TOTAL GAIN). Real income the user has earned — trailing-12-month total, top
+                      per-ticker totals, and the last few payments. All RECORDED (no FMP ex-date
+                      enrichment this wave). <details> collapses it when vertical space is tight; open
+                      by default so the income is visible without a click. Hidden when no dividends. */}
+                  {divBand && (
+                    <details className="div-band" open>
+                      <summary className="div-summary mono">
+                        <span className="div-title">DIVIDENDS // RECORDED</span>
+                        <span className="div-ttm">
+                          <span className="div-ttm-k">TTM</span> {fmtMoney(divBand.ttmMinor / 100, tCcy)}
+                        </span>
+                      </summary>
+                      <div className="div-body">
+                        {divBand.top.length > 0 && (
+                          <div className="div-top">
+                            <span className="div-clab mono">TOP PAYERS</span>
+                            <div className="div-toprows">
+                              {divBand.top.map((t) => (
+                                <div className="div-toprow" key={"dt-" + t.sym}>
+                                  <span className="div-sym mono">{t.sym}</span>
+                                  <span className="div-amt mono">{fmtMoney(t.minor / 100, tCcy)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <div className="div-recent">
+                          <span className="div-clab mono">LAST PAYMENTS</span>
+                          <div className="div-recentrows">
+                            {divBand.recent.map((d) => (
+                              <div className="div-recentrow mono" key={"dr-" + d.id}>
+                                <span className="div-date">{d.dateISO.slice(0, 10)}</span>
+                                <span className="div-sym">{d.ticker}</span>
+                                <span className="div-amt">{fmtMoney(d.amountMinor / 100, tCcy)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </details>
+                  )}
                 </div>
 
-                {/* THE CHART: net-deposits step (full history) + RECORDED value line (snapshots only) */}
+                {/* THE CHART: net-deposits step (windowed) + RECORDED value line (snapshots only) */}
                 <div className="truth-chartcol">
+                  {/* ITEM 4 — the TWO LENSES for the active window, kept DISTINCT (period.ts law:
+                      they answer DIFFERENT questions and must NEVER be summed).
+                        • SNAPSHOT lens (top, the answer) — "holdings growth": how much your held
+                          value grew net of what you added, since the last snapshot at/before the
+                          window start. The ONLY complete windowed gain (it captures unrealised
+                          swings). "—" + the engine's own note when no anchor snapshot exists yet.
+                        • COMPONENT lens (below) — the exactly-computable named, banked pieces that
+                          FELL INSIDE the window (realised · dividends · fees · interest · net in).
+                          ITEMISED, never blended into one number — blind to unrealised by design.
+                      ALL has no window start to anchor a snapshot delta against (period.ts returns a
+                      null anchor with a note), so for ALL we show only the component itemisation and
+                      point the reader at the all-time hero above for the complete figure. */}
+                  <div className="truth-lenses">
+                    <div className="lens-head mono">
+                      <span className="lens-win">{period === "ALL" ? "ALL-TIME" : period} WINDOW</span>
+                      <span className="lens-note">two lenses · never summed</span>
+                    </div>
+                    {/* SNAPSHOT lens — the single complete windowed gain (not shown for ALL: the
+                        all-time hero above already IS that figure; period.ts gives ALL a null anchor). */}
+                    {period !== "ALL" && lensRow(
+                      "lens-snap",
+                      "HOLDINGS GROWTH",
+                      periodTruth ? periodTruth.snapshotGain.gainMinor : null,
+                      periodTruth && periodTruth.snapshotGain.gainMinor != null
+                        ? "value grown, net of what you added, since the window's anchor snapshot"
+                        : periodReason,
+                      { pct: periodTruth?.snapshotGain.returnPct ?? null },
+                    )}
+                    {/* COMPONENT lens — the named banked pieces, ITEMISED (never one blended gain). */}
+                    <div className="lens-components">
+                      <span className="lens-clab mono">BANKED THIS WINDOW · separate from holdings growth, never added</span>
+                      {periodTruth ? (
+                        <div className="lens-cgrid">
+                          {truthRow("REALISED", periodTruth.components.realisedInWindowMinor, { signed: true })}
+                          {truthRow("DIVIDENDS", periodTruth.components.dividendsMinor)}
+                          {truthRow("FEES", periodTruth.components.feesMinor)}
+                          {truthRow("INTEREST", periodTruth.components.interestMinor)}
+                          {truthRow("NET IN", periodTruth.components.netContributionsMinor, { sub: `${fmtMoney(periodTruth.components.depositsMinor / 100, tCcy)} in · ${fmtMoney(periodTruth.components.withdrawalsMinor / 100, tCcy)} out` })}
+                        </div>
+                      ) : (
+                        <div className="lens-cgap mono">— {periodReason}</div>
+                      )}
+                    </div>
+                  </div>
                   <div className="truth-legend mono">
-                    <span className="tl-item"><span className="tl-sw" style={{ background: "#5D8B80" }} />NET DEPOSITS · FULL HISTORY</span>
+                    <span className="tl-item"><span className="tl-sw" style={{ background: "#5D8B80" }} />NET DEPOSITS · {period === "ALL" ? "FULL HISTORY" : period + " WINDOW"}</span>
                     <span className="tl-item"><span className="tl-sw" style={{ background: "#D9942B" }} />VALUE · RECORDED SNAPSHOTS</span>
                   </div>
                   <div className="perf-well truth-well">

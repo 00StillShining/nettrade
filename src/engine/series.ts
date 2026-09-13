@@ -7,7 +7,7 @@
 // ValueChart renders only caller-supplied numbers.
 
 import type { CashEvent, EquitySnapshot, Period, Trade, TimeSeriesPoint } from "./types";
-import { computeRealised } from "./truth";
+import { replayRealisedEvents } from "./truth";
 
 /**
  * netDepositsSeries — cumulative (deposits - withdrawals), STEPPED at each
@@ -72,21 +72,23 @@ export function realisedSeries(trades: Trade[], asOfISO: string): TimeSeriesPoin
     .sort((a, b) => (a.dateISO < b.dateISO ? -1 : a.dateISO > b.dateISO ? 1 : 0));
   if (!ordered.some((t) => t.side === "sell")) return [];
 
+  // ONE whole-set replay (replayRealisedEvents was built for exactly this),
+  // stamping the cumulative realised total at each sell event. Besides being
+  // O(n) instead of the old per-prefix O(n²), this matters for CORRECTNESS
+  // under the settled basis: the basis is decided per ticker from the WHOLE
+  // trade set (a late fill with no settled value demotes the whole ticker),
+  // and the old prefix re-replays could decide DIFFERENT bases for early vs
+  // late curve points of the same ticker — historical points silently moving
+  // between currencies as new fills arrive.
   const points: TimeSeriesPoint[] = [];
   let prevRealised = 0;
-  const prefix: Trade[] = [];
-  for (const t of ordered) {
-    prefix.push(t);
-    if (t.side !== "sell") continue;
-    // Re-replay the prefix up to and including this sell. This is O(n^2)
-    // in trade count, which is fine for the realistic scale of a personal
-    // account's history (hundreds, not millions, of trades) and keeps the
-    // single source of truth for the replay rules in computeRealised.
-    const { realisedPlMinor } = computeRealised(prefix);
+  let cum = 0;
+  for (const ev of replayRealisedEvents(ordered)) {
     // Every sell is a real dated event worth stamping, even when the
     // running total doesn't move (e.g. a clamped no-op sell).
-    points.push({ atISO: t.dateISO, valueMinor: realisedPlMinor });
-    prevRealised = realisedPlMinor;
+    cum += ev.realisedMinor;
+    points.push({ atISO: ev.dateISO, valueMinor: cum });
+    prevRealised = cum;
   }
 
   const last = points[points.length - 1];

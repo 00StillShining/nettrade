@@ -13,8 +13,38 @@
 // the correct, honest state for a user who has not synced yet. The sync itself
 // lives in liveHistory.ts (fetch + mapping); this file only holds state.
 
-import type { PerformanceTruth, SeriesBundle } from "../../engine/types";
-import type { HistoryOrderFill, HistoryDividend } from "../../adapters/trading212";
+import type { PerformanceTruth, SeriesBundle, CashEvent, Trade, EquitySnapshot } from "../../engine/types";
+import type { HistoryOrderFill, HistoryDividend, Position } from "../../adapters/trading212";
+import type { ReconPerTicker } from "./liveHistory";
+
+/**
+ * The RAW engine inputs the truth deck needs to window by period
+ * (computePeriodTruth in engine/period.ts consumes exactly these). Published by
+ * loadTruth alongside the computed truth so the deck can re-window WITHOUT
+ * re-reading the DB per chip click. Null before the first live load.
+ */
+export interface PeriodInputs {
+  cashEvents: CashEvent[];
+  trades: Trade[];
+  positions: Position[];
+  snapshots: EquitySnapshot[];
+  asOfISO: string;
+  currency: string;
+}
+
+/**
+ * The ledger-vs-book reconciliation published for the screens (see reconcile()
+ * in liveHistory.ts). `perTicker` lists every symbol on either side with its
+ * replayed ledger qty vs the live held qty and whether they agree;
+ * `mismatches` counts the not-ok rows; `checkedAtISO` is the load time the
+ * compare ran (stamped by loadTruth — this is a once-per-load figure, never
+ * recomputed per tick). Null until the first live load has run.
+ */
+export interface ReconReport {
+  perTicker: ReconPerTicker[];
+  mismatches: number;
+  checkedAtISO: string;
+}
 
 // Per the shared contract, `startHistorySync` is part of truthStore.ts's PUBLIC
 // surface (screens import it from here). Its IMPLEMENTATION lives in
@@ -61,6 +91,16 @@ export const TruthStore: {
   /** Account currency the truth figures are denominated in (from the live
    *  account when known, else "GBP" fallback). */
   ccy: string;
+  /** Money-weighted annualised return as a PERCENT (e.g. 12.4 = +12.4%/yr), or
+   *  null. NULL whenever `txnsPartial` — a missing older deposit would let xirr()
+   *  fabricate a rate, so the null IS the honest value there; also null when the
+   *  flow list is degenerate (non-convergent / <2 flows / all one sign). */
+  xirrPct: number | null;
+  /** The ledger-vs-book reconciliation from the last live load, or null before
+   *  the first load. Computed ONCE per load (never per tick). */
+  recon: ReconReport | null;
+  /** Raw engine inputs for the deck's period windowing (see PeriodInputs). */
+  periodInputs: PeriodInputs | null;
   subscribe(fn: Listener): () => void;
   notify(): void;
 } = {
@@ -70,10 +110,18 @@ export const TruthStore: {
   dividends: [],
   sync: "idle",
   syncError: null,
-  txnsPartial: false,
+  // PESSIMISTIC default: until a load derives the real verdict from the
+  // persisted cursor state, assume the deposit history is incomplete — the
+  // stale-false window let XIRR publish a rate off missing deposits (the
+  // exact fabrication the contract forbids). loadTruth re-derives this from
+  // sync_meta on every load, so it can never go stale.
+  txnsPartial: true,
   syncedAtISO: null,
   firstSnapshotISO: null,
   ccy: "GBP",
+  xirrPct: null,
+  recon: null,
+  periodInputs: null,
 
   // Screens subscribe once (in an effect); returns the unsubscribe closure.
   // Mirrors DataEngine.subscribe/notify: a subscriber throw is swallowed so one

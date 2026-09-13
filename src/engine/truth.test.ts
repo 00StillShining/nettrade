@@ -6,7 +6,14 @@
 import { describe, expect, it } from "vitest";
 import type { CashEvent, Trade } from "./types";
 import type { Position } from "../adapters/trading212";
-import { bestWorstHolding, computeRealised, computeTruth } from "./truth";
+import {
+  accountRealisedBasis,
+  bestWorstHolding,
+  computeRealised,
+  computeTruth,
+  replayRealisedEvents,
+  settledBasisTickers,
+} from "./truth";
 
 function makePosition(overrides: Partial<Position>): Position {
   return {
@@ -30,7 +37,9 @@ function makePosition(overrides: Partial<Position>): Position {
 describe("computeRealised", () => {
   it("returns all-zero result for an empty trade list", () => {
     const result = computeRealised([]);
-    expect(result).toEqual({ realisedPlMinor: 0, perTicker: {} });
+    // realisedBasis is "settled" by vacuous truth for an empty set (item 1):
+    // no fill lacked a settled value, so there is nothing to caveat.
+    expect(result).toEqual({ realisedPlMinor: 0, perTicker: {}, realisedBasis: "settled" });
   });
 
   it("average-cost across multiple buys then a partial sell then a full sell", () => {
@@ -227,5 +236,198 @@ describe("computeTruth", () => {
   it("passes through the given currency", () => {
     const result = computeTruth([], [], [], "2025-01-01", "USD");
     expect(result.currency).toBe("USD");
+  });
+
+  it("exposes realisedBasis 'settled' when every fill carries a settled value", () => {
+    const trades: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "S", side: "buy", quantity: 2, priceMinor: 999, feeMinor: 0, settledValueMinor: 100 },
+      { dateISO: "2025-01-02", ticker: "S", side: "sell", quantity: 1, priceMinor: 999, feeMinor: 0, settledValueMinor: 120 },
+    ];
+    const result = computeTruth([], trades, [], "2025-02-01", "GBP");
+    // Settled basis: avgCost 50, proceeds 120 -> realised +70 (exact account ccy).
+    expect(result.realisedBasis).toBe("settled");
+    expect(result.realisedPlMinor).toBe(70);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Item 1 — settled-value (exact account-currency) realised replay. Each case
+// hand-states the arithmetic so the expected figure is checkable independent
+// of the implementation. `priceMinor` is deliberately set to a value that does
+// NOT reconcile with settledValueMinor, so any case that lands on the settled
+// number PROVES the settled branch (not the instrument branch) produced it.
+// ---------------------------------------------------------------------------
+describe("computeRealised — settled-value basis (item 1)", () => {
+  it("exact-GBP round trip: buy 2 @ settled 100, sell 1 @ settled 120 fee 5 => +65, avg-cost 50", () => {
+    // Settled basis (all fills carry settledValueMinor):
+    //   Buy 2, settled 100, fee 0 -> totalCost 100, qty 2, avgCost 50/share.
+    //   Sell 1, settled 120, fee 5 -> sellQty 1, proceeds 120*(1/1)=120,
+    //     costOfSold 50*1=50, realised = 120 - 50 - 5 = 65.
+    //   priceMinor is 999 throughout to prove the instrument branch was NOT used
+    //   (instrument math would give proceeds 999, a completely different number).
+    const trades: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "GBPX", side: "buy", quantity: 2, priceMinor: 999, feeMinor: 0, settledValueMinor: 100 },
+      { dateISO: "2025-01-02", ticker: "GBPX", side: "sell", quantity: 1, priceMinor: 999, feeMinor: 5, settledValueMinor: 120 },
+    ];
+    const result = computeRealised(trades);
+    expect(result.realisedPlMinor).toBe(65);
+    expect(result.perTicker.GBPX.realisedMinor).toBe(65);
+    expect(result.perTicker.GBPX.closedQty).toBe(1);
+    expect(result.realisedBasis).toBe("settled");
+  });
+
+  it("settled averaging across two buys then a full close", () => {
+    // Buy 1, settled 100 -> cost 100, qty 1.
+    // Buy 1, settled 300 -> cost 400, qty 2, avgCost 200/share.
+    // Sell 2, settled 500, fee 0 -> proceeds 500*(2/2)=500, costOfSold 200*2=400,
+    //   realised = 500 - 400 = 100.
+    const trades: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "AVG", side: "buy", quantity: 1, priceMinor: 1, feeMinor: 0, settledValueMinor: 100 },
+      { dateISO: "2025-01-02", ticker: "AVG", side: "buy", quantity: 1, priceMinor: 1, feeMinor: 0, settledValueMinor: 300 },
+      { dateISO: "2025-01-03", ticker: "AVG", side: "sell", quantity: 2, priceMinor: 1, feeMinor: 0, settledValueMinor: 500 },
+    ];
+    const result = computeRealised(trades);
+    expect(result.realisedPlMinor).toBe(100);
+    expect(result.realisedBasis).toBe("settled");
+  });
+
+  it("clamped settled sell scales its settled proceeds by sellQty/quantity", () => {
+    // Buy 2, settled 100 -> avgCost 50, qty 2.
+    // Sell quantity 5 (only 2 held) settled 500 fee 0 -> sellQty clamps to 2,
+    //   proceeds = 500 * (2/5) = 200, costOfSold = 50*2 = 100, realised = 100.
+    // (Scaling the WHOLE-fill settled value by the sold fraction is what keeps a
+    //  clamped partial close from banking the full fill's cash.)
+    const trades: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "CLMP", side: "buy", quantity: 2, priceMinor: 1, feeMinor: 0, settledValueMinor: 100 },
+      { dateISO: "2025-01-02", ticker: "CLMP", side: "sell", quantity: 5, priceMinor: 1, feeMinor: 0, settledValueMinor: 500 },
+    ];
+    const result = computeRealised(trades);
+    expect(result.realisedPlMinor).toBe(100);
+    expect(result.perTicker.CLMP.closedQty).toBe(2);
+    expect(result.realisedBasis).toBe("settled");
+  });
+
+  it("a ticker with ANY missing settled value falls back WHOLLY to the instrument basis", () => {
+    // Buy 2, priceMinor 100, settled 500 (settled != instrument), fee 0.
+    // Sell 1, priceMinor 300, settled MISSING, fee 0.
+    // Because one fill lacks a settled value, the WHOLE ticker uses instrument
+    // maths: buy totalCost 2*100=200, avgCost 100; sell proceeds 1*300=300,
+    // realised = 300 - 100 = 200.
+    // If the code had (wrongly) mixed bases — settled buy 500 -> avgCost 250,
+    // instrument sell 300 -> realised 50 — this assertion would catch it.
+    const trades: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "MIXT", side: "buy", quantity: 2, priceMinor: 100, feeMinor: 0, settledValueMinor: 500 },
+      { dateISO: "2025-01-02", ticker: "MIXT", side: "sell", quantity: 1, priceMinor: 300, feeMinor: 0 },
+    ];
+    const result = computeRealised(trades);
+    expect(result.realisedPlMinor).toBe(200);
+    // Account-level label is "mixed": some fills carried a settled value, some did not.
+    expect(result.realisedBasis).toBe("mixed");
+  });
+
+  it("a later fill with no settled value demotes the WHOLE ticker, including earlier settled fills", () => {
+    // Buy 1 settled 100, Buy 1 settled 300 (both settled), then a THIRD buy with
+    // NO settled value must pull the whole ticker onto the instrument basis.
+    //   Instrument: buy1 1*100=100? NO — priceMinor here is the instrument price.
+    // Set priceMinor so the two bases diverge: priceMinor 10 each.
+    //   Instrument totalCost = 1*10 + 1*10 + 1*10 = 30 over qty 3, avgCost 10.
+    //   Sell 3 @ price 40 -> proceeds 120, realised = 120 - 30 = 90.
+    //   Settled (if it had wrongly been used for the first two) would give a
+    //   different avgCost, so 90 proves the whole-ticker instrument fallback.
+    const trades: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "DEMOTE", side: "buy", quantity: 1, priceMinor: 10, feeMinor: 0, settledValueMinor: 100 },
+      { dateISO: "2025-01-02", ticker: "DEMOTE", side: "buy", quantity: 1, priceMinor: 10, feeMinor: 0, settledValueMinor: 300 },
+      { dateISO: "2025-01-03", ticker: "DEMOTE", side: "buy", quantity: 1, priceMinor: 10, feeMinor: 0 }, // no settled -> demotes all
+      { dateISO: "2025-01-04", ticker: "DEMOTE", side: "sell", quantity: 3, priceMinor: 40, feeMinor: 0 },
+    ];
+    const result = computeRealised(trades);
+    expect(result.realisedPlMinor).toBe(90);
+    expect(result.realisedBasis).toBe("mixed");
+  });
+
+  it("per-ticker basis is independent: one settled ticker + one instrument ticker", () => {
+    // SET ticker (all settled): buy 2 settled 100 (avgCost 50), sell 1 settled 120
+    //   -> realised +70.
+    // INS ticker (no settled): buy 1 @ price 100, sell 1 @ price 130 -> +30.
+    // Total realised = 100. Account basis "mixed" (SET settled, INS instrument).
+    const trades: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "SET", side: "buy", quantity: 2, priceMinor: 999, feeMinor: 0, settledValueMinor: 100 },
+      { dateISO: "2025-01-02", ticker: "SET", side: "sell", quantity: 1, priceMinor: 999, feeMinor: 0, settledValueMinor: 120 },
+      { dateISO: "2025-01-03", ticker: "INS", side: "buy", quantity: 1, priceMinor: 100, feeMinor: 0 },
+      { dateISO: "2025-01-04", ticker: "INS", side: "sell", quantity: 1, priceMinor: 130, feeMinor: 0 },
+    ];
+    const result = computeRealised(trades);
+    expect(result.perTicker.SET.realisedMinor).toBe(70);
+    expect(result.perTicker.INS.realisedMinor).toBe(30);
+    expect(result.realisedPlMinor).toBe(100);
+    expect(result.realisedBasis).toBe("mixed");
+  });
+
+  it("realisedBasis is 'instrument' when NO fill carries a settled value (existing v1 behaviour)", () => {
+    const trades: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "OLD", side: "buy", quantity: 1, priceMinor: 1000, feeMinor: 0 },
+      { dateISO: "2025-01-02", ticker: "OLD", side: "sell", quantity: 1, priceMinor: 1300, feeMinor: 0 },
+    ];
+    const result = computeRealised(trades);
+    expect(result.realisedPlMinor).toBe(300); // instrument-ccy, unchanged from v1
+    expect(result.realisedBasis).toBe("instrument");
+  });
+
+  it("a settled value of 0 counts as MISSING (adapter stores absent as 0/undefined)", () => {
+    // settledValueMinor: 0 must NOT be treated as a real £0 settled fill — the
+    // T212 adapter stores an absent value as 0/undefined. So this ticker falls
+    // back to instrument basis exactly like an undefined settled value.
+    const trades: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "ZERO", side: "buy", quantity: 1, priceMinor: 1000, feeMinor: 0, settledValueMinor: 0 },
+      { dateISO: "2025-01-02", ticker: "ZERO", side: "sell", quantity: 1, priceMinor: 1300, feeMinor: 0, settledValueMinor: 0 },
+    ];
+    const result = computeRealised(trades);
+    expect(result.realisedPlMinor).toBe(300); // instrument basis
+    expect(result.realisedBasis).toBe("instrument");
+  });
+});
+
+describe("accountRealisedBasis + settledBasisTickers helpers", () => {
+  it("accountRealisedBasis: empty -> 'settled' (vacuous), all-settled -> 'settled', none -> 'instrument', partial -> 'mixed'", () => {
+    expect(accountRealisedBasis([])).toBe("settled");
+
+    const allSettled: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "A", side: "buy", quantity: 1, priceMinor: 1, feeMinor: 0, settledValueMinor: 50 },
+    ];
+    expect(accountRealisedBasis(allSettled)).toBe("settled");
+
+    const none: Trade[] = [{ dateISO: "2025-01-01", ticker: "A", side: "buy", quantity: 1, priceMinor: 1, feeMinor: 0 }];
+    expect(accountRealisedBasis(none)).toBe("instrument");
+
+    const partial: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "A", side: "buy", quantity: 1, priceMinor: 1, feeMinor: 0, settledValueMinor: 50 },
+      { dateISO: "2025-01-02", ticker: "B", side: "buy", quantity: 1, priceMinor: 1, feeMinor: 0 },
+    ];
+    expect(accountRealisedBasis(partial)).toBe("mixed");
+  });
+
+  it("settledBasisTickers: only tickers whose EVERY fill carries a positive settled value", () => {
+    const trades: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "GOOD", side: "buy", quantity: 1, priceMinor: 1, feeMinor: 0, settledValueMinor: 100 },
+      { dateISO: "2025-01-02", ticker: "GOOD", side: "sell", quantity: 1, priceMinor: 1, feeMinor: 0, settledValueMinor: 120 },
+      { dateISO: "2025-01-03", ticker: "BAD", side: "buy", quantity: 1, priceMinor: 1, feeMinor: 0, settledValueMinor: 100 },
+      { dateISO: "2025-01-04", ticker: "BAD", side: "sell", quantity: 1, priceMinor: 1, feeMinor: 0 }, // missing -> excludes BAD
+    ];
+    const set = settledBasisTickers(trades);
+    expect(set.has("GOOD")).toBe(true);
+    expect(set.has("BAD")).toBe(false);
+  });
+
+  it("replayRealisedEvents still yields one dated event per sell under the settled basis", () => {
+    // The single-source-of-truth loop must keep stamping an event per sell (for
+    // realisedSeries/period.ts), now with settled-derived realised values.
+    const trades: Trade[] = [
+      { dateISO: "2025-01-01", ticker: "EV", side: "buy", quantity: 2, priceMinor: 999, feeMinor: 0, settledValueMinor: 100 },
+      { dateISO: "2025-01-02", ticker: "EV", side: "sell", quantity: 1, priceMinor: 999, feeMinor: 0, settledValueMinor: 120 },
+    ];
+    const events = replayRealisedEvents(trades);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ dateISO: "2025-01-02", ticker: "EV", sellQty: 1 });
+    expect(events[0].realisedMinor).toBeCloseTo(70, 9); // 120 - 50 avgCost
   });
 });

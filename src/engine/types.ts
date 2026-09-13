@@ -59,20 +59,30 @@ export type TradeSide = "buy" | "sell";
  * `currentPriceMinor` in src/adapters/trading212.ts. `feeMinor` is in
  * ACCOUNT currency minor units (fees are typically charged in account
  * currency by the broker). `settledValueMinor`, when the source provides
- * it, is the actual account-currency cash impact of the trade and should
- * be preferred by any FUTURE cross-currency-aware maths.
+ * it, is the actual account-currency cash impact of the trade — and IS now
+ * the PREFERRED basis: `computeRealised` uses it (item 1, docs/IMPROVEMENTS.md)
+ * to compute EXACT account-currency realised P/L for any ticker whose every
+ * fill carries one (see the two-basis note below and RealisedBasis).
  *
- * v1 keeps this SIMPLE and does NOT invent an FX rate: `computeRealised`
- * replays trades and computes realised P/L purely in the trade's own
- * `priceMinor` terms via average-cost, and exposes that figure as-is. For
- * a single-currency account (or when every trade for a ticker shares one
- * instrument currency) this is exact. For a multi-currency account where a
- * ticker's trades span more than one instrument currency, or where FX
- * moved between the buy and the sell, the summed `realisedPlMinor` is a
- * same-currency-terms approximation and is NOT reconciled against account
- * currency. This is a KNOWN, DOCUMENTED v1 limitation — a later task can
- * add a real FX-aware adapter; this engine must not fabricate a rate to
- * paper over it.
+ * TWO BASES, PER TICKER (item 1):
+ *  - SETTLED (preferred, EXACT account-ccy) — when EVERY one of a ticker's
+ *    fills carries a positive `settledValueMinor`, realised P/L for that
+ *    ticker is derived from those broker cash values directly, so it is exact
+ *    account currency with NO FX assumption. This is the honest ideal.
+ *  - INSTRUMENT (the v1 fallback) — for a ticker with ANY missing settled
+ *    value, `computeRealised` falls back WHOLLY to the trade's own
+ *    `priceMinor` terms via average-cost and exposes that figure as-is. A
+ *    ticker never mixes the two bases (that would fabricate a figure in
+ *    neither currency). This fallback keeps the ORIGINAL v1 limitation: for a
+ *    single-currency account (or when every trade for a ticker shares one
+ *    instrument currency) it is exact; for a multi-currency account where a
+ *    ticker's trades span more than one instrument currency, or where FX moved
+ *    between the buy and the sell, the summed `realisedPlMinor` is a
+ *    same-currency-terms approximation NOT reconciled against account
+ *    currency. This is a KNOWN, DOCUMENTED limitation — this engine must not
+ *    fabricate an FX rate to paper over it. The account-level `realisedBasis`
+ *    (on RealisedResult/PerformanceTruth) reports which basis the total drew
+ *    on so a screen can label it honestly.
  */
 export interface Trade {
   dateISO: string;
@@ -84,9 +94,36 @@ export interface Trade {
   priceMinor: Money;
   /** Trading fee/commission, ACCOUNT currency minor units, stored positive. */
   feeMinor: Money;
-  /** Optional: actual account-currency cash impact, if the source supplies it. */
+  /**
+   * Optional: the actual account-currency cash MAGNITUDE of the fill (the
+   * broker's walletImpact.netValue, stored positive for both buys and sells —
+   * see fillToTrade/normalizeOrderFill in the T212 adapter). When present and
+   * > 0 on EVERY fill of a ticker, it is the PREFERRED, exact realised-P/L
+   * basis (item 1); a missing/zero value on any fill demotes that whole ticker
+   * to the instrument-currency fallback. See this interface's doc comment.
+   */
   settledValueMinor?: Money;
 }
+
+/**
+ * Which cost basis the realised P/L was computed on (item 1,
+ * docs/IMPROVEMENTS.md; see the settled-value branch in
+ * replayRealisedEvents in truth.ts):
+ *   - "settled"    — EVERY executed fill replayed carried a positive
+ *                    settledValueMinor, so realised P/L is the EXACT
+ *                    account-currency (e.g. GBP) figure derived from the
+ *                    broker's own walletImpact cash values. The honest ideal.
+ *   - "instrument" — NO fill carried a settled value, so every ticker fell
+ *                    back to the v1 average-cost replay in each trade's own
+ *                    instrument-currency priceMinor terms (exact only for a
+ *                    single-currency account — see Trade's doc comment).
+ *   - "mixed"      — some fills carried a settled value and some did not.
+ *                    Each ticker still uses ONE basis WHOLLY (bases are never
+ *                    mixed within a ticker, which would fabricate a figure),
+ *                    but the account total draws on both and/or the data is
+ *                    inconsistent, so the label stays cautious.
+ */
+export type RealisedBasis = "settled" | "instrument" | "mixed";
 
 /**
  * One honestly-RECORDED mark-to-market point. The app persists one of
@@ -121,7 +158,7 @@ export interface PerformanceTruth {
   withdrawalsMinor: Money;
   /** deposits - withdrawals. The honest "money you put in, net of what you took out". */
   netContributionsMinor: Money;
-  /** Realised P/L from computeRealised — v1: in each trade's own instrument-currency minor-unit terms, NOT FX-converted to account currency (see Trade's doc comment). Exact only for single-currency accounts. totalGainMinor inherits this caveat. */
+  /** Realised P/L from computeRealised. Its currency basis is reported by `realisedBasis`: EXACT account-currency for the settled basis; for the instrument fallback it is in each trade's own instrument-currency minor-unit terms, NOT FX-converted (see Trade's doc comment), exact only for single-currency accounts. totalGainMinor inherits whatever caveat `realisedBasis` implies. */
   realisedPlMinor: Money;
   unrealisedPlMinor: Money;
   dividendsMinor: Money;
@@ -133,13 +170,22 @@ export interface PerformanceTruth {
    * - fees + interest. See computeTruth's doc comment for the full
    * reconciliation caveat against currentValue - netContributions.
    *
-   * CURRENCY CAVEAT: inherits realisedPlMinor's v1 instrument-currency
-   * limitation — NOT FX-converted to account currency; exact only for
-   * single-currency accounts (see realisedPlMinor and Trade's doc comment).
+   * CURRENCY CAVEAT: inherits realisedPlMinor's basis (see `realisedBasis`) —
+   * EXACT account currency when "settled"; for the "instrument"/"mixed" basis
+   * the realised component is NOT FX-converted, exact only for single-currency
+   * accounts (see realisedPlMinor and Trade's doc comment).
    */
   totalGainMinor: Money;
   /** totalGain / netContributions, or null when netContributions <= 0 (undefined ratio — never divide by zero or a negative base). */
   totalReturnPct: number | null;
+  /**
+   * Which basis realisedPlMinor (and hence totalGainMinor's realised
+   * component) was computed on — "settled" (exact account-ccy), "instrument"
+   * (v1 same-currency approximation), or "mixed". See RealisedBasis. A screen
+   * should label the True Gain figure accordingly (e.g. only claim "exact"
+   * when this is "settled").
+   */
+  realisedBasis: RealisedBasis;
   best: HoldingRef | null;
   worst: HoldingRef | null;
 }

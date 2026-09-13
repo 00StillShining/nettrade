@@ -33,6 +33,7 @@ import {
 } from "../../adapters/trading212";
 import type { CashEvent, Trade, EquitySnapshot } from "../../engine/types";
 import { computeTruth } from "../../engine/truth";
+import { xirr } from "../../engine/xirr";
 import {
   netDepositsSeries,
   realisedSeries,
@@ -51,7 +52,7 @@ import {
 import { getDb } from "../../db/index";
 import { getCreds } from "./live";
 import { State } from "../state";
-import { TruthStore, type FillRow } from "./truthStore";
+import { TruthStore, type FillRow, type ReconReport as TruthReconReport } from "./truthStore";
 
 const IS_MOCK = import.meta.env.VITE_MOCK === "1";
 
@@ -71,6 +72,24 @@ const CURSOR_KEYS = {
  *  standalone-testable pure function rather than importing the orchestrator). */
 export function cleanTicker(t: string): string {
   return (t.split("_")[0] || t).trim().toUpperCase();
+}
+
+/** A held symbol that trades as crypto → its Coinbase pair (keyless live).
+ *  Copies live.ts's CRYPTO_PAIR verbatim so reconcile() nets a crypto fill under
+ *  the SAME book key live.ts writes ("BTC" → "BTC-USD"); without it a BTC fill's
+ *  ledger qty would sit under "BTC" while the live position sits under "BTC-USD",
+ *  and every crypto holding would read as a phantom mismatch. Kept local (not
+ *  imported) so this module stays acyclic + standalone-testable, matching the
+ *  cleanTicker copy above. */
+const CRYPTO_PAIR: Record<string, string> = { BTC: "BTC-USD", ETH: "ETH-USD" };
+
+/** bookSym — the display key the live book uses for a raw T212 ticker: clean the
+ *  suffix, then map a crypto base to its pair. This is the EXACT key derivation
+ *  live.ts applies when it builds State.positions (cleanTicker → CRYPTO_PAIR), so
+ *  reconcile() groups replayed fills under keys that line up with the live book. */
+export function bookSym(rawTicker: string): string {
+  const c = cleanTicker(rawTicker);
+  return CRYPTO_PAIR[c] ?? c;
 }
 
 /* ====================== PURE MAPPING (exported for tests) ====================== */
@@ -176,6 +195,127 @@ export function toCashEvents(
   }
   for (const d of dividends) events.push(dividendToCashEvent(d));
   return { events, skippedOther };
+}
+
+/* ====================== XIRR FLOW BUILDING (store wiring) ====================== */
+
+/** One dated signed cash flow in the investor convention xirr() consumes:
+ *  contributions NEGATIVE, withdrawals + the terminal portfolio value POSITIVE. */
+export interface XirrFlow {
+  dateISO: string;
+  amountMinor: number;
+}
+
+/**
+ * buildXirrFlows — the investor-convention flow list for the money-weighted
+ * (XIRR) return, from the account's cash events plus the terminal portfolio
+ * value. Sign convention (xirr.ts's contract): money you PUT IN is negative,
+ * money that comes back to you — a withdrawal, and the final portfolio value —
+ * is positive.
+ *
+ * ONLY deposits and withdrawals are external flows. Interest, fees and dividends
+ * are INTERNAL to the account's return (they are part of what the money earned,
+ * not fresh capital in/out), so they are NOT flows — including them would
+ * double-count them (they already move the terminal value) and distort the rate.
+ *
+ * The terminal flow is appended LAST: +terminalValueMinor dated at `nowISO`, the
+ * live "what it's all worth now" mark that closes the series. Callers pass the
+ * live account total and the current time explicitly (this stays pure/testable).
+ */
+export function buildXirrFlows(
+  cashEvents: CashEvent[],
+  terminalValueMinor: number,
+  nowISO: string,
+): XirrFlow[] {
+  const flows: XirrFlow[] = [];
+  for (const e of cashEvents) {
+    if (e.kind === "deposit") flows.push({ dateISO: e.dateISO, amountMinor: -e.amountMinor });
+    else if (e.kind === "withdrawal") flows.push({ dateISO: e.dateISO, amountMinor: e.amountMinor });
+    // interest / fee / dividend: internal to the return, not external flows.
+  }
+  flows.push({ dateISO: nowISO, amountMinor: terminalValueMinor });
+  return flows;
+}
+
+/* ====================== RECONCILE (item 2) ====================== */
+
+/** Fractional-share epsilon: two quantities agree when they differ by less than
+ *  this. T212 fills carry fractional shares (e.g. 0.0731 of a stock), so an exact
+ *  === would spuriously flag rounding dust; 1e-4 is well below one hundredth of a
+ *  share yet far above float noise from summing hundreds of fills. */
+export const RECON_EPSILON = 1e-4;
+
+/** One ticker's ledger-vs-book comparison. `ledgerQty` is the replayed net
+ *  (Σ buy − Σ sell) from executed fills; `liveQty` is the live book's held qty;
+ *  `ok` when they agree within RECON_EPSILON. */
+export interface ReconPerTicker {
+  sym: string;
+  ledgerQty: number;
+  liveQty: number;
+  ok: boolean;
+}
+
+/** The reconcile result MINUS `checkedAtISO` (the caller — loadTruth — stamps the
+ *  load time so the "as of" is the honest moment the compare ran). */
+export interface ReconResult {
+  perTicker: ReconPerTicker[];
+  mismatches: number;
+}
+
+/**
+ * reconcile — the honest ledger-vs-book cross-check (item 2). Replays NET
+ * quantity per cleaned display symbol from the EXECUTED fills (Σ buy qty −
+ * Σ sell qty, fractional-safe) and compares it against the live book's held
+ * quantity per symbol.
+ *
+ * WHY THIS MATTERS: the History screen's realised P/L is a replay of these same
+ * fills. If the replayed net position for a ticker does not match the shares the
+ * broker says are actually held, the fill history is incomplete (or the book is
+ * mid-update) and the realised figure inherits that gap — this surfaces it
+ * instead of hiding it.
+ *
+ * COVERAGE: a ticker is included when it appears on EITHER side — a symbol held
+ * live with NO fills in history (ledgerQty 0, liveQty > 0) is a real mismatch
+ * (missing fills), and fills that net to a non-zero position with NO live holding
+ * (ledgerQty > 0, liveQty 0) is equally a mismatch. Only when both sides agree
+ * within RECON_EPSILON is a ticker `ok`.
+ *
+ * PURE: no I/O, no clock — callers pass the fills and the live book snapshot. The
+ * book map is `sym -> { qty, ... }` exactly as State.positions holds it.
+ */
+export function reconcile(
+  fills: HistoryOrderFill[],
+  book: Record<string, { qty: number }>,
+): ReconResult {
+  // Replay net qty per BOOK symbol from executed fills only. Object.create(null)
+  // so an arbitrary ticker string ("constructor" etc.) can't collide with an
+  // inherited member and corrupt the tally.
+  const ledger: Record<string, number> = Object.create(null);
+  for (const f of fills) {
+    if (!isExecutedFill(f)) continue;
+    const sym = bookSym(f.ticker);
+    const signed = f.side === "sell" ? -f.quantity : f.quantity;
+    ledger[sym] = (ledger[sym] ?? 0) + signed;
+  }
+
+  // Union of symbols on either side (a held-no-fills sym and a fills-no-position
+  // sym are both included, both mismatches).
+  const syms = new Set<string>([...Object.keys(ledger), ...Object.keys(book)]);
+
+  const perTicker: ReconPerTicker[] = [];
+  let mismatches = 0;
+  for (const sym of syms) {
+    const ledgerQty = ledger[sym] ?? 0;
+    const liveQty = book[sym]?.qty ?? 0;
+    const ok = Math.abs(ledgerQty - liveQty) < RECON_EPSILON;
+    if (!ok) mismatches += 1;
+    perTicker.push({ sym, ledgerQty, liveQty, ok });
+  }
+  // Stable, readable order: mismatches first, then alphabetical — the screen
+  // wants the problems at the top without re-sorting.
+  perTicker.sort((a, b) => Number(a.ok) - Number(b.ok) || (a.sym < b.sym ? -1 : a.sym > b.sym ? 1 : 0));
+
+  return { perTicker, mismatches };
 }
 
 /**
@@ -321,11 +461,63 @@ export async function loadTruth(): Promise<void> {
       .map((f) => ({ ...f, sym: cleanTicker(f.ticker) }))
       .reverse();
 
+    // RECON (item 2) — computed ONCE here per load (never per tick). Replays net
+    // qty per book symbol from the executed fills and compares against the live
+    // book (State.positions); checkedAtISO is this load's timestamp. Uses the
+    // full orderFills (reconcile filters to executed itself).
+    const reconResult = reconcile(orderFills, State.positions);
+    const recon: TruthReconReport = {
+      perTicker: reconResult.perTicker,
+      mismatches: reconResult.mismatches,
+      checkedAtISO: asOfISO,
+    };
+
+    // txnsPartial is DERIVED HERE, fresh, on every load — from the PERSISTED
+    // cursor state, never from a flag another code path may not have set yet.
+    // (The old end-of-sync assignment left a stale-false window during which
+    // XIRR could publish a rate off missing deposits.) Incomplete when a
+    // back-fill resume cursor is still parked, or when no transactions have
+    // ever landed (no deposits known at all).
+    let txnsIncomplete = true;
+    try {
+      const parked = await readCursor(CURSOR_KEYS.transactions);
+      txnsIncomplete = parked !== null || txns.length === 0;
+    } catch {
+      txnsIncomplete = txns.length === 0 ? true : TruthStore.txnsPartial;
+    }
+    TruthStore.txnsPartial = txnsIncomplete;
+
+    // XIRR (money-weighted annualised return, as a percent). NULL whenever the
+    // transactions back-fill is known-incomplete: a missing older deposit would
+    // let xirr() converge to a FABRICATED rate off a wrong contribution history —
+    // the null is the honest value there, exactly like the truth deck's caveat.
+    // Otherwise build the investor-convention flows (deposits −, withdrawals +,
+    // terminal live total +) and annualise; store as percent (rate*100). xirr()
+    // returns null on a non-convergent/degenerate series (also honest → null).
+    let xirrPct: number | null = null;
+    if (!txnsIncomplete && State.liveAccount && State.liveAccount.totalMinor > 0) {
+      const flows = buildXirrFlows(events, State.liveAccount.totalMinor, asOfISO);
+      const rate = xirr(flows);
+      xirrPct = rate === null ? null : rate * 100;
+    }
+
     TruthStore.truth = truth;
     TruthStore.series = series;
     TruthStore.fills = fills;
     TruthStore.dividends = [...dividends].reverse(); // newest-first
     TruthStore.firstSnapshotISO = snaps.length ? snaps[0].atISO : null;
+    TruthStore.recon = recon;
+    TruthStore.xirrPct = xirrPct;
+    // the RAW engine inputs for the deck's period windowing (item 4) — everything
+    // computePeriodTruth consumes, so a chip click never re-reads the DB.
+    TruthStore.periodInputs = {
+      cashEvents: events,
+      trades,
+      positions,
+      snapshots: snaps,
+      asOfISO,
+      currency: ccy,
+    };
     TruthStore.notify();
   } catch (err) {
     // Read failure — keep the last-good store, mark error, stay honest.
@@ -628,15 +820,11 @@ export function startHistorySync(): void {
     const txnRowCount = txnsSynced ? 1 : (await readAllTransactions().catch(() => [])).length;
     if (txnsSynced || txnRowCount > 0) historySyncedOnce = true;
 
-    // HONESTY FLAG: while the transactions back-fill is known-incomplete
-    // (errored this run, or a resume cursor is still parked), NET CONTRIBUTIONS
-    // is understated and TOTAL GAIN may overstate — the truth deck says so.
-    try {
-      const parked = await readCursor(CURSOR_KEYS.transactions);
-      TruthStore.txnsPartial = !txnsSynced || parked !== null;
-    } catch {
-      TruthStore.txnsPartial = !txnsSynced;
-    }
+    // HONESTY FLAG (txnsPartial): derived FRESH inside loadTruth on every load
+    // from the persisted cursor state — no assignment here (the old end-of-sync
+    // set left a stale-false window during which XIRR could publish a rate off
+    // missing deposits). The per-stream loadTruth calls above already carried
+    // the correct verdict to the store.
     TruthStore.sync = anyError ? "error" : "done";
     TruthStore.syncedAtISO = new Date().toISOString();
     TruthStore.notify();
